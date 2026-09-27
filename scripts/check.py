@@ -36,7 +36,9 @@ Rules checked:
      (±3 px, both read live through #hero/#repisa's real transforms); once the wall is gone the chips vanish
      and the real h2 shows where they landed; scrubbing back and forth is reversible; reduced motion skips the
      whole journey (final states only). Modo rápido: `python3 scripts/check.py letras` corre solo estos checks
-     en escritorio y móvil (como "paridad"); la suite completa también los incluye.
+     en escritorio y móvil (como "paridad"); la suite completa también los incluye. Antes de tocar el scroll,
+     espera a que `.top`/`.info` hayan terminado su propia transición de entrada (independiente del scroll,
+     añadida por scenery.ts al acabar el pintado del paisaje) -- nunca con un tiempo fijo, la regla de siempre.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
@@ -456,6 +458,13 @@ async def check_letters(page, name):
     await shoot_letters(page, name)
     return errs
 
+async def hero_settled(page):
+    """.top/.info carry their own entrance transition (translateY(6px)/opacity 0 -> resting), independent of the
+    scroll, added once the landscape's own paint-in finishes: wait for it instead of a fixed timeout, or a check
+    that scrolls early would compare a chip (measured at its settled position) against a still-animating h1."""
+    try: await page.wait_for_function("getComputedStyle(document.querySelector('.top')).transform === 'none'", timeout=15000)
+    except Exception: pass
+
 async def check_letters_suite(browser):
     """Quick mode: only the letters' journey checks, on desktop and mobile (like paridad)."""
     failures = []
@@ -463,7 +472,7 @@ async def check_letters_suite(browser):
         page = await open_page(browser, viewport={"width": w, "height": h})
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)))
-        await page.goto(page_url); await page.wait_for_timeout(2000)
+        await page.goto(page_url); await hero_settled(page)
         failures += [f"{name}: {e}" for e in await check_letters(page, name)]
         failures += [f"{name}: JS error: {e}" for e in errors]
         await page.close()
