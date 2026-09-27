@@ -381,7 +381,8 @@ function build3D(){
   if(!window.THREE) return null;
   const canvas = document.createElement('canvas'); canvas.id='gl'; canvas.setAttribute('aria-hidden','true');
   let renderer;
-  try{ renderer = new THREE.WebGLRenderer({canvas, antialias:false, powerPreference:'low-power'}); }catch(e){ return null; }
+  // preserveDrawingBuffer: check.py reads the wash straight off this canvas with readPixels
+  try{ renderer = new THREE.WebGLRenderer({canvas, antialias:false, powerPreference:'low-power', preserveDrawingBuffer:true}); }catch(e){ return null; }
   if(!renderer.getContext()) return null;
   document.getElementById('hero').prepend(canvas);
   renderer.setClearColor(0x000000, 0);
@@ -456,11 +457,12 @@ function rng(seed){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013904223)>
     uniforms:{ tScene:{value:rt.texture}, res:{value:new THREE.Vector2(1,1)}, sres:{value:new THREE.Vector2(1,1)}, tq:{value:0}, reveal:{value:1},
       skyTop:{value:new THREE.Vector3()}, skyHor:{value:new THREE.Vector3()}, sunCol:{value:new THREE.Vector3()}, sunPos:{value:new THREE.Vector2()},
       aspect:{value:1}, waspect:{value:1}, hor:{value:.42}, win:{value:new THREE.Vector4(.2,.3,.8,.8)}, wrad:{value:.04}, seats:{value:1},
-      wallA:{value:new THREE.Vector3()}, wallB:{value:new THREE.Vector3()}, wood:{value:new THREE.Vector3()}, seat:{value:new THREE.Vector3()} },
+      wallA:{value:new THREE.Vector3()}, wallB:{value:new THREE.Vector3()}, wood:{value:new THREE.Vector3()}, seat:{value:new THREE.Vector3()},
+      foldY:{value:0}, shade:{value:0} },
     vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`,
     fragmentShader:`
       precision highp float;
-      uniform sampler2D tScene; uniform vec2 res, sres; uniform float tq, reveal, aspect, waspect, hor, wrad, seats;
+      uniform sampler2D tScene; uniform vec2 res, sres; uniform float tq, reveal, aspect, waspect, hor, wrad, seats, foldY, shade;
       uniform vec3 skyTop, skyHor, sunCol, wallA, wallB, wood, seat; uniform vec2 sunPos; uniform vec4 win;
       varying vec2 vUv;
       float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
@@ -557,6 +559,14 @@ function rng(seed){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013904223)>
             edge += ring(sdS, .006)*.6;
           }
           edge += ring(sdW-fw, .005)*.5 + ring(y-dado, .005)*.3 + ring(shelfSd,.005)*.5;
+          // a pigment wash climbs from the hinge where the wall meets the table (task 3, ref. 3): the
+          // front is a single continuous line, roughened by 2D noise so it advances unevenly by zone
+          // rather than as a flat fade; darker, grainier right at its edge, like a real wash's rim
+          float washN = fbm(uv*vec2(9.,6.)*vec2(aspect,1.) + 4.7);
+          float washD = y - foldY - (washN-.5)*.11;
+          float wash = (1.-smoothstep(-.05,.05,washD)) * shade;
+          col = mix(col, col*vec3(.34,.30,.27), clamp(wash,0.,1.));
+          edge += ring(washD, .05)*wash;
           order = (1.-uv.y)*.25 + (fbm(uv*vec2(3.,2.)+7.)-.5)*.3;
         }
 
@@ -615,8 +625,13 @@ function rng(seed){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013904223)>
     renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, camera);
     renderer.setRenderTarget(null); renderer.render(postScene, postCam);
   }
+  // the wash is a direct function of the scroll (no smoothing of its own, per the lesson on the hinge):
+  // it needs to show while the page scrolls even when the render loop is not running (paused, reduced
+  // motion, or offstage), so it redraws just the post pass over the scene already sitting in the render
+  // target, without paying for another pass of the 3D landscape
+  function setWash(foldY, shade){ U.foldY.value = foldY; U.shade.value = shade; renderer.setRenderTarget(null); renderer.render(postScene, postCam); }
   resize(); addEventListener('resize', resize);
-  return {frame, setTime, resize};
+  return {frame, setTime, resize, setWash};
 }
 
 const world = build3D();
@@ -1020,8 +1035,12 @@ function pitch(reset){
   hero.style.visibility = p >= 1 ? 'hidden' : '';
   shelf.style.transformOrigin = '50% 0';
   shelf.style.transform = p > 0 && table > .001 ? `perspective(${P}px) rotateX(${table.toFixed(3)}deg)` : '';
-  // the wall darkens as it turns away from the window's light
-  document.getElementById('sombra').style.opacity = (.6 * Math.pow(wall / PITCH_WALL, 1.3)).toFixed(3);
+  // the wall darkens as it turns away from the window's light: a pigment wash painted in the wall's own
+  // shader, climbing from the hinge (`fold`, in the wall's own coordinates: p is exactly its uv.y). With
+  // no WebGL, `world` is null and the flat #sombra veil is the fallback
+  const shadeAmt = Math.pow(wall / PITCH_WALL, 1.3);
+  if(world) world.setWash(p, shadeAmt);
+  else document.getElementById('sombra').style.opacity = (.6 * shadeAmt).toFixed(3);
   document.getElementById('more').style.opacity = Math.max(0, 1 - p * 8).toFixed(3);
 }
 setupShelf();

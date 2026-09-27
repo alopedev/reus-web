@@ -158,7 +158,7 @@ async def check_wash(page, name):
       return {cw: c.width, ch: c.height, winLeft: w.left, vw: innerWidth};
     })()""")
     if not geo: return []  # no WebGL: the #sombra fallback is what runs, not this check
-    read_px = """(xy) => { const c = document.getElementById('gl'), g = c.getContext('webgl'); if(!g) return null;
+    read_px = """(xy) => { const c = document.getElementById('gl'), g = c.getContext('webgl') || c.getContext('webgl2'); if(!g) return null;
       const p = new Uint8Array(4); g.readPixels(xy[0], xy[1], 1, 1, g.RGBA, g.UNSIGNED_BYTE, p); return [p[0], p[1], p[2]]; }"""
     x = round((geo["winLeft"] * .5) * (geo["cw"] / max(1, geo["vw"])))  # left of the window: always wall, at any height
     def y_for(uv_y): return max(0, min(geo["ch"] - 1, round(uv_y * geo["ch"])))
