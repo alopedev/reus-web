@@ -12,26 +12,25 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 - Papeles (`land()`): caen acelerando y con aleteo; la sombra (`--alto`) se separa y aclara con la altura; se asientan con un giro de 1–2°. La tapa del cuaderno (`openLeaf()`) se abre y rebota al quedar plana
 - Pantallas apaisadas ≥ 1000 × 780: mesa fija con timeline scrubbeado. Menores: cada papel cae al entrar (triggers por offsets de layout)
 - Tarea 3 (referencias para subir la calidad): `docs/referencias/scroll-calidad-transicion.md`. Aplicadas la 1 (ritmo), la 2 (caída con peso) y la 3 (lavado de pigmento en la pared, ver abajo)
-- **Referencia 3 · lavado de pigmento (implementada):** `#sombra` (el velo plano de interfaz) ya no oscurece la pared con WebGL disponible; se mantiene solo como fallback sin WebGL. En su lugar, `pitch()` pasa `foldY` (= `p`, la bisagra en coordenadas de la pared) y `shade` (progreso según el ángulo, misma fórmula que antes) al shader `post` de `src/hero.html`; en la rama de la pared (`sdW >= 0`) un frente continuo `uv.y - foldY`, roto por `fbm` 2D, oscurece `col` con un borde más marcado (`ring`) — mismo modelo de pigmento que ya pinta la pared, sin capa DOM aparte. `world.setWash(foldY, shade)` repinta solo el post-pase (reutiliza la escena 3D ya renderizada en el render target) para que el lavado se vea aunque el bucle esté parado (pausa, `prefers-reduced-motion`, fuera de vista): es función directa del scroll, sin suavizado propio. El renderer principal ahora lleva `preserveDrawingBuffer:true` (lo necesita el check de `readPixels`)
+- **Referencia 3 · lavado de pigmento:** la sombra de la pared se pinta en su shader (`post`, uniforms `foldY`/`shade`, `world.setWash()`): nace en la bisagra y trepa por toda la pared, ventanilla incluida, según el ángulo; los textos se oscurecen con `--lavado`. `setWash()` repinta solo el pase de pintura, como mucho una vez por frame, para que se vea aunque el bucle del paisaje esté parado. `#sombra` es el fallback sin WebGL
 - Prototipos: lienzo Design https://claude.ai/artifact/AQpTBQebv8LaAfEkjYPuiw (páginas «Transición», «Mesa», «Tarea 3 · calidad», «Referencia 3 · lavado» con 3 variantes comparables)
 
 ## Siguiente paso
 
 1. Fase 3 · viaje de letras («Nombre» → «Qué es» como recortes de papel) y fase 4 · tren de papel sobre una vía en la mesa (prototipo aprobado en la página «Transición»). Reutilizar el patrón de `land()` (estado dibujado por un proxy, reversible con scrub) y la sombra según la altura
 2. Grabar el vídeo para X y LinkedIn
-3. Investigar la fuga intermitente de `check_backstage` (ver «Riesgos» abajo): no es nueva de esta sesión, pero conviene resolverla antes de grabar
 
 ## Lecciones técnicas
 
 - Nunca suavizar los ángulos de pared/mesa con un bucle propio: con frames lentos deja ver el fondo. La suavidad va en las curvas
 - `check.py` corre con render por software a ~2 fps: los checks nuevos deben esperar a que la bisagra alcance el scroll (`hinge_caught_up`), no un tiempo fijo, y usar `behavior:'instant'`
 - Si `check_backstage` detecta el fondo, guarda `screenshots/<vista>-fondo-<pct>.png` y el estado del muro en el mensaje
-- El canvas principal (`#gl`) puede crear un contexto `webgl2` aunque `THREE.WebGLRenderer` se pida como `webgl`: para leer sus píxeles desde Playwright, prueba `getContext('webgl') || getContext('webgl2')`
+- Para comprobar colores del hero, lee capturas de pantalla y proyecta los puntos de la pared con su transform (`WALL_AT` en `check.py`); no actives `preserveDrawingBuffer` solo para los tests
 
 ## Pendiente y riesgos
 
 - Nombre de la web (lo decide Àlex)
-- **`check_backstage` es intermitente y ya lo era antes de esta sesión:** en 6 pasadas seguidas de escritorio contra el `hero.html` previo a esta tarea (`HEAD~1`, sin tocar) solo 2/6 salieron limpias (fuga de fondo en magenta en distintos puntos del scroll, sobre todo 40–95 %); con el lavado de pigmento salió 1/6 en la misma prueba y 5/6 en otra. La tasa es parecida (dentro del ruido de 6 pasadas), así que no parece que esta tarea la agrave, pero tampoco la soluciona: sigue pendiente de raíz. No se ha tocado la geometría de `pitch()` para intentar arreglarla, según lo acordado
+- `check_backstage` fallaba de forma intermitente con la máquina cargada: con render por software la página va segundos por detrás del scroll y la captura salía de ese hueco. Ahora cada captura espera a que la bisagra alcance el scroll (`hinge_caught_up`); si vuelve a fallar, mira la captura `screenshots/<vista>-fondo-<pct>.png` antes de tocar la geometría
 - Probar fluidez en un móvil real (solo probado con render por software)
 - Horarios: `data/trains.json` llega hasta el 9 de octubre de 2026; regenerar antes de grabar
 - Condiciones de uso de los datos abiertos de Renfe por verificar (probablemente exigen citar la fuente)

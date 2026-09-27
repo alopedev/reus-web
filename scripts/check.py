@@ -40,7 +40,7 @@ VIEWPORTS = {"desktop": (1440, 860), "mobile": (390, 820)}
 
 async def settle(page):
     """Software rendering is slow: wait until the scrubbed animations have caught up with the scroll."""
-    try: await page.wait_for_function(f"({LANDED}).length === 0", timeout=20000)
+    try: await page.wait_for_function(f"({LANDED}).length === 0", timeout=40000)
     except Exception: pass
     await page.wait_for_timeout(500)
 
@@ -164,6 +164,11 @@ SHADOWS = """(() => {
   return {leaflet: read('#folleto', 'boxShadow', .375, '#folleto'), notebook: read('#cuaderno .der', 'boxShadow', .375, '#cuaderno'),
           cover: read('#cuaderno .tapa', 'boxShadow', .375, '#cuaderno'), ticket: read('#reverso', 'filter', .3, '#reverso')}; })()"""
 
+async def scrub_caught_up(page):
+    """Wait until every scrubbed animation has caught up with its scroll position (they lag on purpose, by .6 s)."""
+    try: await page.wait_for_function("ScrollTrigger.getAll().every(t => !t.animation || Math.abs(t.animation.progress() - t.progress) < .005)", timeout=20000)
+    except Exception: pass
+
 async def check_fall(page):
     """While a paper is in the air its shadow lies farther from it, and lighter, than when it rests on the table."""
     await page.evaluate("scrollTo({top: innerHeight * 1.2, behavior: 'instant'})"); await page.wait_for_timeout(1500)
@@ -176,7 +181,8 @@ async def check_fall(page):
         return [.95, .87, .8].map(t => top - innerHeight * t); }); })()""")
     far, light = {}, {}
     for y in spots:
-        await page.evaluate(f"scrollTo({{top: {y}, behavior: 'instant'}})"); await page.wait_for_timeout(1500)
+        await page.evaluate(f"scrollTo({{top: {y}, behavior: 'instant'}})"); await page.wait_for_timeout(300)
+        await scrub_caught_up(page)
         for paper, sh in (await page.evaluate(SHADOWS)).items():
             if sh["o"] > .3:
                 far[paper] = max(far.get(paper, 0), sh["x"] / sh["rest"]); light[paper] = min(light.get(paper, 1), sh["a"])
