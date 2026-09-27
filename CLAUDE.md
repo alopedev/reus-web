@@ -32,14 +32,14 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 - Texto grande en formato cartel: color papel `#F1EADC` con sombra desplazada `#2D241C`
 - Subrayado punteado = «esto se puede pulsar». Úsalo igual en todos los textos interactivos
 - Sentido del viaje: dos billetes de tren recortados en papel; el activo muestra el viaje, el otro se levanta para invitar a pulsar
-- Sin controles de pausa ni «volver a pintar» para el público. Atajos solo para grabar: R repinta, espacio pausa
+- Sin controles de pausa ni «volver a pintar» para el público. Atajos solo para grabar: R repinta, P pausa (el espacio queda para hacer scroll)
 - La luz del paisaje y del vagón sigue la hora elegida (amanecer, día, atardecer, noche)
 - La estética manda sobre la rapidez, pero la animación no puede ir a tirones
 - Respeta `prefers-reduced-motion` (fotograma fijo)
 
 ## Técnica
 
-- Un único HTML autocontenido. Three.js r128 y GSAP 3.13 (ScrollTrigger, SplitText, Flip, MotionPath) desde cdnjs; fuentes desde Google Fonts. Nada más externo
+- Un único HTML autocontenido. Three.js r128 y GSAP 3.15 (núcleo + ScrollTrigger) desde cdnjs; fuentes desde Google Fonts. Nada más externo
 - Paisaje: escena 3D → render target → shader de acuarela (Kuwahara + modelo de pigmento). El vagón se pinta en el mismo shader fuera de la ventanilla (`sdRR` con el rectángulo de `#win`)
 - Horarios en minutos desde medianoche; claves `r` (Sants→Reus), `b` (Reus→Sants), `a` (AVE, sin uso aún)
 - IDs de parada GTFS: Barcelona-Sants 71801, Reus 71400

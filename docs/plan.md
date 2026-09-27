@@ -87,3 +87,7 @@ Web de horarios de tren Barcelona Sants ↔ Reus cuyo fondo es un paisaje en acu
 | La mirada baja de verdad (la pared se inclina en perspectiva hasta la mesa); los objetos caen y solo el cuaderno se abre; papel plano con grano, sin acuarela abajo | Fundido a la madera; todos los objetos se despliegan; acuarela en la mesa | Momento «guau» sin duplicar el coste de GPU; el gesto se reserva a la sección clave |
 | GSAP 3.13 (ScrollTrigger, SplitText, Flip, MotionPath) desde cdnjs como segunda dependencia | Todo a mano | Gratis y verificado en cdnjs; ~60–90 KB |
 | Reducir movimiento: estados finales sin viaje; si un móvil modesto no va fluido, se simplifica solo en móvil | Fundidos; simplificar en todas partes | Accesibilidad sin mareos; escritorio conserva la versión completa |
+| Pausa de grabación con la tecla P | Espacio | Con scroll, el espacio es la tecla estándar para bajar la página |
+| Solo GSAP núcleo + ScrollTrigger; letras y tren con medidas nativas del navegador | SplitText, Flip, MotionPath | Ahorra ~40 KB; el prototipo ya resuelve esas piezas con cálculo propio |
+| El copy de la web se trata en su propia fase del plan; los textos actuales son provisionales | Cerrar el copy dentro de la fase de secciones | Separar forma y contenido |
+| Cambiar la fuente secundaria por una que case mejor con Young Serif | Familjen Grotesk | Àlex: no casa con la principal (alternativas pendientes de elegir) |

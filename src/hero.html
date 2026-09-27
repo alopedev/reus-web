@@ -550,7 +550,7 @@ addEventListener('resize', ()=>{ if(!playing && world) world.frame(0,0,1); });
 addEventListener('keydown', e=>{
   if(e.target.closest && e.target.closest('input,button')) return;
   if(e.key==='r' || e.key==='R') repaint();
-  if(e.code==='Space'){ e.preventDefault(); playing=!playing; if(playing) kick(); }
+  if(e.key==='p' || e.key==='P'){ playing=!playing; if(playing) kick(); }   // space is left to scroll the page
 });
 
 // days missing from the data borrow the latest known day of the same kind (weekday, Saturday or Sunday)
