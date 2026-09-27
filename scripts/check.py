@@ -24,7 +24,7 @@ Rules checked:
   9. The wall darkens as a pigment wash painted in its own shader, not a flat DOM veil: it starts at
      the hinge and climbs the wall as the wall turns away, the texts on the wall dim with it, and
      nothing lingers once you scroll back to the top.
-  10. The site looks the same as the reference frames in scripts/baseline/ (a still frame with reduced
+  10. The site looks the same as the reference frames in scripts/baseline/<system>/ (a still frame with reduced
      motion and the clock fixed at 10:00 in Madrid): the guard for refactors that must change nothing.
      A missing reference is written from the current build; delete one to renew it.
 Also saves screenshots to screenshots/ for a visual review.
@@ -32,7 +32,7 @@ Also saves screenshots to screenshots/ for a visual review.
 Needs: pip install playwright && playwright install chromium
 Usage: npm run build && python3 scripts/check.py [paridad]   (or: npm run check)   (paridad: only check 10, in a minute)
 """
-import asyncio, functools, http.server, io, pathlib, sys, threading
+import asyncio, functools, http.server, io, os, pathlib, sys, threading
 from PIL import Image, ImageChops, ImageStat
 from playwright.async_api import async_playwright
 
@@ -314,12 +314,13 @@ async def check_sizes(browser):
         await page.close()
     return failures
 
-baseline = root / "scripts/baseline"
+# fonts and antialiasing differ between systems, so each one keeps its own reference frames
+baseline = root / "scripts/baseline" / sys.platform
 PARITY = {"escritorio-hero": (1440, 900, False), "escritorio-mesa": (1440, 900, True), "movil-hero": (390, 844, False)}
 
 async def check_parity(browser):
     """The site looks as it did: a still frame (reduced motion, clock fixed) compared with the reference frames."""
-    errs = []; baseline.mkdir(exist_ok=True)
+    errs = []; baseline.mkdir(parents=True, exist_ok=True)
     for name, (w, h, table) in PARITY.items():
         page = await browser.new_page(viewport={"width": w, "height": h}, reduced_motion="reduce")
         await page.clock.set_fixed_time("2026-09-28T08:00:00Z")   # 10:00 in Madrid, a day inside the timetable
@@ -331,7 +332,11 @@ async def check_parity(browser):
             await page.wait_for_timeout(1500)
         shot = Image.open(io.BytesIO(await page.screenshot())).convert("RGB"); await page.close()
         ref = baseline / f"{name}.png"
-        if not ref.exists(): shot.save(ref); print(f"reference frame written: {ref.relative_to(root)}"); continue
+        if not ref.exists():
+            shot.save(ref); print(f"reference frame written: {ref.relative_to(root)}")
+            # in CI a missing reference is a failure: download the written one from the run and commit it
+            if os.environ.get("CI"): errs.append(f"{name}: no reference frame for {sys.platform} yet (written to {ref.relative_to(root)})")
+            continue
         diff = ImageChops.difference(shot.resize((360, round(360 * h / w))), Image.open(ref).convert("RGB").resize((360, round(360 * h / w))))
         # both a faint change everywhere and a clear change in a small spot count
         mean = sum(ImageStat.Stat(diff).mean) / 3
