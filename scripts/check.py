@@ -18,6 +18,9 @@ Rules checked:
      as wide as their text, no text is under 13 px, the notebook's pages never become strips,
      the pinned table fits the screen and, on landscape screens, the hero scales like a poster.
      With reduced motion nothing moves and everything is already in place.
+  9. The wall darkens as a pigment wash advancing from the hinge, painted in the wall's own shader,
+     not a flat DOM veil: near the hinge it goes darker while a spot well above it stays close to
+     its bare-wall color, and nothing lingers once you scroll back to the top.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
@@ -143,6 +146,43 @@ async def check_fall(page):
         if sh["o"] > .3: far = max(far, sh["x"] / sh["rest"])
     return [] if far > 1.6 else [f"a falling paper keeps its resting shadow (at most {far:.2f}× in the air)"]
 
+async def check_wash(page, name):
+    """The wall darkens as a pigment wash advancing from the hinge (painted in the shader, in canvas-pixel
+    space), not the flat DOM veil of #sombra: near the hinge it goes markedly darker while, in the same
+    frame, a spot well above the hinge stays close to its bare-wall color; and nothing lingers once you
+    scroll back to the top."""
+    errs = []
+    geo = await page.evaluate("""(() => {
+      const c = document.getElementById('gl'); if(!c) return null;
+      const w = document.getElementById('win').getBoundingClientRect();
+      return {cw: c.width, ch: c.height, winLeft: w.left, vw: innerWidth};
+    })()""")
+    if not geo: return []  # no WebGL: the #sombra fallback is what runs, not this check
+    read_px = """(xy) => { const c = document.getElementById('gl'), g = c.getContext('webgl'); if(!g) return null;
+      const p = new Uint8Array(4); g.readPixels(xy[0], xy[1], 1, 1, g.RGBA, g.UNSIGNED_BYTE, p); return [p[0], p[1], p[2]]; }"""
+    x = round((geo["winLeft"] * .5) * (geo["cw"] / max(1, geo["vw"])))  # left of the window: always wall, at any height
+    def y_for(uv_y): return max(0, min(geo["ch"] - 1, round(uv_y * geo["ch"])))
+    async def sample(uv_y):
+        return await page.evaluate(read_px, [x, y_for(uv_y)])
+    def bright(c): return None if c is None else sum(c) / 3
+    async def sombra_opacity():
+        return await page.evaluate("getComputedStyle(document.getElementById('sombra')).opacity")
+
+    await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await hinge_caught_up(page); await page.wait_for_timeout(150)
+    base_near, base_far = await sample(.35), await sample(.85)
+    await page.evaluate("scrollTo({top: innerHeight * .5, behavior: 'instant'})"); await hinge_caught_up(page); await page.wait_for_timeout(150)
+    mid_near, mid_far = await sample(.35), await sample(.85)
+    if await sombra_opacity() != '0': errs.append("the flat #sombra veil is active even with WebGL available")
+    if None in (base_near, base_far, mid_near, mid_far): return errs + ["could not read the wall's pixels (no readPixels on #gl)"]
+    bn, bf, mn, mf = bright(base_near), bright(base_far), bright(mid_near), bright(mid_far)
+    if not (mn < bn - 8): errs.append(f"the wall near the hinge does not darken at mid-transition ({bn:.0f} → {mn:.0f})")
+    if not (mn < mf - 8): errs.append(f"the wash is not concentrated near the hinge (near {mn:.0f}, far above it {mf:.0f})")
+    if abs(mf - bf) > 12: errs.append(f"the wash reaches well above the hinge at mid-transition ({bf:.0f} → {mf:.0f})")
+    await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await hinge_caught_up(page); await page.wait_for_timeout(150)
+    back_near = bright(await sample(.35))
+    if back_near is not None and abs(back_near - bn) > 10: errs.append(f"the wash leaves a trace once scrolled back to the top ({bn:.0f} vs {back_near:.0f})")
+    return errs
+
 async def check_motion(page, name, reduced=False):
     """Halfway down, the wall is tilting (or, with reduced motion, still); at the end everything has landed."""
     errs = []
@@ -221,6 +261,7 @@ async def main():
             failures += [f"{name}: {e}" for e in await check_motion(page, name)]
             failures += [f"{name}: {e}" for e in await check_rhythm(page)]
             failures += [f"{name}: {e}" for e in await check_fall(page)]
+            failures += [f"{name}: {e}" for e in await check_wash(page, name)]
             failures += [f"{name}: {e}" for e in await check_backstage(page, name)]
             await page.close()
         failures += await check_sizes(browser)
