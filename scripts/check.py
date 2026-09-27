@@ -308,7 +308,7 @@ async def check_sizes(browser):
     """Layout at every size: read straight from the page, no waiting for the painting."""
     failures = []
     for name, (w, h) in SIZES.items():
-        page = await browser.new_page(viewport={"width": w, "height": h})
+        page = await open_page(browser, viewport={"width": w, "height": h})
         await page.goto(page_url); await page.wait_for_timeout(1200)
         failures += [f"{name}: {e}" for e in await page.evaluate(FIT)]
         await page.close()
@@ -316,13 +316,17 @@ async def check_sizes(browser):
 
 # fonts and antialiasing differ between systems, so each one keeps its own reference frames
 baseline = root / "scripts/baseline" / sys.platform
+
+async def open_page(browser, **options):
+    """A page with generous timeouts: software rendering on a two-core CI machine can take long to give a frame."""
+    page = await browser.new_page(**options); page.set_default_timeout(120000); return page
 PARITY = {"escritorio-hero": (1440, 900, False), "escritorio-mesa": (1440, 900, True), "movil-hero": (390, 844, False)}
 
 async def check_parity(browser):
     """The site looks as it did: a still frame (reduced motion, clock fixed) compared with the reference frames."""
     errs = []; baseline.mkdir(parents=True, exist_ok=True)
     for name, (w, h, table) in PARITY.items():
-        page = await browser.new_page(viewport={"width": w, "height": h}, reduced_motion="reduce")
+        page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce")
         await page.clock.set_fixed_time("2026-09-28T08:00:00Z")   # 10:00 in Madrid, a day inside the timetable
         await page.goto(page_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(2500)
         if table:
@@ -354,7 +358,7 @@ async def main():
         if sys.argv[1:] == ["paridad"]:
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · paridad"); sys.exit(1 if failures else 0)
         for name, (w, h) in VIEWPORTS.items():
-            page = await browser.new_page(viewport={"width": w, "height": h})
+            page = await open_page(browser, viewport={"width": w, "height": h})
             errors = []
             page.on("pageerror", lambda e: errors.append(str(e)))
             await page.goto(page_url)
@@ -383,7 +387,7 @@ async def main():
             await page.close()
         failures += await check_sizes(browser)
         # reduced motion: a still frame and every paper already in place
-        page = await browser.new_page(viewport={"width": 1440, "height": 860}, reduced_motion="reduce")
+        page = await open_page(browser, viewport={"width": 1440, "height": 860}, reduced_motion="reduce")
         await page.goto(page_url); await page.wait_for_timeout(3000)
         failures += [f"reduced: {e}" for e in await check_motion(page, "reduced", reduced=True)]
         await page.close()
