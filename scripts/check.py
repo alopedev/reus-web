@@ -118,8 +118,10 @@ FIT = """(() => {
   const esc = q('.escena'), mesa = q('.mesa');
   if(getComputedStyle(esc).position === 'sticky' && mesa.offsetTop + mesa.offsetHeight > esc.clientHeight - 40)
     errs.push(`pinned table does not fit: content ends at ${mesa.offsetTop + mesa.offsetHeight} of ${esc.clientHeight}`);
+  // like a poster: proportional to the screen, never below a legible floor
   const ref = Math.min(innerWidth, innerHeight * 1.6), brand = parseFloat(getComputedStyle(q('.brand')).fontSize);
-  if(innerWidth > innerHeight && (brand / ref < .066 || brand / ref > .082)) errs.push(`hero does not scale: name is ${Math.round(brand)} px for a ${Math.round(ref)} px screen`);
+  const expected = 6.6 * Math.max(14, ref * .01111);
+  if(innerWidth > innerHeight && Math.abs(brand - expected) / expected > .05) errs.push(`hero does not scale: name is ${Math.round(brand)} px for a ${Math.round(ref)} px screen`);
   return errs;
 })()"""
 

@@ -18,7 +18,9 @@
 }
 *,*::before,*::after{ box-sizing:inherit; }
 html,body{ margin:0; }
-html{ height:100%; }
+html{ height:100%; font-size:clamp(14px, min(1.111vw, 1.778vh), 40px); }
+/* portrait screens scale with their width */
+@media (max-aspect-ratio:1/1){ html{ font-size:clamp(15px, calc(10px + 1.5vw), 22px); } }
 body{ min-height:100%; background:#7d6650; color:var(--paper); font-family:var(--sans); font-weight:500; }
 @media (prefers-reduced-motion: no-preference){ html{ scroll-behavior:smooth; } }
 /* the hero stays put while the shelf scrolls up over it */
@@ -27,82 +29,82 @@ body{ min-height:100%; background:#7d6650; color:var(--paper); font-family:var(-
 .sombra{ position:absolute; inset:0; z-index:2; pointer-events:none; background:linear-gradient(#1d1712, #2D241C); opacity:0; }
 strong{ font-weight:700; }
 canvas#gl{ position:fixed; inset:0; width:100%; height:100%; display:block; z-index:0; }
-.stage{ position:relative; z-index:1; height:100%; display:grid; grid-template-rows:auto minmax(0,1fr) auto auto;
-  gap:clamp(14px,2.4vh,28px); padding:clamp(16px,3vh,34px) clamp(18px,4.4vw,64px) clamp(16px,3vh,30px); }
+.stage{ position:relative; z-index:1; height:100%; display:grid; grid-template-rows:auto minmax(0,1fr) auto auto; grid-template-columns:minmax(0,1fr);
+  gap:1.4rem; padding:1.7rem 4rem 1.6rem; }
 
 /* name and direction, on the wall above the window */
-.top{ display:flex; align-items:flex-start; justify-content:space-between; gap:20px; }
+.top{ display:flex; align-items:flex-start; justify-content:space-between; gap:1.25rem; }
 .brand{ font-family:var(--serif); font-weight:400; margin:0; line-height:.9; letter-spacing:-.02em;
-  font-size:clamp(3.4rem,7.4vw,6.6rem); color:var(--paper); text-shadow:.05em .05em 0 var(--shadow); }
-.sub{ margin:.55rem 0 0; font-size:clamp(1rem,1.35vw,1.15rem); color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.35); }
+  font-size:6.6rem; color:var(--paper); text-shadow:.05em .05em 0 var(--shadow); }
+.sub{ margin:.55rem 0 0; font-size:1.15rem; color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.35); }
 .brandBox{ min-width:0; }
 
 /* two train tickets, cut out of paper: the printed one is the trip you're looking at */
-.tickets{ position:relative; display:flex; align-items:flex-start; gap:10px; }
+.tickets{ position:relative; display:flex; align-items:flex-start; gap:.6rem; }
 .tk{ all:unset; box-sizing:border-box; cursor:pointer; position:relative; display:block; color:var(--shadow);
-  filter:drop-shadow(4px 4px 0 var(--shadow)); transition:transform .25s ease, filter .25s ease; }
-.tk .pp{ display:block; background:#EFE6D2 var(--grain); padding:12px 44px 12px 16px; clip-path:var(--cut); }
-.tk .stub{ position:absolute; top:8px; bottom:8px; right:30px; border-left:1.5px dashed rgba(45,36,28,.45); }
-.tk .k{ display:block; font-size:.8rem; opacity:.75; }
-.tk .route{ display:block; font-family:var(--serif); font-size:clamp(1.25rem,2vw,1.8rem); line-height:1.15; margin-top:2px; }
-.tk .row{ display:block; font-size:.95rem; margin-top:4px; white-space:nowrap; }
+  flex:none; filter:drop-shadow(.25rem .25rem 0 var(--shadow)); transition:transform .25s ease, filter .25s ease; }
+.tk .pp{ display:block; background:#EFE6D2 var(--grain); padding:.75rem 2.75rem .75rem 1rem; clip-path:var(--cut); }
+.tk .stub{ position:absolute; top:.5rem; bottom:.5rem; right:1.9rem; border-left:1.5px dashed rgba(45,36,28,.45); }
+.tk .k{ display:block; font-size:.93rem; opacity:.75; }
+.tk .route{ display:block; font-family:var(--serif); font-size:1.8rem; line-height:1.15; margin-top:.12rem; }
+.tk .row{ display:block; font-size:.95rem; margin-top:.25rem; white-space:nowrap; }
 .tk .route{ white-space:nowrap; }
 .tk .row b{ font-family:var(--serif); font-weight:400; font-size:1.12em; }
 .tk.on{ transform:rotate(-1.5deg); cursor:default; }
-.tk.off{ transform:rotate(2.5deg) translateY(10px); filter:drop-shadow(5px 5px 0 var(--shadow)); }
-.tk.off .pp{ background-color:#E4D8BE; padding:10px 40px 10px 14px; }
-.tk.off:hover{ transform:rotate(1deg) translate(-2px,6px); filter:drop-shadow(7px 7px 0 var(--shadow)); }
-.tk.off:active{ transform:rotate(1deg) translate(3px,13px); filter:drop-shadow(1px 1px 0 var(--shadow)); }
-.tk.off .route{ font-size:clamp(1.05rem,1.4vw,1.25rem); }
+.tk.off{ transform:rotate(2.5deg) translateY(.6rem); filter:drop-shadow(.3rem .3rem 0 var(--shadow)); }
+.tk.off .pp{ background-color:#E4D8BE; padding:.62rem 2.5rem .62rem .9rem; }
+.tk.off:hover{ transform:rotate(1deg) translate(-.12rem,.4rem); filter:drop-shadow(.45rem .45rem 0 var(--shadow)); }
+.tk.off:active{ transform:rotate(1deg) translate(.2rem,.8rem); filter:drop-shadow(1px 1px 0 var(--shadow)); }
+.tk.off .route{ font-size:1.25rem; }
 .tk:focus-visible{ outline:2px solid var(--paper); outline-offset:6px; }
-.label{ margin:0 0 .2rem; font-family:var(--sans); font-weight:700; font-size:clamp(.95rem,1.2vw,1.05rem); color:var(--soft); text-shadow:0 1px 2px rgba(0,0,0,.35); grid-column:1 / -1; }
+.label{ margin:0 0 .2rem; font-family:var(--sans); font-weight:700; font-size:1.05rem; color:var(--soft); text-shadow:0 1px 2px rgba(0,0,0,.35); grid-column:1 / -1; }
 
 /* the window: an empty frame; the painting shows through from the canvas behind */
 .winCell{ display:grid; place-items:center; min-height:0; container-type:size; }
-#win{ width:min(60vw, 100cqw, 100cqh * 1.62); aspect-ratio:1.62; border-radius:clamp(22px,3vw,44px); }
+#win{ width:min(60vw, 100cqw, 100cqh * 1.62); aspect-ratio:1.62; border-radius:2.7rem; }
 
 /* the departure, on the lower panel of the carriage */
-.info{ display:grid; grid-template-columns:auto 1fr; align-items:end; column-gap:clamp(18px,3vw,44px); row-gap:10px; }
+.info{ display:grid; grid-template-columns:auto 1fr; align-items:end; column-gap:2.7rem; row-gap:.6rem; }
 .dep{ font-family:var(--serif); font-weight:400; margin:0; line-height:.85; letter-spacing:-.02em;
-  font-size:clamp(4.2rem,9.6vw,8.4rem); text-shadow:.05em .05em 0 var(--shadow); }
+  font-size:8.4rem; text-shadow:.05em .05em 0 var(--shadow); }
 .lines{ padding-bottom:.35rem; text-shadow:0 1px 2px rgba(0,0,0,.35); }
 .lines p{ margin:0; }
-.soon{ font-size:clamp(1rem,1.3vw,1.12rem); color:var(--soft); }
+.soon{ font-size:1.12rem; color:var(--soft); }
 .soon strong{ color:var(--paper); }
-.arr{ font-family:var(--serif); font-size:clamp(1.35rem,2vw,1.8rem); margin-top:.15rem!important; }
-.then{ margin-top:.3rem!important; color:var(--soft); font-size:clamp(1rem,1.3vw,1.1rem); }
+.arr{ font-family:var(--serif); font-size:1.8rem; margin-top:.15rem!important; }
+.then{ margin-top:.3rem!important; color:var(--soft); font-size:1.1rem; }
 .then b{ font-family:var(--serif); font-weight:400; font-size:1.22em; color:var(--paper); margin:0 .12em; }
 /* the following trains are doors to the next option */
 .tt{ font:inherit; font-family:var(--serif); font-weight:400; font-size:1.22em; color:var(--paper); background:none; border:0; padding:.05em .1em; margin:0 .06em; cursor:pointer;
   text-decoration:underline dotted; text-decoration-thickness:1.5px; text-underline-offset:.22em; text-shadow:inherit; }
 .tt:hover{ text-decoration-style:solid; }
 .tt:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
-.prev{ margin-top:.2rem!important; color:var(--soft); font-size:clamp(.95rem,1.2vw,1.02rem); }
+.prev{ margin-top:.2rem!important; color:var(--soft); font-size:1.02rem; }
 .prev:empty{ display:none; }
 .dep.swap{ animation:swap .45s ease; }
 @keyframes swap{ from{ opacity:.2; transform:translateY(8px); } to{ opacity:1; transform:none; } }
 @media (prefers-reduced-motion: reduce){ .dep.swap{ animation:none; } }
-.note{ font-size:.86rem; color:var(--soft); margin-top:.3rem!important; }
+.note{ font-size:.93rem; color:var(--soft); margin-top:.3rem!important; }
 .note:empty{ display:none; }
 
 /* the day as a ruler: each tick is a train */
-.ruler{ grid-column:1 / -1; position:relative; margin-top:clamp(8px,1.6vh,16px); }
-.rulerHead{ display:flex; justify-content:flex-end; gap:1.1em; align-items:baseline; font-size:.95rem; color:var(--soft); margin-bottom:4px; text-shadow:0 1px 2px rgba(0,0,0,.35); }
+.ruler{ grid-column:1 / -1; position:relative; margin-top:.9rem; }
+.rulerHead{ display:flex; justify-content:flex-end; gap:1.1em; align-items:baseline; font-size:.95rem; color:var(--soft); margin-bottom:.25rem; text-shadow:0 1px 2px rgba(0,0,0,.35); }
 .rulerHead output{ font-family:var(--serif); font-size:1.15rem; color:var(--paper); }
 .now{ font:inherit; font-family:var(--sans); font-weight:500; font-size:.95rem; color:var(--paper); background:none; border:0; padding:.1em 0; cursor:pointer;
   text-decoration:underline dotted; text-decoration-thickness:1.5px; text-underline-offset:.3em; text-shadow:inherit; }
 .now:hover{ text-decoration-style:solid; }
 .now[hidden]{ display:none; }
-.track{ position:relative; height:26px; }
-.ticks{ position:absolute; left:0; right:0; top:50%; height:12px; transform:translateY(-50%); pointer-events:none; }
-.ticks i{ position:absolute; top:0; width:1.5px; height:12px; background:var(--paper); opacity:.75; transform:translateX(-50%); }
-.ticks i.on{ height:20px; top:-4px; width:2.5px; opacity:1; }
-.hours{ position:relative; height:1.2em; margin-top:4px; font-size:.82rem; color:var(--soft); text-shadow:0 1px 2px rgba(0,0,0,.35); }
+.track{ position:relative; height:1.6rem; }
+.ticks{ position:absolute; left:0; right:0; top:50%; height:.75rem; transform:translateY(-50%); pointer-events:none; }
+.ticks i{ position:absolute; top:0; width:1.5px; height:.75rem; background:var(--paper); opacity:.75; transform:translateX(-50%); }
+.ticks i.on{ height:1.25rem; top:-.25rem; width:2.5px; opacity:1; }
+.hours{ position:relative; height:1.2em; margin-top:.25rem; font-size:.93rem; color:var(--soft); text-shadow:0 1px 2px rgba(0,0,0,.35); }
 .hours span{ position:absolute; transform:translateX(-50%); }
 .track::before{ content:""; position:absolute; left:0; right:0; top:50%; height:1.5px; background:var(--paper); opacity:.6; }
-input[type=range]{ -webkit-appearance:none; appearance:none; position:absolute; inset:0; width:100%; height:26px; margin:0; background:transparent; cursor:pointer; }
-input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--paper); box-shadow:2px 2px 0 var(--shadow); border:0; }
-input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%; background:var(--paper); box-shadow:2px 2px 0 var(--shadow); border:0; }
+input[type=range]{ -webkit-appearance:none; appearance:none; position:absolute; inset:0; width:100%; height:1.6rem; margin:0; background:transparent; cursor:pointer; }
+input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:1.1rem; height:1.1rem; border-radius:50%; background:var(--paper); box-shadow:2px 2px 0 var(--shadow); border:0; }
+input[type=range]::-moz-range-thumb{ width:1.1rem; height:1.1rem; border-radius:50%; background:var(--paper); box-shadow:2px 2px 0 var(--shadow); border:0; }
 input[type=range]::-moz-range-track{ background:transparent; }
 button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outline-offset:4px; }
 
@@ -112,22 +114,22 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 @media (prefers-reduced-motion: reduce){ .top, .info{ transition:none; opacity:1; transform:none; } }
 
 @media (max-width:700px), (max-aspect-ratio:4/5){
-  .top{ flex-direction:column; align-items:stretch; gap:14px; }
-  .tickets{ justify-content:space-between; }
-  .tk.on{ flex:1 1 auto; min-width:0; }
-  .tk .pp{ padding-right:38px; }
+  /* stacked: the tickets sit in a row under the name, each as wide as its text */
+  .stage{ padding:1rem 1.15rem; }
+  .top{ flex-direction:column; align-items:flex-start; gap:.9rem; }
+  .brand{ font-size:3.4rem; } .sub{ font-size:1rem; }
+  .tickets{ justify-content:flex-start; flex-wrap:wrap; row-gap:.5rem; }
+  .tk .pp{ padding:.6rem 2.2rem .6rem .75rem; }
+  .tk .route{ font-size:1.25rem; } .tk.off .route{ font-size:1.05rem; }
   .tk.off .k{ display:none; }
-  .tk .row{ font-size:.86rem; }
-  .tk .pp{ padding-left:12px; }
-  .tk.off{ flex:0 0 auto; }
-  #win{ width:min(calc(100cqw - 36px), 100cqh * 1.05); aspect-ratio:1.05; border-radius:28px; }
-  .info{ grid-template-columns:1fr; }
+  #win{ width:min(calc(100cqw - 2.2rem), 100cqh * 1.05); aspect-ratio:1.05; border-radius:1.75rem; }
+  .info{ grid-template-columns:minmax(0,1fr); }
   .dep{ font-size:clamp(4rem,22vw,6rem); }
 }
 .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
 
 /* the hint that there is more below, in the same dotted language as everything you can press */
-.more{ justify-self:center; margin-top:calc(-1 * clamp(8px,1.6vh,18px)); font-size:.95rem; color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.35);
+.more{ justify-self:center; margin-top:-1rem; font-size:.95rem; color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.35);
   text-decoration:underline dotted; text-decoration-thickness:1.5px; text-underline-offset:.3em; }
 .more:hover{ text-decoration-style:solid; }
 .more:focus-visible{ outline:2px solid var(--paper); outline-offset:4px; }
@@ -136,7 +138,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 #repisa{ position:relative; z-index:2; margin-top:100vh; margin-top:100svh; background:#5A4331; }
 /* the table under the window: the painted surface (canvas), the window's light, then the papers and travel things */
 .escena{ position:relative; overflow:hidden; min-height:100vh;
-  padding:calc(var(--strip) + clamp(20px,4vh,44px)) clamp(18px,5vw,96px) clamp(60px,10vh,120px); --strip:64px; }
+  padding:calc(var(--strip) + 2.2rem) 4.5rem 5.5rem; --strip:4rem; container-type:inline-size; }
 #lienzo{ position:absolute; left:0; top:0; width:100%; height:100%; display:block; }
 .mesa{ position:relative; z-index:3; }
 .deco{ position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
@@ -149,12 +151,13 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 @keyframes pasa{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
 .huellas{ z-index:2; }
 .cosa{ position:absolute; z-index:4; pointer-events:none; }
-#cafe{ filter:drop-shadow(7px 9px 7px rgba(18,12,8,.5)); }
+#cafe{ filter:drop-shadow(.45rem .55rem .45rem rgba(18,12,8,.5)); }
+#cafe svg{ width:7rem; height:7rem; display:block; } #boli svg{ width:11.9rem; height:1.25rem; display:block; } #gafas svg{ width:10.6rem; height:5rem; display:block; }
 #boli, #gafas{ filter:drop-shadow(5px 7px 4px rgba(18,12,8,.5)); }
 #rodalies{ filter:drop-shadow(4px 6px 4px rgba(18,12,8,.45)); }
-.rodalies{ width:150px; height:64px; position:relative; overflow:hidden; border-radius:3px; background:#E9DDC6 var(--grain); color:var(--shadow); }
-.rodalies::after{ content:""; position:absolute; left:0; right:0; bottom:10px; height:13px; background:#5B4636; }
-.rodalies span{ position:absolute; left:10px; font-weight:700; }
+.rodalies{ width:9.4rem; height:4rem; position:relative; overflow:hidden; border-radius:3px; background:#E9DDC6 var(--grain); color:var(--shadow); }
+.rodalies::after{ content:""; position:absolute; left:0; right:0; bottom:.62rem; height:.8rem; background:#5B4636; }
+.rodalies span{ position:absolute; left:.62rem; font-weight:700; }
 /* the train shakes a little: everything on the table trembles, each at its own pace */
 .vib{ animation:vibra .42s linear infinite; }
 .vib.b{ animation-duration:.53s; animation-delay:-.2s; } .vib.c{ animation-duration:.37s; animation-delay:-.1s; }
@@ -167,48 +170,59 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 .dormida .fila, .dormida .vib, .dormida .onda, .dormida .vapor{ animation-play-state:paused; }
 @media (prefers-reduced-motion: reduce){ .fila, .vib, .onda, .vapor{ animation:none; } }
 /* on a large enough screen the table stays put while the papers land one after another (same query as PINNED in the script) */
-@media (prefers-reduced-motion: no-preference) and (min-width:1000px) and (min-height:840px){
+@media (prefers-reduced-motion: no-preference) and (min-width:1000px) and (min-height:780px) and (min-aspect-ratio:1/1){
   #repisa{ height:230vh; }
-  .escena{ position:sticky; top:0; height:100vh; min-height:0; padding-top:calc(var(--strip) + clamp(10px,1.8vh,28px)); padding-bottom:64px; }
+  .escena{ position:sticky; top:0; height:100vh; min-height:0; padding-top:calc(var(--strip) + 1rem); padding-bottom:4rem; }
 }
-.mesa{ max-width:1240px; margin:0 auto; display:grid; grid-template-columns:minmax(0,340px) minmax(0,1fr);
-  grid-template-areas:"intro intro" "folleto cuaderno" "folleto reverso"; gap:clamp(24px,3.4vh,56px) clamp(36px,4.4vw,64px); align-items:start; }
+.mesa{ max-width:77.5rem; margin:0 auto; display:grid; grid-template-columns:minmax(0,21.25rem) minmax(0,1fr);
+  grid-template-areas:"intro intro" "folleto cuaderno" "folleto reverso"; gap:1.9rem 4rem; align-items:start; }
 .intro{ grid-area:intro; }
 .intro h2{ margin:0 0 .35em; font-family:var(--serif); font-weight:400; line-height:.95; letter-spacing:-.02em;
-  font-size:clamp(3rem,6vw,4.8rem); color:var(--paper); text-shadow:.05em .05em 0 var(--shadow); }
-.intro p{ margin:0; max-width:34em; font-size:clamp(1.02rem,1.3vw,1.18rem); line-height:1.45; text-shadow:0 1px 2px rgba(0,0,0,.35); }
-.papel{ background:#EFE6D2 var(--grain); color:var(--shadow); padding:24px 28px; box-shadow:6px 6px 0 var(--shadow); }
-.papel h2{ margin:.2em 0 .5em; font-family:var(--serif); font-weight:400; font-size:clamp(1.6rem,2.2vw,1.9rem); line-height:1.1; }
+  font-size:4.8rem; color:var(--paper); text-shadow:.05em .05em 0 var(--shadow); }
+.intro p{ margin:0; max-width:34em; font-size:1.18rem; line-height:1.45; text-shadow:0 1px 2px rgba(0,0,0,.35); }
+.papel{ background:#EFE6D2 var(--grain); color:var(--shadow); padding:1.5rem 1.75rem; box-shadow:.375rem .375rem 0 var(--shadow); }
+.papel h2{ margin:.2em 0 .5em; font-family:var(--serif); font-weight:400; font-size:1.9rem; line-height:1.1; }
 .papel p, .papel li{ margin:0; font-size:.98rem; line-height:1.6; }
 .papel ol, .papel ul{ margin:0; padding:0; list-style:none; }
 .papel b{ font-weight:700; }
 .kicker{ display:block; font-size:.76rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; opacity:.72; }
 .tachado{ text-decoration:line-through; text-decoration-thickness:1.5px; opacity:.55; }
 .folleto{ grid-area:folleto; transform:rotate(-2.5deg); }
-.mini{ position:relative; height:118px; margin:4px 0 16px; background:#8B6F55; }
-.mini .w{ position:absolute; left:28%; top:12%; width:44%; height:56%; border:5px solid #4A3A2C; border-radius:12px; background:linear-gradient(#EAD9BF 55%, #4E7189 55% 64%, #CDB57E 64%); }
-.mini .n{ position:absolute; width:22px; height:22px; border-radius:50%; background:var(--shadow); color:var(--paper); font-size:.75rem; font-weight:700; line-height:22px; text-align:center; }
+.mini{ position:relative; height:7.4rem; margin:.25rem 0 1rem; background:#8B6F55; }
+.mini .w{ position:absolute; left:28%; top:12%; width:44%; height:56%; border:.3rem solid #4A3A2C; border-radius:.75rem; background:linear-gradient(#EAD9BF 55%, #4E7189 55% 64%, #CDB57E 64%); }
+.mini .n{ position:absolute; width:1.4rem; height:1.4rem; border-radius:50%; background:var(--shadow); color:var(--paper); font-size:.8rem; font-weight:700; line-height:1.4rem; text-align:center; }
 .cuaderno{ grid-area:cuaderno; display:grid; grid-template-columns:1fr 1fr; transform:rotate(1deg); }
 .cuaderno .hoja{ position:relative; }
-.cuaderno .papel{ height:100%; padding:26px 28px; }
+.cuaderno .papel{ height:100%; padding:1.6rem 1.75rem; }
 .cuaderno .izq{ z-index:1; transform-origin:100% 50%; transform-style:preserve-3d; }
 .cuaderno .cara{ background-color:#EAE0CA; border-right:1.5px dashed rgba(45,36,28,.4); backface-visibility:hidden; -webkit-backface-visibility:hidden; }
-.tapa{ position:absolute; inset:0; display:flex; flex-direction:column; justify-content:flex-end; padding:28px; background:#7A4B3A var(--grain); color:var(--paper);
-  box-shadow:-6px 6px 0 var(--shadow); transform:rotateY(180deg); backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+.tapa{ position:absolute; inset:0; display:flex; flex-direction:column; justify-content:flex-end; padding:1.75rem; background:#7A4B3A var(--grain); color:var(--paper);
+  box-shadow:-.375rem .375rem 0 var(--shadow); transform:rotateY(180deg); backface-visibility:hidden; -webkit-backface-visibility:hidden; }
 .tapa b{ font-family:var(--serif); font-weight:400; font-size:2rem; line-height:1; }
-.tapa span{ margin-top:10px; font-size:.9rem; opacity:.8; }
-.cuaderno .lema{ margin-top:18px; font-family:var(--serif); font-size:1.05rem; color:#7A4B3A; }
-.reverso{ grid-area:reverso; max-width:620px; transform:rotate(-1.2deg); filter:drop-shadow(5px 5px 0 var(--shadow)); }
-.reverso .papel{ box-shadow:none; padding:20px 34px; clip-path:polygon(0 0,100% 0,100% 40%,98.4% 50%,100% 60%,100% 100%,0 100%,0 60%,1.6% 50%,0 40%); }
-.reverso .fuente{ margin-top:8px; font-size:.86rem; opacity:.8; }
+.tapa span{ margin-top:.62rem; font-size:.9rem; opacity:.8; }
+.cuaderno .lema{ margin-top:1.1rem; font-family:var(--serif); font-size:1.05rem; color:#7A4B3A; }
+.reverso{ grid-area:reverso; max-width:38.75rem; transform:rotate(-1.2deg); filter:drop-shadow(.3rem .3rem 0 var(--shadow)); }
+.reverso .papel{ box-shadow:none; padding:1.25rem 2.1rem; clip-path:polygon(0 0,100% 0,100% 40%,98.4% 50%,100% 60%,100% 100%,0 100%,0 60%,1.6% 50%,0 40%); }
+.reverso .fuente{ margin-top:.5rem; font-size:.93rem; opacity:.8; }
 @media (max-width:700px){
-  .escena{ --strip:48px; }
-  .mesa{ grid-template-columns:minmax(0,1fr); grid-template-areas:"intro" "folleto" "cuaderno" "reverso"; }
+  .escena{ --strip:3rem; padding-left:1.15rem; padding-right:1.15rem; }
+  #cafe svg{ width:5.5rem; height:5.5rem; }
+  .intro p{ padding-right:5.8rem; }
+  .intro h2{ font-size:3rem; } .intro p{ font-size:1.02rem; } .papel h2{ font-size:1.6rem; }
+  .reverso .papel{ padding:1.25rem 1.6rem; }
+}
+/* one column when the notebook would not have room for its two pages beside the leaflet */
+@container (max-width:56rem){
+  .mesa{ max-width:42rem; grid-template-columns:minmax(0,1fr); grid-template-areas:"intro" "folleto" "cuaderno" "reverso"; }
+  .reverso{ max-width:none; }
+}
+/* the notebook stacks its pages rather than turning them into strips */
+@container (max-width:34rem){
   .cuaderno{ grid-template-columns:minmax(0,1fr); }
   .cuaderno .izq{ transform-origin:50% 100%; }
   .cuaderno .cara{ border-right:0; border-bottom:1.5px dashed rgba(45,36,28,.4); }
-  .tapa{ transform:rotateX(180deg); box-shadow:6px -6px 0 var(--shadow); }
-  .reverso .papel{ padding:20px 26px; }
+  .tapa{ transform:rotateX(180deg); box-shadow:.375rem -.375rem 0 var(--shadow); }
+}
 }
 </style>
 </head>
@@ -703,20 +717,20 @@ const table = (() => {
   }
   // where things are, from the layout (offsets, so the tilt of the shelf does not skew the measures)
   function geometry(){
-    const W = esc.clientWidth, H = esc.clientHeight, mobile = W < 701, strip = mobile ? 48 : 64;
-    const left = esc.querySelector('.mesa').offsetLeft;
-    const far = mobile ? 6 : Math.max(24, left - 40), near = mobile ? 0 : Math.max(8, left - 76);
-    const winW = mobile ? W - 60 : Math.min(680, W * .47);
-    return {W, H, mobile, strip, tbl:[strip, mobile ? H + 400 : H - 42, far, near], win:[(W - winW) / 2, (W + winW) / 2, strip * .42, strip * .8],
-            lip: mobile ? 0 : 18, seats: mobile ? 0 : 1, brk:[W * .23, W * .77]};
+    const W = esc.clientWidth, H = esc.clientHeight, mobile = W < 701, rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const strip = (mobile ? 3 : 4) * rem, left = esc.querySelector('.mesa').offsetLeft;
+    const far = mobile ? 6 : Math.max(1.5 * rem, left - 2.5 * rem), near = mobile ? 0 : Math.max(.5 * rem, left - 4.75 * rem);
+    const winW = mobile ? W - 60 : Math.min(42.5 * rem, W * .47);
+    return {W, H, mobile, rem, strip, tbl:[strip, mobile ? H + 400 : H - 2.6 * rem, far, near], win:[(W - winW) / 2, (W + winW) / 2, strip * .42, strip * .8],
+            lip: mobile ? 0 : 1.1 * rem, seats: mobile ? 0 : 1, brk:[W * .23, W * .77]};
   }
   const box = el => ({x: el.offsetLeft + esc.querySelector('.mesa').offsetLeft, y: el.offsetTop + esc.querySelector('.mesa').offsetTop, w: el.offsetWidth, h: el.offsetHeight});
   const put = (id, x, y, r = 0) => { const el = document.getElementById(id); el.style.left = x.toFixed(0) + 'px'; el.style.top = y.toFixed(0) + 'px'; el.firstElementChild.style.transform = `rotate(${r}deg)`; return el; };
   function layout(){
     G = geometry();
-    const {W, H, mobile, strip} = G, [wl, wr] = G.win, name = daylight(minute).name, [col, alpha, skew0] = LIGHT[name];
-    const skew = skew0 * (mobile ? .3 : 1), reach = mobile ? Math.min(H, 460) : strip + (H - strip) * .62;
-    const pts = [[wl + 40, strip], [wr - 40, strip], [wr + 160 + skew, reach], [wl - 140 + skew, reach]];
+    const {W, H, mobile, strip, rem} = G, [wl, wr] = G.win, name = daylight(minute).name, [col, alpha, skew0] = LIGHT[name];
+    const skew = skew0 * (mobile ? .3 : rem / 16), reach = mobile ? Math.min(H, 29 * rem) : strip + (H - strip) * .62;
+    const pts = [[wl + 2.5 * rem, strip], [wr - 2.5 * rem, strip], [wr + 10 * rem + skew, reach], [wl - 8.75 * rem + skew, reach]];
     for(const id of ['luz', 'huellas']) document.getElementById(id).setAttribute('viewBox', `0 0 ${W} ${H}`);
     const haz = document.getElementById('haz'); haz.setAttribute('points', pts.map(p => p.join(',')).join(' ')); haz.setAttribute('fill', col);
     const bar = document.getElementById('travesano'); bar.setAttribute('y', strip + (reach - strip) * .34); bar.setAttribute('height', mobile ? 7 : 16);
@@ -724,22 +738,28 @@ const table = (() => {
     const sh = document.getElementById('sombras');
     sh.style.clipPath = `polygon(${pts.map(p => `${p[0]}px ${p[1]}px`).join(',')})`; sh.classList.toggle('bcn', state.dir === 'bcn');
     // travel things, next to the papers they share the table with
-    const intro = box(esc.querySelector('.intro')), fol = box(document.getElementById('folleto')), cua = box(document.getElementById('cuaderno')), rev = box(document.getElementById('reverso'));
+    const intro = box(esc.querySelector('.intro')), introP = box(esc.querySelector('.intro p')), fol = box(document.getElementById('folleto')), cua = box(document.getElementById('cuaderno')), rev = box(document.getElementById('reverso'));
     const mesaR = esc.querySelector('.mesa').offsetLeft + esc.querySelector('.mesa').offsetWidth;
-    if(mobile){
-      put('cafe', W - 128, intro.y + intro.h - 30); put('boli', 30, fol.y + fol.h + 8, -6); put('rodalies', W - 180, rev.y - 58, 7);
+    const cupW = document.getElementById('cafe').firstElementChild.clientWidth || 7 * rem, penW = 11.9 * rem, tixW = 9.4 * rem;
+    const oneColumn = getComputedStyle(esc.querySelector('.mesa')).gridTemplateColumns.trim().split(/\s+/).length === 1;
+    if(oneColumn){
+      // stacked papers: things go in the gaps, never over the text
+      if(mobile) put('cafe', mesaR - cupW, introP.y + .2 * rem); else put('cafe', mesaR - cupW - .6 * rem, intro.y - .4 * rem);
+      put('boli', fol.x + .5 * rem, fol.y + fol.h + .45 * rem, -4);
+      put('rodalies', rev.x + rev.w - tixW - .6 * rem, rev.y - 1.9 * rem, 7);
       document.getElementById('gafas').hidden = true;
     } else {
-      put('cafe', mesaR - 130, intro.y - 6); put('boli', cua.x + cua.w - 330, cua.y - 44, -7); put('rodalies', fol.x + 60, fol.y + fol.h - 18, 8);
-      const g = document.getElementById('gafas'); g.hidden = rev.x + rev.w + 200 > W - G.tbl[3]; put('gafas', rev.x + rev.w + 22, rev.y + 24, -9);
+      put('cafe', mesaR - cupW - .6 * rem, intro.y - .4 * rem); put('boli', cua.x + cua.w - 1.75 * penW, cua.y - 2.75 * rem, -7);
+      put('rodalies', fol.x + 3.75 * rem, fol.y + fol.h - 1.1 * rem, 8);
+      const g = document.getElementById('gafas'); g.hidden = rev.x + rev.w + 12.5 * rem > W - G.tbl[3]; put('gafas', rev.x + rev.w + 1.4 * rem, rev.y + 1.5 * rem, -9);
     }
     const cafe = document.getElementById('cafe');
     const c1 = document.getElementById('cerco1'), c2 = document.getElementById('cerco2');
-    c1.setAttribute('cx', cafe.offsetLeft - 20); c1.setAttribute('cy', cafe.offsetTop + 150); c1.setAttribute('r', 46);
-    c2.setAttribute('cx', W * .44); c2.setAttribute('cy', H - (mobile ? 180 : 110)); c2.setAttribute('r', 34);
-    const peg = document.getElementById('pegatina'); peg.setAttribute('transform', `translate(${Math.min(W - 24, wr + 60)} ${strip * .45})`);
+    c1.setAttribute('cx', cafe.offsetLeft - 1.25 * rem); c1.setAttribute('cy', cafe.offsetTop + 9.4 * rem); c1.setAttribute('r', 2.9 * rem);
+    c2.setAttribute('cx', W * .44); c2.setAttribute('cy', H - (mobile ? 180 : 6.9 * rem)); c2.setAttribute('r', 2.1 * rem);
+    const peg = document.getElementById('pegatina'); peg.setAttribute('transform', `translate(${Math.min(W - 24, wr + 3.75 * rem)} ${strip * .45}) scale(${rem / 16})`);
     [['arana1', .43, .78, 140, -16], ['arana2', .62, .3, 110, 12], ['arana3', .2, .3, 90, -14]].forEach(([id, x, y, l, d]) =>
-      document.getElementById(id).setAttribute('d', `M${W * x} ${H * y} l${mobile ? l * .6 : l} ${d}`));
+      document.getElementById(id).setAttribute('d', `M${W * x} ${H * y} l${(mobile ? l * .6 : l) * rem / 16} ${d}`));
   }
   function draw(reveal){
     const u = n => gl.getUniformLocation(prog, n), p = daylight(minute), k = cv.width / G.W;
@@ -908,7 +928,7 @@ repaint();
 function setupShelf(){
   if(!window.gsap || !window.ScrollTrigger) return;
   gsap.registerPlugin(ScrollTrigger);
-  const PINNED = '(min-width:1000px) and (min-height:840px)';
+  const PINNED = '(min-width:1000px) and (min-height:780px) and (min-aspect-ratio:1/1)';
   gsap.matchMedia().add({motion:'(prefers-reduced-motion: no-preference)', wide:'(min-width:701px)', pinned:PINNED}, ctx => {
     if(!ctx.conditions.motion) return;
     const {wide, pinned} = ctx.conditions, shelf = document.getElementById('repisa');
@@ -926,7 +946,9 @@ function setupShelf(){
     } else {
       // stacked papers: each one lands as it scrolls in
       papers.forEach(s => gsap.from(s, {...fall, y:-160, scrollTrigger:{trigger:s, start:'top 100%', end:'top 65%', scrub:.6}}));
-      gsap.from(leaf, {[wide ? 'rotationY' : 'rotationX']: wide ? 180 : -180, transformPerspective:1800, ease:'power2.inOut',
+      // the leaf turns sideways when the pages sit side by side, and folds down when they are stacked
+      const side = getComputedStyle(document.querySelector('.cuaderno')).gridTemplateColumns.trim().split(/\s+/).length > 1;
+      gsap.from(leaf, {[side ? 'rotationY' : 'rotationX']: side ? 180 : -180, transformPerspective:1800, ease:'power2.inOut',
         scrollTrigger:{trigger:'#cuaderno', start:'top 55%', end:'top 20%', scrub:.6}});
     }
     return () => { removeEventListener('scroll', onScroll); removeEventListener('resize', onScroll); pitch(true); };
