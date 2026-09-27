@@ -37,7 +37,7 @@ VIEWPORTS = {"desktop": (1440, 860), "mobile": (390, 820)}
 
 async def settle(page):
     """Software rendering is slow: wait until the scrubbed animations have caught up with the scroll."""
-    try: await page.wait_for_function(f"({LANDED}).length === 0", timeout=8000)
+    try: await page.wait_for_function(f"({LANDED}).length === 0", timeout=20000)
     except Exception: pass
     await page.wait_for_timeout(500)
 
@@ -91,8 +91,11 @@ async def check_backstage(page, name):
     await page.evaluate("""(() => { document.documentElement.style.setProperty('background', '#ff00ff', 'important');
       document.body.style.setProperty('background', '#ff00ff', 'important'); })()""")
     leaks = []
+    # each frame is taken once the page has caught up with the scroll: software rendering can lag seconds behind
+    # the compositor, and a frame from that gap shows a stale page, not the design
     for f in (.1, .25, .4, .55, .7, .85, .95):
-        await page.evaluate(f"scrollTo(0, innerHeight * {f})"); await page.wait_for_timeout(1300)
+        await page.evaluate(f"scrollTo({{top: innerHeight * {f}, behavior: 'instant'}})"); await page.wait_for_timeout(300)
+        await hinge_caught_up(page)
         png = await page.screenshot(); share = magenta(png)
         if share:
             why = await page.evaluate("""(() => { const h = document.getElementById('hero').style, r = document.getElementById('repisa').getBoundingClientRect();
@@ -100,8 +103,10 @@ async def check_backstage(page, name):
               return `scroll ${(scrollY / innerHeight).toFixed(3)}, wall ${h.visibility || 'visible'} ${h.transform || 'flat'} @ ${h.transformOrigin}, table top ${r.top.toFixed(0)}, at the top ${top ? top.id || top.className || top.tagName : 'nothing'}`; })()""")
             leaks.append(f"{int(f * 100)}% ({share:.1%}; {why})"); (shots / f"{name}-fondo-{int(f * 100)}.png").write_bytes(png)
     for a, b in ((.05, .9), (.9, .1)):
-        await page.evaluate(f"scrollTo({{top: innerHeight * {a}, behavior: 'instant'}})"); await page.wait_for_timeout(1300)
-        await page.evaluate(f"scrollTo({{top: innerHeight * {b}, behavior: 'instant'}})")
+        await page.evaluate(f"scrollTo({{top: innerHeight * {a}, behavior: 'instant'}})"); await page.wait_for_timeout(300)
+        await hinge_caught_up(page)
+        await page.evaluate(f"scrollTo({{top: innerHeight * {b}, behavior: 'instant'}})"); await page.wait_for_timeout(300)
+        await hinge_caught_up(page)
         share = magenta(await page.screenshot())
         if share: leaks.append(f"jump {int(a * 100)}→{int(b * 100)}% ({share:.1%})")
     await page.evaluate("scrollTo(0, 0)")
@@ -192,9 +197,9 @@ async def check_return(page):
 async def check_motion(page, name, reduced=False):
     """Halfway down, the wall is tilting (or, with reduced motion, still); at the end everything has landed."""
     errs = []
-    await page.evaluate("scrollTo(0, 0)"); await page.wait_for_timeout(800)
+    await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await page.wait_for_timeout(800)
     await page.evaluate("scrollTo({top: innerHeight * .5, behavior: 'instant'})"); await page.wait_for_timeout(1800)
-    if not reduced: await hinge_caught_up(page)
+    if not reduced and not await hinge_caught_up(page): errs.append("the hinge never catches up with the scroll at 50%")
     tilt = await page.evaluate("getComputedStyle(document.querySelector('#hero')).transform")
     if reduced and tilt not in ("none", ""): errs.append("wall moves with reduced motion")
     if not reduced and tilt in ("none", ""): errs.append("wall does not tilt while scrolling")
