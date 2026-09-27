@@ -22,7 +22,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 ## Siguiente paso
 
 1. Comprobar la web publicada en un móvil real (fluidez, toque en la regla)
-2. Fase 3 · viaje de letras («Nombre» → «Qué es» como recortes de papel) y fase 4 · tren de papel sobre una vía en la mesa (prototipo aprobado en la página «Transición»). Reutilizar el patrón de `land()` (estado dibujado por un proxy, reversible con scrub) y la sombra según la altura
+2. Fase 3 · viaje de letras: **hecho** (`src/letters.ts` + capa `#letras`, rama `fase3-letras`). Fase 4 · tren de papel sobre una vía en la mesa (prototipo aprobado en la página «Transición»). Reutilizar el patrón de `land()` (estado dibujado por un proxy, reversible con scrub) y la sombra según la altura
 3. Grabar el vídeo para X y LinkedIn
 4. Pendiente técnico: subir Three.js desde r128 (hoy ~186 KB comprimido, casi todo Three entero; las versiones nuevas permiten descartar lo que no se usa). Cambia luz y color: hacerlo con la paridad visual como red y renovar referencias solo si Àlex aprueba el resultado
 
@@ -36,6 +36,9 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 - Si vuelve a salir fondo: mira la captura. Franja recta a todo el ancho con la altura del salto = frame viejo (revisa la espera). Cuña o trapecio que cambia con el ángulo = geometría de `pitch()`
 - Ejecutar dos `check.py` (o dos sesiones con Playwright) a la vez duplica la carga del render por software y dispara los checks que esperan un tiempo fijo (`settle`, `check_fall`): mide los flakes con la máquina libre
 - Para comprobar colores del hero, lee capturas de pantalla y proyecta los puntos de la pared con su transform (`WALL_AT` en `check.py`); no actives `preserveDrawingBuffer` solo para los tests
+- `will-change` nunca sobre el elemento que hace un flip 3D (`rotateY` + `backface-visibility:hidden`): promocionarlo a su propia capa confunde el backface culling bajo compositor por software (reproducido en un HTML suelto, sin nada del proyecto: con `will-change` en el flipper se ve la cara frontal espejada en vez de la trasera). `will-change` sí es seguro en hijos que no llevan el giro (p. ej. la sombra de una ficha)
+- Un elemento con `transition` propia (como `.top`/`.info`, que entran con `translateY`/`opacity` al terminar el pintado del paisaje) no cambia al instante aunque le fuerces un `style.transform` distinto: la transición se dispara igual. Para medir su geometría "en reposo" antes de que la transición haya terminado, pon también `transition:none` a la vez que el valor forzado (y restaura ambos después) — si no, el valor leído queda a medio camino y varía con cuánto ha corrido la transición real
+- Al proyectar un punto a través de un `transform` con `position:fixed` (como `#hero`) su posición «en reposo» es independiente del scroll; el mismo truco sobre un elemento en flujo normal (`#repisa`) no lo es — hay que cachear la posición relativa a su propio top/left, no la posición absoluta de pantalla en el momento de medir, o el resultado deriva cientos de píxeles en cuanto cambia el scroll
 
 ## Pendiente y riesgos
 

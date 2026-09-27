@@ -2,6 +2,7 @@ import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { byId, find } from './dom';
 import type { World } from './world';
+import * as letters from './letters';
 
 let world: World | null = null;   // the landscape, for the wash on the wall; null without WebGL
 
@@ -16,7 +17,10 @@ export function setupShelf(w: World | null): void {
     const {pinned} = ctx.conditions, shelf = byId('repisa');
     // the hinge reads the scroll directly: it must match the table's real position on every frame
     const onScroll = () => pitch();
-    addEventListener('scroll', onScroll, {passive:true}); addEventListener('resize', onScroll);
+    // the letters' rest positions scale with the root: re-measure on resize, from the same listener as pitch()
+    const onResize = () => { letters.measure(); pitch(); };
+    addEventListener('scroll', onScroll, {passive:true}); addEventListener('resize', onResize);
+    document.fonts ? document.fonts.ready.then(() => { letters.measure(); pitch(); }) : letters.measure();
     pitch();
     // each paper with the tilt it rests at (the same as in the stylesheet)
     const papers = ([['#folleto', -2.5], ['#cuaderno', 1], ['#reverso', -1.2]] as const).map(([s, r]): [HTMLElement, number] => [find(s), r]);
@@ -36,7 +40,8 @@ export function setupShelf(w: World | null): void {
       gsap.timeline({scrollTrigger:between(papers[1][0], .55, .2)}).add(side ? openLeaf(leaf, 'Y', 1) : openLeaf(leaf, 'X', -1));
     }
     return () => {
-      removeEventListener('scroll', onScroll); removeEventListener('resize', onScroll); pitch(true);
+      removeEventListener('scroll', onScroll); removeEventListener('resize', onResize); pitch(true);
+      letters.reset();
       [...papers.map(([el]) => el), leaf].forEach(rest);
     };
   });
@@ -88,9 +93,12 @@ const PITCH_WALL = 34, PITCH_TABLE = 24;
 // table on screen for it. check.py reads both to know when the page has caught up with the scroll
 export const dropped = (): number => clamp01(scrollY / innerHeight);
 export const hingeAt = (p: number): number => innerHeight * (1 - p);
-function pitch(reset = false){
-  const hero = byId('hero'), shelf = byId('repisa');
-  const vh = innerHeight, P = 2 * vh, p = reset ? 0 : dropped();
+
+export interface Pose { p: number; vh: number; P: number; fold: number; wall: number; table: number; s: number; shade: number; }
+// the wall and table's angles, hinge and scale for a given progress: the one place this geometry is computed,
+// shared by pitch() (which paints it) and letters.ts (which projects the flying letters through the same math)
+export function pose(p: number): Pose {
+  const vh = innerHeight, P = 2 * vh;
   const fold = hingeAt(p);
   const wall = PITCH_WALL * inOut(clamp01(p / .85));
   const bump = p > .9 ? 1.4 * Math.sin(Math.PI * (p - .9) / .1) : 0;
@@ -99,6 +107,13 @@ function pitch(reset = false){
   // 15% of a screen lower, a spare margin for a frame where the scroll and the fixed wall do not quite agree
   const tw = wall * Math.PI / 180, reach = fold + .15 * vh;
   const s = Math.max(1, P / (P * Math.cos(tw) - reach * Math.sin(tw)));
+  const shade = Math.pow(wall / PITCH_WALL, 1.3);
+  return {p, vh, P, fold, wall, table, s, shade};
+}
+function pitch(reset = false){
+  const hero = byId('hero'), shelf = byId('repisa');
+  const p = reset ? 0 : dropped();
+  const {P, fold, wall, table, s, shade} = pose(p);
   hero.style.transformOrigin = `50% ${fold.toFixed(1)}px`;
   hero.style.transform = p > 0 && p < 1 ? `perspective(${P}px) rotateX(${wall.toFixed(3)}deg) scale(${s.toFixed(4)})` : '';
   hero.style.visibility = p >= 1 ? 'hidden' : '';
@@ -107,9 +122,9 @@ function pitch(reset = false){
   // the wall darkens as it turns away from the window's light: a pigment wash painted in the wall's own
   // shader, climbing from the hinge (in the wall's own coordinates the hinge sits at uv.y = p), and the
   // texts on it dim with it (--lavado). With no WebGL, `world` is null and the flat #sombra veil is the fallback
-  const shade = Math.pow(wall / PITCH_WALL, 1.3);
   if(shade > 0) hero.style.setProperty('--lavado', shade.toFixed(3)); else hero.style.removeProperty('--lavado');
   if(world) world.setWash(p, shade);
   else byId('sombra').style.opacity = (.6 * shade).toFixed(3);
   byId('more').style.opacity = Math.max(0, 1 - p * 8).toFixed(3);
+  letters.render(p);
 }

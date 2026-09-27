@@ -1,0 +1,15 @@
+/* the letters' journey: paper cut-outs that fly from the name on the wall to "Qué es" on the table.
+   A layer of its own, fixed and above both the wall (#hero, z-index 0) and the table (#repisa, z-index 2):
+   nested inside either, its transform/filter would break its own fixed positioning and .escena would clip it. */
+#letras{ position:fixed; inset:0; z-index:5; pointer-events:none; }
+.ficha{ position:absolute; left:0; top:0; transform-style:preserve-3d; line-height:1;
+  font-family:var(--serif); font-weight:400; letter-spacing:-.02em; }
+/* will-change never goes on .ficha itself: promoting the flipping element to its own layer confuses backface
+   culling under software compositing (reproduced standalone, independent of this app -- both faces show at
+   once, one of them mirrored). It is safe on the shadow, which never carries the flip. */
+.ficha .cara{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  backface-visibility:hidden; -webkit-backface-visibility:hidden;
+  text-shadow:.05em .05em 0 rgba(45,36,28,.85); border-radius:.15em; }
+.ficha .back{ transform:rotateY(180deg); }
+.ficha .som{ position:absolute; inset:0; border-radius:.15em; z-index:-1; will-change:transform, opacity; }
+@media (prefers-reduced-motion: reduce){ #letras{ display:none; } }
