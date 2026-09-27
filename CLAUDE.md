@@ -60,5 +60,7 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 
 ## Publicación
 
-- Última versión publicada como artifact de claude.ai: https://claude.ai/artifact/WPG4PK7RoqLePQYZetQRY4 (versión 15, 27-09-2026)
-- **En pausa (decisión de Àlex, 27-09-2026):** no se publica nada más en el artifact; la siguiente publicación será en el alojamiento definitivo (Vercel o Netlify, fase 4 de `docs/migracion.md`)
+- Web: https://reus-web.vercel.app (Vercel, proyecto `reus-web` del equipo `alexs-projects-856da12a`). Cada push a `main` la publica; cada rama o PR tiene su URL de prueba (protegida con la sesión de Vercel)
+- GitHub Actions (`.github/workflows/check.yml`) pasa tipos, compilación y `check.py` en cada push y PR. Si falta un fotograma de referencia de Linux, el run lo escribe y falla: descárgalo del artifact `capturas` (`gh run download`) y súbelo a `scripts/baseline/linux/`
+- Repo: `alopedev/reus-web` (privado). Haz push solo cuando Àlex lo pida: `gh auth switch --user alopedev`, luego `git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin main` (el llavero de macOS guarda las credenciales de la otra cuenta) y vuelve con `gh auth switch --user alex-olive_raona`
+- El artifact de claude.ai (https://claude.ai/artifact/WPG4PK7RoqLePQYZetQRY4) quedó en la versión 15 y ya no se actualiza

@@ -2,6 +2,8 @@
 
 Próximos trenes regionales directos entre Barcelona-Sants y Reus, dentro de un vagón pintado en acuarela.
 
+Web: https://reus-web.vercel.app · Vite + TypeScript, Three.js y GSAP.
+
 ```bash
 npm install                   # la primera vez
 npm run dev                   # web en local con recarga al guardar

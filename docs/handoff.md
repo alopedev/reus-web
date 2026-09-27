@@ -1,14 +1,18 @@
-# Handoff · 27 de septiembre de 2026
+# Handoff · 27 de septiembre de 2026 (tarde)
 
 Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md` (registro estético). Producto: `docs/PRD.md`.
 
 ## Estado
 
+**Web publicada:** https://reus-web.vercel.app (se despliega en cada push a `main`; ver «Publicación» en `CLAUDE.md`).
+
+**Código:** Vite + TypeScript estricto en módulos (`src/`, mapa en `CLAUDE.md`), Three.js 0.128 y GSAP 3.15 desde npm. Migración completa en `docs/migracion.md`. GitHub Actions pasa tipos, compilación y `check.py` en cada push; `check.py paridad` compara con fotogramas de referencia por sistema (`scripts/baseline/darwin|linux/`).
+
 **Hero:** cerrado a falta del nombre de la web («Nombre» es provisional).
 
-**Transición hero → mesa («La repisa»):** implementada en `src/hero.html` y publicada (https://claude.ai/artifact/WPG4PK7RoqLePQYZetQRY4).
+**Transición hero → mesa («La repisa»):** implementada en `src/shelf.ts` (y el lavado en `src/world.ts` + `src/shaders/watercolor.frag`).
 - Cambio de plano «cámara que baja» (`pitch()`): pared y mesa comparten la bisagra, que sigue el scroll 1:1. La pared se adelanta, la mesa llega después y rebota un poco hacia arriba al posarse. La pared se oscurece según su ángulo y lleva un margen de sobreescala del 15 %
-- Mesa pintada en acuarela al llegar (`TABLE_FRAG`) + capas vivas (luz de la ventanilla, sombras de árboles, café, boli, gafas, billete de Rodalies, vibración)
+- Mesa pintada en acuarela al llegar (`src/table.ts` + `src/shaders/table.frag`) + capas vivas (luz de la ventanilla, sombras de árboles, café, boli, gafas, billete de Rodalies, vibración)
 - Papeles (`land()`): caen acelerando y con aleteo; la sombra (`--alto`) se separa y aclara con la altura; se asientan con un giro de 1–2°. La tapa del cuaderno (`openLeaf()`) se abre y rebota al quedar plana
 - Pantallas apaisadas ≥ 1000 × 780: mesa fija con timeline scrubbeado. Menores: cada papel cae al entrar (triggers por offsets de layout)
 - Tarea 3 (referencias para subir la calidad): `docs/referencias/scroll-calidad-transicion.md`. Aplicadas la 1 (ritmo), la 2 (caída con peso) y la 3 (lavado de pigmento en la pared, ver abajo)
@@ -17,8 +21,10 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 ## Siguiente paso
 
-1. Fase 3 · viaje de letras («Nombre» → «Qué es» como recortes de papel) y fase 4 · tren de papel sobre una vía en la mesa (prototipo aprobado en la página «Transición»). Reutilizar el patrón de `land()` (estado dibujado por un proxy, reversible con scrub) y la sombra según la altura
-2. Grabar el vídeo para X y LinkedIn
+1. Comprobar la web publicada en un móvil real (fluidez, toque en la regla)
+2. Fase 3 · viaje de letras («Nombre» → «Qué es» como recortes de papel) y fase 4 · tren de papel sobre una vía en la mesa (prototipo aprobado en la página «Transición»). Reutilizar el patrón de `land()` (estado dibujado por un proxy, reversible con scrub) y la sombra según la altura
+3. Grabar el vídeo para X y LinkedIn
+4. Pendiente técnico: subir Three.js desde r128 (hoy ~186 KB comprimido, casi todo Three entero; las versiones nuevas permiten descartar lo que no se usa). Cambia luz y color: hacerlo con la paridad visual como red y renovar referencias solo si Àlex aprueba el resultado
 
 ## Lecciones técnicas
 
@@ -34,7 +40,6 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 ## Pendiente y riesgos
 
 - Nombre de la web (lo decide Àlex)
-- Probar fluidez en un móvil real (solo probado con render por software)
 - Horarios: `data/trains.json` llega hasta el 9 de octubre de 2026; regenerar antes de grabar
 - Condiciones de uso de los datos abiertos de Renfe por verificar (probablemente exigen citar la fuente)
 - Fase 2 (no empezar sin decisión): actualización diaria automática, precios del AVE, subdominio gratuito, contador de visitas
