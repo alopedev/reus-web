@@ -4,7 +4,7 @@ Rules checked:
   1. The site name never overlaps the window (name bottom < window top).
   2. The departure block starts below the window (window bottom < info top).
   3. No JavaScript errors on load.
-  4. Small text uses Familjen Grotesk; times use Young Serif.
+  4. Small text uses Karla; times use Young Serif.
   5. The hero shows a scroll hint; below it, the shelf holds its three paper objects,
      uses the same two fonts and nothing sticks out sideways.
   6. Scrolling tilts the wall away; at the end the papers have landed and the notebook is open.
@@ -51,7 +51,7 @@ async def check_shelf(page, name):
     if shelf["missing"]: errs.append(f"shelf is missing {', '.join(shelf['missing'])}")
     if shelf["wide"]: errs.append(f"shelf sticks out sideways: {', '.join(shelf['wide'])}")
     if shelf["heading"] and shelf["heading"] != "Young Serif": errs.append(f"shelf heading font is {shelf['heading']}")
-    if shelf["body"] and shelf["body"] != "Familjen Grotesk": errs.append(f"shelf text font is {shelf['body']}")
+    if shelf["body"] and shelf["body"] != "Karla": errs.append(f"shelf text font is {shelf['body']}")
     await page.screenshot(path=str(shots / f"{name}-repisa.png"))
     return errs
 
@@ -106,7 +106,7 @@ async def main():
             })()""")
             if not box["name"] < box["winTop"]: failures.append(f"{name}: name overlaps window ({box['name']:.0f} ≥ {box['winTop']:.0f})")
             if not box["winBottom"] < box["info"]: failures.append(f"{name}: departure block overlaps window")
-            if box["sans"] != "Familjen Grotesk": failures.append(f"{name}: small text font is {box['sans']}")
+            if box["sans"] != "Karla": failures.append(f"{name}: small text font is {box['sans']}")
             if box["serif"] != "Young Serif": failures.append(f"{name}: time font is {box['serif']}")
             failures += [f"{name}: JS error: {e}" for e in errors]
             await page.screenshot(path=str(shots / f"{name}.png"))

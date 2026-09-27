@@ -91,3 +91,5 @@ Web de horarios de tren Barcelona Sants ↔ Reus cuyo fondo es un paisaje en acu
 | Solo GSAP núcleo + ScrollTrigger; letras y tren con medidas nativas del navegador | SplitText, Flip, MotionPath | Ahorra ~40 KB; el prototipo ya resuelve esas piezas con cálculo propio |
 | El copy de la web se trata en su propia fase del plan; los textos actuales son provisionales | Cerrar el copy dentro de la fase de secciones | Separar forma y contenido |
 | Cambiar la fuente secundaria por una que case mejor con Young Serif | Familjen Grotesk | Àlex: no casa con la principal (alternativas pendientes de elegir) |
+| Fuente secundaria: Karla 500/700 | Familjen Grotesk, Outfit, Geist | Humanista y cálida; casa con el trazo de cartel de Young Serif (precedente en Typewolf). Geist/Familjen: grotescas de producto que chocan |
+| Cambio de plano como cámara que baja: pared y mesa comparten bisagra; la mesa se acerca por abajo; la pared con sangrado calculado y oscurecida, sin transparencia | Girar pared y mesa por separado con fundido | Nunca puede verse el fondo detrás del diseño |
