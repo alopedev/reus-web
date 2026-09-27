@@ -11,6 +11,9 @@ Rules checked:
      While the gaze drops, the painting always fills the screen: nothing behind it ever shows.
   7. The table is painted in watercolor once it arrives and carries its travel things
      (coffee, pen, Rodalies ticket); the page never scrolls sideways.
+  8. Across 11 screen sizes (360 px to 2560 px): nothing leaves the screen sideways, tickets are
+     as wide as their text, no text is under 13 px, the notebook's pages never become strips,
+     the pinned table fits the screen and, on landscape screens, the hero scales like a poster.
      With reduced motion nothing moves and everything is already in place.
 Also saves screenshots to screenshots/ for a visual review.
 
@@ -99,6 +102,37 @@ async def check_motion(page, name, reduced=False):
     if off: errs.append(f"not landed at the end: {', '.join(off)}")
     return errs
 
+SIZES = {"360x740": (360, 740), "390x844": (390, 844), "430x932": (430, 932), "768x1024": (768, 1024), "1000x1300": (1000, 1300),
+         "1024x768": (1024, 768), "1280x720": (1280, 720), "1366x768": (1366, 768), "1440x900": (1440, 900), "1920x1080": (1920, 1080), "2560x1440": (2560, 1440)}
+FIT = """(() => {
+  const q = s => document.querySelector(s), errs = [];
+  const out = sel => [...document.querySelectorAll(sel)].filter(el => { if(el.closest('.deco')) return false; const b = el.getBoundingClientRect();
+    return b.width && (b.right > innerWidth + 1 || b.left < -1); }).slice(0, 3).map(el => el.id || el.className.baseVal || el.className || el.tagName);
+  const o = out('#stage *'); if(o.length) errs.push('hero sticks out: ' + o.join(', '));
+  document.querySelectorAll('.tk').forEach(t => { const w = t.getBoundingClientRect().width; t.style.width = 'max-content'; t.style.flex = 'none';
+    const m = t.getBoundingClientRect().width; t.style.width = ''; t.style.flex = ''; if(w > m + 2) errs.push(`ticket stretched to ${Math.round(w)} px (text needs ${Math.round(m)})`); });
+  const small = [...document.querySelectorAll('#stage p, #stage span, #stage button, #repisa p, #repisa li, #repisa h2')]
+    .filter(el => el.offsetParent && el.textContent.trim() && parseFloat(getComputedStyle(el).fontSize) < 13).slice(0, 3).map(el => el.textContent.trim().slice(0, 20));
+  if(small.length) errs.push('text under 13 px: ' + small.join(' | '));
+  const pages = [...document.querySelectorAll('.cuaderno .hoja')].map(h => h.offsetWidth); if(Math.min(...pages) < 240) errs.push(`notebook page only ${Math.min(...pages)} px wide`);
+  const esc = q('.escena'), mesa = q('.mesa');
+  if(getComputedStyle(esc).position === 'sticky' && mesa.offsetTop + mesa.offsetHeight > esc.clientHeight - 40)
+    errs.push(`pinned table does not fit: content ends at ${mesa.offsetTop + mesa.offsetHeight} of ${esc.clientHeight}`);
+  const ref = Math.min(innerWidth, innerHeight * 1.6), brand = parseFloat(getComputedStyle(q('.brand')).fontSize);
+  if(innerWidth > innerHeight && (brand / ref < .066 || brand / ref > .082)) errs.push(`hero does not scale: name is ${Math.round(brand)} px for a ${Math.round(ref)} px screen`);
+  return errs;
+})()"""
+
+async def check_sizes(browser):
+    """Layout at every size: read straight from the page, no waiting for the painting."""
+    failures = []
+    for name, (w, h) in SIZES.items():
+        page = await browser.new_page(viewport={"width": w, "height": h})
+        await page.goto(page_url); await page.wait_for_timeout(1200)
+        failures += [f"{name}: {e}" for e in await page.evaluate(FIT)]
+        await page.close()
+    return failures
+
 async def main():
     failures = []
     async with async_playwright() as p:
@@ -127,6 +161,7 @@ async def main():
             failures += [f"{name}: {e}" for e in await check_motion(page, name)]
             failures += [f"{name}: {e}" for e in await check_backstage(page, name)]
             await page.close()
+        failures += await check_sizes(browser)
         # reduced motion: a still frame and every paper already in place
         page = await browser.new_page(viewport={"width": 1440, "height": 860}, reduced_motion="reduce")
         await page.goto(page_url); await page.wait_for_timeout(3000)
