@@ -8,7 +8,10 @@ Rules checked:
   5. The hero shows a scroll hint; below it, the shelf holds its three paper objects,
      uses the same two fonts and nothing sticks out sideways.
   6. Scrolling tilts the wall away; at the end the papers have landed and the notebook is open.
-     While the gaze drops, the painting always fills the screen: nothing behind it ever shows.
+     While the gaze drops, the painting always fills the screen: nothing behind it ever shows,
+     not even while the tilt is still catching up with a sudden jump of the scroll.
+     The wall leads and the table follows; the table touches down before the end of the first
+     screen and bounces up a little. A paper in the air casts its shadow farther than at rest.
   7. The table is painted in watercolor once it arrives and carries its travel things
      (coffee, pen, Rodalies ticket); the page never scrolls sideways.
   8. Across 11 screen sizes (360 px to 2560 px): nothing leaves the screen sideways, tickets are
@@ -85,8 +88,47 @@ async def check_backstage(page, name):
         img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB").resize((360, 220))
         n = sum(1 for r, g, b in img.get_flattened_data() if r > 200 and g < 70 and b > 200)
         if n: leaks.append(f"{int(f * 100)}% ({n / (360 * 220):.1%})")
+    for a, b in ((.05, .9), (.9, .1)):
+        await page.evaluate(f"scrollTo({{top: innerHeight * {a}, behavior: 'instant'}})"); await page.wait_for_timeout(1300)
+        await page.evaluate(f"scrollTo({{top: innerHeight * {b}, behavior: 'instant'}})")
+        img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB").resize((360, 220))
+        n = sum(1 for r, g, b in img.get_flattened_data() if r > 200 and g < 70 and b > 200)
+        if n: leaks.append(f"jump {int(a * 100)}→{int(b * 100)}% ({n / (360 * 220):.1%})")
     await page.evaluate("scrollTo(0, 0)")
     return [f"background shows during the transition at {', '.join(leaks)}"] if leaks else []
+
+ANGLE = """(s => { const m = document.querySelector(s).style.transform.match(/rotateX\\((-?[\\d.]+)deg\\)/); return m ? +m[1] : 0; })"""
+
+async def check_rhythm(page):
+    """The wall leads and the table follows; the table lands before the end of the first screen and bounces up a little."""
+    errs, at = [], {}
+    for f in (.3, .88, .95):
+        await page.evaluate(f"scrollTo({{top: innerHeight * {f}, behavior: 'instant'}})"); await page.wait_for_timeout(1300)
+        at[f] = await page.evaluate(f"({{wall: ({ANGLE})('#hero'), table: ({ANGLE})('#repisa')}})")
+    wall, table = at[.3]["wall"] / 34, 1 - at[.3]["table"] / 24
+    if wall <= table: errs.append(f"the table arrives before the wall turns (30%: wall {wall:.0%} of its turn, table {table:.0%})")
+    if at[.88]["table"] > .15: errs.append(f"the table has not touched down at 88% ({at[.88]['table']:.2f}°)")
+    if at[.95]["table"] < .5: errs.append(f"the table does not bounce as it lands ({at[.95]['table']:.2f}° at 95%)")
+    return errs
+
+SHADOW = """(() => { const c = getComputedStyle(document.querySelector('#folleto')), n = c.boxShadow.match(/(-?[\\d.]+)px/);
+  return {x: n ? +n[1] : 0, o: +c.opacity, rest: .375 * parseFloat(getComputedStyle(document.documentElement).fontSize)}; })()"""
+
+async def check_fall(page):
+    """While the leaflet is in the air its shadow lies farther from it than when it rests on the table."""
+    await page.evaluate("scrollTo({top: innerHeight * 1.2, behavior: 'instant'})"); await page.wait_for_timeout(1500)
+    spots = await page.evaluate("""(() => {
+      const shelf = document.getElementById('repisa'), el = document.getElementById('folleto');
+      if(getComputedStyle(document.querySelector('.escena')).position === 'sticky') {
+        const a = shelf.offsetTop, b = a + shelf.offsetHeight - innerHeight; return [.08, .16, .24].map(t => a + (b - a) * t); }
+      let top = 0; for(let n = el; n; n = n.offsetParent) top += n.offsetTop;
+      return [.95, .87, .8].map(t => top - innerHeight * t); })()""")
+    far = 0
+    for y in spots:
+        await page.evaluate(f"scrollTo({{top: {y}, behavior: 'instant'}})"); await page.wait_for_timeout(1500)
+        sh = await page.evaluate(SHADOW)
+        if sh["o"] > .3: far = max(far, sh["x"] / sh["rest"])
+    return [] if far > 1.6 else [f"a falling paper keeps its resting shadow (at most {far:.2f}× in the air)"]
 
 async def check_motion(page, name, reduced=False):
     """Halfway down, the wall is tilting (or, with reduced motion, still); at the end everything has landed."""
@@ -100,6 +142,8 @@ async def check_motion(page, name, reduced=False):
     await page.evaluate("scrollTo(0, document.scrollingElement.scrollHeight)"); await settle(page)
     off = await page.evaluate(LANDED)
     if off: errs.append(f"not landed at the end: {', '.join(off)}")
+    sh = await page.evaluate(SHADOW)
+    if abs(sh["x"] - sh["rest"]) > 1: errs.append(f"the leaflet's shadow is not at rest at the end ({sh['x']:.1f} px, rest {sh['rest']:.1f} px)")
     return errs
 
 SIZES = {"360x740": (360, 740), "390x844": (390, 844), "430x932": (430, 932), "768x1024": (768, 1024), "1000x1300": (1000, 1300),
@@ -161,6 +205,8 @@ async def main():
             print(f"{name}: name→{box['name']:.0f}px, window {box['winTop']:.0f}–{box['winBottom']:.0f}px, info→{box['info']:.0f}px")
             failures += [f"{name}: {e}" for e in await check_shelf(page, name)]
             failures += [f"{name}: {e}" for e in await check_motion(page, name)]
+            failures += [f"{name}: {e}" for e in await check_rhythm(page)]
+            failures += [f"{name}: {e}" for e in await check_fall(page)]
             failures += [f"{name}: {e}" for e in await check_backstage(page, name)]
             await page.close()
         failures += await check_sizes(browser)
