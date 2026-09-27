@@ -24,17 +24,25 @@ Rules checked:
   9. The wall darkens as a pigment wash painted in its own shader, not a flat DOM veil: it starts at
      the hinge and climbs the wall as the wall turns away, the texts on the wall dim with it, and
      nothing lingers once you scroll back to the top.
+  10. The site looks the same as the reference frames in scripts/baseline/ (a still frame with reduced
+     motion and the clock fixed at 10:00 in Madrid): the guard for refactors that must change nothing.
+     A missing reference is written from the current build; delete one to renew it.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
-Usage: python3 scripts/build.py && python3 scripts/check.py
+Usage: python3 scripts/build.py && python3 scripts/check.py [paridad]   (paridad: only check 10, in a minute)
 """
-import asyncio, io, pathlib, sys
-from PIL import Image
+import asyncio, functools, http.server, io, pathlib, sys, threading
+from PIL import Image, ImageChops, ImageStat
 from playwright.async_api import async_playwright
 
 root = pathlib.Path(__file__).resolve().parent.parent
-page_url = (root / "dist/index.html").as_uri()
+# served over HTTP, as the real site will be: ES modules do not load from file://
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, *args): pass
+server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=str(root / "dist")))
+threading.Thread(target=server.serve_forever, daemon=True).start()
+page_url = f"http://127.0.0.1:{server.server_address[1]}/"
 shots = root / "screenshots"; shots.mkdir(exist_ok=True)
 VIEWPORTS = {"desktop": (1440, 860), "mobile": (390, 820)}
 
@@ -261,6 +269,9 @@ async def check_motion(page, name, reduced=False):
     if not reduced and not await hinge_caught_up(page): errs.append("the hinge never catches up with the scroll at 50%")
     tilt = await page.evaluate("getComputedStyle(document.querySelector('#hero')).transform")
     if reduced and tilt not in ("none", ""): errs.append("wall moves with reduced motion")
+    if reduced:
+        moving = await page.evaluate("[...new Set(document.getAnimations().filter(a => a.playState === 'running').map(a => a.effect?.target?.className?.baseVal ?? a.effect?.target?.className))]")
+        if moving: errs.append(f"things still move with reduced motion: {', '.join(map(str, moving))}")
     if not reduced and tilt in ("none", ""): errs.append("wall does not tilt while scrolling")
     await page.screenshot(path=str(shots / f"{name}-scroll50.png"))
     await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})"); await settle(page)
@@ -303,11 +314,40 @@ async def check_sizes(browser):
         await page.close()
     return failures
 
+baseline = root / "scripts/baseline"
+PARITY = {"escritorio-hero": (1440, 900, False), "escritorio-mesa": (1440, 900, True), "movil-hero": (390, 844, False)}
+
+async def check_parity(browser):
+    """The site looks as it did: a still frame (reduced motion, clock fixed) compared with the reference frames."""
+    errs = []; baseline.mkdir(exist_ok=True)
+    for name, (w, h, table) in PARITY.items():
+        page = await browser.new_page(viewport={"width": w, "height": h}, reduced_motion="reduce")
+        await page.clock.set_fixed_time("2026-09-28T08:00:00Z")   # 10:00 in Madrid, a day inside the timetable
+        await page.goto(page_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(2500)
+        if table:
+            await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})")
+            try: await page.wait_for_function("document.getElementById('lienzo')?.dataset.pintada === '1'", timeout=12000)
+            except Exception: errs.append(f"{name}: the table never gets painted")
+            await page.wait_for_timeout(1500)
+        shot = Image.open(io.BytesIO(await page.screenshot())).convert("RGB"); await page.close()
+        ref = baseline / f"{name}.png"
+        if not ref.exists(): shot.save(ref); print(f"reference frame written: {ref.relative_to(root)}"); continue
+        diff = ImageChops.difference(shot.resize((360, round(360 * h / w))), Image.open(ref).convert("RGB").resize((360, round(360 * h / w))))
+        # both a faint change everywhere and a clear change in a small spot count
+        mean = sum(ImageStat.Stat(diff).mean) / 3
+        spots = sum(1 for px in diff.get_flattened_data() if max(px) > 40) / (diff.width * diff.height)
+        print(f"{name}: mean difference {mean:.2f}, changed {spots:.2%}")
+        if mean > 2 or spots > .005: errs.append(f"{name} no longer looks like its reference (mean {mean:.1f}, changed {spots:.1%})"); shot.save(shots / f"{name}-distinto.png")
+    return errs
+
 async def main():
     failures = []
     async with async_playwright() as p:
         # software WebGL so it also runs on machines without a GPU (slow but faithful)
         browser = await p.chromium.launch(args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
+        failures += await check_parity(browser)
+        if sys.argv[1:] == ["paridad"]:
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · paridad"); sys.exit(1 if failures else 0)
         for name, (w, h) in VIEWPORTS.items():
             page = await browser.new_page(viewport={"width": w, "height": h})
             errors = []
