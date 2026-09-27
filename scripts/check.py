@@ -30,7 +30,7 @@ Rules checked:
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
-Usage: python3 scripts/build.py && python3 scripts/check.py [paridad]   (paridad: only check 10, in a minute)
+Usage: npm run build && python3 scripts/check.py [paridad]   (or: npm run check)   (paridad: only check 10, in a minute)
 """
 import asyncio, functools, http.server, io, pathlib, sys, threading
 from PIL import Image, ImageChops, ImageStat
@@ -131,9 +131,9 @@ ANGLE = """(s => { const m = document.querySelector(s).style.transform.match(/ro
 async def hinge_caught_up(page):
     """Software rendering gives very few frames: wait until the hinge has caught up with the scroll."""
     try:
-        # hingeAt and dropped come from the page: the hinge is defined in one place only
+        # the page's reus API gives hingeAt and dropped: the hinge is defined in one place only
         await page.wait_for_function("""Math.abs(parseFloat(document.getElementById('hero').style.transformOrigin.split(' ')[1])
-          - hingeAt(dropped())) < 1""", timeout=15000)
+          - reus.hingeAt(reus.dropped())) < 1""", timeout=15000)
         return True
     except Exception: return False
 
@@ -158,7 +158,7 @@ async def check_overlap(page):
     spans = await page.evaluate("""(() => {
       if(getComputedStyle(document.querySelector('.escena')).position !== 'sticky') return null;
       // the pinned timeline: three papers and the notebook's cover
-      const st = ScrollTrigger.getAll().find(t => t.animation && t.animation.getChildren(false).length === 4);
+      const st = reus.ScrollTrigger.getAll().find(t => t.animation && t.animation.getChildren(false).length === 4);
       return st ? st.animation.getChildren(false).map(c => [c.startTime(), c.endTime()]) : []; })()""")
     if spans is None: return []
     if len(spans) != 4: return ["no pinned timeline with three papers and the cover"]
@@ -179,7 +179,7 @@ async def scrub_caught_up(page):
     """Wait until every scrubbed animation has caught up with the real scroll position (they lag on purpose, by .6 s).
     Both the trigger's progress and its animation's are compared with where the page really is: under load the ticker
     can go seconds without a frame, and then the two agree with each other while both are stale."""
-    try: await page.wait_for_function("""ScrollTrigger.getAll().every(t => { if(!t.animation) return true;
+    try: await page.wait_for_function("""reus.ScrollTrigger.getAll().every(t => { if(!t.animation) return true;
       const real = Math.min(1, Math.max(0, (scrollY - t.start) / (t.end - t.start)));   // t.scroll() is cached too
       return Math.abs(t.progress - real) < .005 && Math.abs(t.animation.progress() - real) < .005; })""", timeout=30000)
     except Exception: pass
@@ -241,7 +241,7 @@ async def check_wash(page, name):
     await at(0)
     # two bare-wall spots beside the window (clear of the seats): one just above where the hinge will be at 30%, one high up
     near, far = await page.evaluate("""(() => { const w = document.getElementById('win').getBoundingClientRect(), seats = innerWidth / innerHeight > 1.15 ? .25 * innerHeight : 0;
-      const x = w.right + (innerWidth - seats - w.right) / 2; return [[x, hingeAt(.3) - .02 * innerHeight], [x, w.top + .15 * w.height]]; })()""")
+      const x = w.right + (innerWidth - seats - w.right) / 2; return [[x, reus.hingeAt(.3) - .02 * innerHeight], [x, w.top + .15 * w.height]]; })()""")
     rest = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
     base = [brightness(rest, near), brightness(rest, far)]
     seen = {}

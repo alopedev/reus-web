@@ -3,9 +3,10 @@
 Próximos trenes regionales directos entre Barcelona-Sants y Reus, dentro de un vagón pintado en acuarela.
 
 ```bash
-python3 scripts/build.py      # genera dist/index.html
-open dist/index.html          # o ábrelo en cualquier navegador
-python3 scripts/check.py      # comprobaciones de diseño (requiere playwright)
+npm install                   # la primera vez
+npm run dev                   # web en local con recarga al guardar
+npm run build                 # genera dist/
+npm run check                 # compila y pasa las comprobaciones de diseño (requiere playwright)
 python3 scripts/extract_trains.py   # actualiza horarios desde el GTFS abierto de Renfe
 ```
 

@@ -10,10 +10,11 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 
 ## Comandos
 
-- `python3 scripts/build.py`: genera `dist/index.html` (plantilla `src/hero.html` + `data/trains.json`)
+- `npm install` la primera vez; `npm run dev` abre la web en local con recarga al guardar
+- `npm run build`: genera `dist/` con Vite (`src/index.html` + `src/main.js` + `data/trains.json`)
 - `python3 scripts/check.py`: comprueba reglas de diseño en escritorio y móvil y guarda capturas en `screenshots/`. Ejecútalo después de cada cambio visual y revisa las capturas antes de dar nada por terminado
 - `python3 scripts/extract_trains.py`: descarga el GTFS abierto de Renfe y regenera `data/trains.json` (14 días desde hoy)
-- `check.py` lee `dist/index.html`: ejecuta siempre `python3 scripts/build.py && python3 scripts/check.py`
+- `check.py` sirve `dist/` por HTTP: ejecuta siempre `npm run check` (compila y comprueba). `python3 scripts/check.py paridad` solo compara con los fotogramas de referencia de `scripts/baseline/` (un minuto); borra uno para renovarlo cuando un cambio visible esté aprobado
 - `check.py` necesita Playwright + Chromium (`pip install playwright && playwright install chromium`); usa WebGL por software y espera 9 s por viewport
 - No hay tests unitarios ni linter; `check.py` es la única verificación automática
 
@@ -39,7 +40,7 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 
 ## Técnica
 
-- Un único HTML autocontenido. Three.js r128 y GSAP 3.15 (núcleo + ScrollTrigger) desde cdnjs; fuentes desde Google Fonts. Nada más externo
+- Migración a Vite + TypeScript en curso (`docs/migracion.md`). Three.js 0.128 y GSAP 3.15 (núcleo + ScrollTrigger) como dependencias npm con versión fija; fuentes desde Google Fonts. Nada más externo
 - Paisaje: escena 3D → render target → shader de acuarela (Kuwahara + modelo de pigmento). El vagón se pinta en el mismo shader fuera de la ventanilla (`sdRR` con el rectángulo de `#win`)
 - Horarios en minutos desde medianoche; claves `r` (Sants→Reus), `b` (Reus→Sants), `a` (AVE, sin uso aún)
 - IDs de parada GTFS: Barcelona-Sants 71801, Reus 71400
@@ -48,7 +49,7 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 - Escala de cartel: el `font-size` de `html` sigue a la pantalla (`min(1.111vw, 1.778vh)`, mínimo 14 px; en vertical, el ancho) y todos los tamaños del hero y la mesa van en `rem`. No uses px ni `clamp(…vw…)` sueltos: rompen la proporción. La geometría en JS (mesa, objetos) se mide en `rem` leyendo el tamaño de la raíz
 - La maquetación de la mesa decide por el espacio real (container queries sobre `.escena`), no por el tamaño de pantalla. La mesa fija (sticky) exige pantalla apaisada de ≥ 1000 × 780: misma media query en CSS y en `PINNED` del script
 - `check.py` recorre 11 tamaños de pantalla (360 a 2560 px); si cambias tamaños, revisa también esas capturas
-- Edita solo `src/hero.html`; `dist/` se regenera. El marcador `__DATA__` (`const DATA = __DATA__;`) debe seguir existiendo o `build.py` falla
+- Edita `src/`; `dist/` se regenera. Los horarios se importan de `data/trains.json`. `check.py` lee el estado de la página por `window.reus` (`hingeAt`, `dropped`, `ScrollTrigger`): si renombras algo, actualízalo ahí
 - `check.py` depende de los selectores `.brand`, `#win`, `#info`, `.soon` y `#dep`: si los renombras, actualiza el script
 - Flujo en runtime: `build3D()` devuelve `world` (`setTime`, `frame(dx, time, reveal)`) o `null` sin WebGL (la página debe seguir funcionando). `loop()` limita el render a 30 fps y para el `requestAnimationFrame` en pausa o con la pestaña oculta
 - `daylight(min)` es la única fuente de luz: define a la vez el cielo del paisaje y los colores de pared, madera y asientos del vagón
@@ -58,5 +59,5 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 
 ## Publicación
 
-- Prototipo publicado como artifact de claude.ai: https://claude.ai/artifact/WPG4PK7RoqLePQYZetQRY4
-- Para actualizarlo, publica `dist/index.html` sobre esa misma URL (o adjúntalo con `/artifacts`)
+- Última versión publicada como artifact de claude.ai: https://claude.ai/artifact/WPG4PK7RoqLePQYZetQRY4 (versión 15, 27-09-2026)
+- **En pausa (decisión de Àlex, 27-09-2026):** no se publica nada más en el artifact; la siguiente publicación será en el alojamiento definitivo (Vercel o Netlify, fase 4 de `docs/migracion.md`)
