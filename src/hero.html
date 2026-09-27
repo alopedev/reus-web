@@ -223,7 +223,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .cuaderno{ grid-template-columns:minmax(0,1fr); }
   .cuaderno .izq{ transform-origin:50% 100%; }
   .cuaderno .cara{ border-right:0; border-bottom:1.5px dashed rgba(45,36,28,.4); }
-  .tapa{ transform:rotateX(180deg); box-shadow:.375rem -.375rem 0 var(--shadow); }
+  .tapa{ transform:rotateX(180deg); box-shadow:calc(.375rem * var(--lejos)) calc(-.375rem * var(--caida)) 0 var(--tinta); }
 }
 }
 </style>
