@@ -40,6 +40,7 @@ VIEWPORTS = {"desktop": (1440, 860), "mobile": (390, 820)}
 
 async def settle(page):
     """Software rendering is slow: wait until the scrubbed animations have caught up with the scroll."""
+    await page.wait_for_timeout(300); await scrub_caught_up(page)
     try: await page.wait_for_function(f"({LANDED}).length === 0", timeout=40000)
     except Exception: pass
     await page.wait_for_timeout(500)
@@ -53,7 +54,7 @@ async def check_shelf(page, name):
     if hint["bottom"] > hint["h"]: errs.append("scroll hint is below the fold")
     if not await page.evaluate("document.scrollingElement.scrollHeight > innerHeight + 10"):
         return errs + ["page does not scroll"]
-    await page.evaluate("scrollTo(0, document.scrollingElement.scrollHeight)")
+    await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})")
     await settle(page)
     shelf = await page.evaluate("""(() => {
       const q = s => document.querySelector(s), f = el => getComputedStyle(el).fontFamily.split(',')[0].replace(/"/g,'');
@@ -167,8 +168,12 @@ SHADOWS = """(() => {
           cover: read('#cuaderno .tapa', 'boxShadow', .375, '#cuaderno'), ticket: read('#reverso', 'filter', .3, '#reverso')}; })()"""
 
 async def scrub_caught_up(page):
-    """Wait until every scrubbed animation has caught up with its scroll position (they lag on purpose, by .6 s)."""
-    try: await page.wait_for_function("ScrollTrigger.getAll().every(t => !t.animation || Math.abs(t.animation.progress() - t.progress) < .005)", timeout=20000)
+    """Wait until every scrubbed animation has caught up with the real scroll position (they lag on purpose, by .6 s).
+    Both the trigger's progress and its animation's are compared with where the page really is: under load the ticker
+    can go seconds without a frame, and then the two agree with each other while both are stale."""
+    try: await page.wait_for_function("""ScrollTrigger.getAll().every(t => { if(!t.animation) return true;
+      const real = Math.min(1, Math.max(0, (scrollY - t.start) / (t.end - t.start)));   // t.scroll() is cached too
+      return Math.abs(t.progress - real) < .005 && Math.abs(t.animation.progress() - real) < .005; })""", timeout=30000)
     except Exception: pass
 
 async def check_fall(page):
@@ -258,7 +263,7 @@ async def check_motion(page, name, reduced=False):
     if reduced and tilt not in ("none", ""): errs.append("wall moves with reduced motion")
     if not reduced and tilt in ("none", ""): errs.append("wall does not tilt while scrolling")
     await page.screenshot(path=str(shots / f"{name}-scroll50.png"))
-    await page.evaluate("scrollTo(0, document.scrollingElement.scrollHeight)"); await settle(page)
+    await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})"); await settle(page)
     off = await page.evaluate(LANDED)
     if off: errs.append(f"not landed at the end: {', '.join(off)}")
     for paper, sh in (await page.evaluate(SHADOWS)).items():
