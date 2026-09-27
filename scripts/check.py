@@ -9,7 +9,7 @@ Rules checked:
      uses the same two fonts and nothing sticks out sideways.
   6. Scrolling tilts the wall away; at the end the papers have landed and the notebook is open.
      While the gaze drops, the painting always fills the screen: nothing behind it ever shows,
-     not even while the tilt is still catching up with a sudden jump of the scroll.
+     not even right after a sudden jump of the scroll.
      The wall leads and the table follows; the table touches down before the end of the first
      screen and bounces up a little. A paper in the air casts its shadow farther than at rest.
   7. The table is painted in watercolor once it arrives and carries its travel things
@@ -85,9 +85,13 @@ async def check_backstage(page, name):
     leaks = []
     for f in (.1, .25, .4, .55, .7, .85, .95):
         await page.evaluate(f"scrollTo(0, innerHeight * {f})"); await page.wait_for_timeout(1300)
-        img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB").resize((360, 220))
+        shot = Image.open(io.BytesIO(await page.screenshot())).convert("RGB"); img = shot.resize((360, 220))
         n = sum(1 for r, g, b in img.get_flattened_data() if r > 200 and g < 70 and b > 200)
-        if n: leaks.append(f"{int(f * 100)}% ({n / (360 * 220):.1%})")
+        if n:
+            why = await page.evaluate("""(() => { const h = document.getElementById('hero').style, r = document.getElementById('repisa').getBoundingClientRect();
+              const top = document.elementFromPoint(innerWidth / 2, 20);
+              return `scroll ${(scrollY / innerHeight).toFixed(3)}, wall ${h.visibility || 'visible'} ${h.transform || 'flat'} @ ${h.transformOrigin}, table top ${r.top.toFixed(0)}, at the top ${top ? top.id || top.className || top.tagName : 'nothing'}`; })()""")
+            leaks.append(f"{int(f * 100)}% ({n / (360 * 220):.1%}; {why})"); shot.save(shots / f"{name}-fondo-{int(f * 100)}.png")
     for a, b in ((.05, .9), (.9, .1)):
         await page.evaluate(f"scrollTo({{top: innerHeight * {a}, behavior: 'instant'}})"); await page.wait_for_timeout(1300)
         await page.evaluate(f"scrollTo({{top: innerHeight * {b}, behavior: 'instant'}})")
@@ -99,11 +103,20 @@ async def check_backstage(page, name):
 
 ANGLE = """(s => { const m = document.querySelector(s).style.transform.match(/rotateX\\((-?[\\d.]+)deg\\)/); return m ? +m[1] : 0; })"""
 
+async def hinge_caught_up(page):
+    """Software rendering gives very few frames: wait until the hinge has caught up with the scroll."""
+    try:
+        await page.wait_for_function("""Math.abs(parseFloat(document.getElementById('hero').style.transformOrigin.split(' ')[1])
+          - (innerHeight - Math.min(scrollY, innerHeight))) < 1""", timeout=15000)
+        return True
+    except Exception: return False
+
 async def check_rhythm(page):
     """The wall leads and the table follows; the table lands before the end of the first screen and bounces up a little."""
     errs, at = [], {}
     for f in (.3, .88, .95):
-        await page.evaluate(f"scrollTo({{top: innerHeight * {f}, behavior: 'instant'}})"); await page.wait_for_timeout(1300)
+        await page.evaluate(f"scrollTo({{top: innerHeight * {f}, behavior: 'instant'}})"); await page.wait_for_timeout(300)
+        if not await hinge_caught_up(page): errs.append(f"the hinge never catches up with the scroll at {f:.0%}")
         at[f] = await page.evaluate(f"({{wall: ({ANGLE})('#hero'), table: ({ANGLE})('#repisa')}})")
     wall, table = at[.3]["wall"] / 34, 1 - at[.3]["table"] / 24
     if wall <= table: errs.append(f"the table arrives before the wall turns (30%: wall {wall:.0%} of its turn, table {table:.0%})")
@@ -134,7 +147,8 @@ async def check_motion(page, name, reduced=False):
     """Halfway down, the wall is tilting (or, with reduced motion, still); at the end everything has landed."""
     errs = []
     await page.evaluate("scrollTo(0, 0)"); await page.wait_for_timeout(800)
-    await page.evaluate("scrollTo(0, innerHeight * .5)"); await page.wait_for_timeout(1800)
+    await page.evaluate("scrollTo({top: innerHeight * .5, behavior: 'instant'})"); await page.wait_for_timeout(1800)
+    if not reduced: await hinge_caught_up(page)
     tilt = await page.evaluate("getComputedStyle(document.querySelector('#hero')).transform")
     if reduced and tilt not in ("none", ""): errs.append("wall moves with reduced motion")
     if not reduced and tilt in ("none", ""): errs.append("wall does not tilt while scrolling")

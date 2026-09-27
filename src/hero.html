@@ -180,7 +180,9 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 .intro h2{ margin:0 0 .35em; font-family:var(--serif); font-weight:400; line-height:.95; letter-spacing:-.02em;
   font-size:4.8rem; color:var(--paper); text-shadow:.05em .05em 0 var(--shadow); }
 .intro p{ margin:0; max-width:34em; font-size:1.18rem; line-height:1.45; text-shadow:0 1px 2px rgba(0,0,0,.35); }
-.papel{ background:#EFE6D2 var(--grain); color:var(--shadow); padding:1.5rem 1.75rem; box-shadow:.375rem .375rem 0 var(--shadow); }
+/* --alto: how high a paper still is above the table (0 at rest); its shadow lies farther and lighter the higher it is */
+.papel, .tapa, .reverso{ --lejos:calc(1 + 3.2 * var(--alto, 0)); --caida:calc(1 + 3.7 * var(--alto, 0)); --tinta:rgb(45 36 28 / calc(1 - .55 * var(--alto, 0))); }
+.papel{ background:#EFE6D2 var(--grain); color:var(--shadow); padding:1.5rem 1.75rem; box-shadow:calc(.375rem * var(--lejos)) calc(.375rem * var(--caida)) 0 var(--tinta); }
 .papel h2{ margin:.2em 0 .5em; font-family:var(--serif); font-weight:400; font-size:1.9rem; line-height:1.1; }
 .papel p, .papel li{ margin:0; font-size:.98rem; line-height:1.6; }
 .papel ol, .papel ul{ margin:0; padding:0; list-style:none; }
@@ -197,11 +199,11 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 .cuaderno .izq{ z-index:1; transform-origin:100% 50%; transform-style:preserve-3d; }
 .cuaderno .cara{ background-color:#EAE0CA; border-right:1.5px dashed rgba(45,36,28,.4); backface-visibility:hidden; -webkit-backface-visibility:hidden; }
 .tapa{ position:absolute; inset:0; display:flex; flex-direction:column; justify-content:flex-end; padding:1.75rem; background:#7A4B3A var(--grain); color:var(--paper);
-  box-shadow:-.375rem .375rem 0 var(--shadow); transform:rotateY(180deg); backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+  box-shadow:calc(-.375rem * var(--lejos)) calc(.375rem * var(--caida)) 0 var(--tinta); transform:rotateY(180deg); backface-visibility:hidden; -webkit-backface-visibility:hidden; }
 .tapa b{ font-family:var(--serif); font-weight:400; font-size:2rem; line-height:1; }
 .tapa span{ margin-top:.62rem; font-size:.9rem; opacity:.8; }
 .cuaderno .lema{ margin-top:1.1rem; font-family:var(--serif); font-size:1.05rem; color:#7A4B3A; }
-.reverso{ grid-area:reverso; max-width:38.75rem; transform:rotate(-1.2deg); filter:drop-shadow(.3rem .3rem 0 var(--shadow)); }
+.reverso{ grid-area:reverso; max-width:38.75rem; transform:rotate(-1.2deg); filter:drop-shadow(calc(.3rem * var(--lejos)) calc(.3rem * var(--caida)) 0 var(--tinta)); }
 .reverso .papel{ box-shadow:none; padding:1.25rem 2.1rem; clip-path:polygon(0 0,100% 0,100% 40%,98.4% 50%,100% 60%,100% 100%,0 100%,0 60%,1.6% 50%,0 40%); }
 .reverso .fuente{ margin-top:.5rem; font-size:.93rem; opacity:.8; }
 @media (max-width:700px){
@@ -923,57 +925,103 @@ render();
 document.fonts && document.fonts.ready.then(()=> world && world.resize());
 repaint();
 
-// scrolling down, the gaze drops from the window to the table: the wall tilts away,
-// the table rises, the papers fall onto it and the notebook opens. Follows the finger both ways.
+// scrolling down, the gaze drops from the window to the table: the wall tilts away, the table rises and lands,
+// the papers fall onto it and the notebook opens. Follows the finger both ways.
 function setupShelf(){
   if(!window.gsap || !window.ScrollTrigger) return;
   gsap.registerPlugin(ScrollTrigger);
   const PINNED = '(min-width:1000px) and (min-height:780px) and (min-aspect-ratio:1/1)';
   gsap.matchMedia().add({motion:'(prefers-reduced-motion: no-preference)', wide:'(min-width:701px)', pinned:PINNED}, ctx => {
     if(!ctx.conditions.motion) return;
-    const {wide, pinned} = ctx.conditions, shelf = document.getElementById('repisa');
+    const {pinned} = ctx.conditions, shelf = document.getElementById('repisa');
     // the hinge reads the scroll directly: it must match the table's real position on every frame
     const onScroll = () => pitch();
     addEventListener('scroll', onScroll, {passive:true}); addEventListener('resize', onScroll);
     pitch();
-    const fall = {y:-560, rotation:'+=9', scale:1.1, autoAlpha:0, ease:'power2.out'};
-    const papers = ['#folleto', '#cuaderno', '#reverso'], leaf = '.cuaderno .izq';
+    // each paper with the tilt it rests at (the same as in the stylesheet)
+    const papers = [['#folleto', -2.5], ['#cuaderno', 1], ['#reverso', -1.2]].map(([s, r]) => [document.querySelector(s), r]);
+    const leaf = document.querySelector('.cuaderno .izq');
     if(pinned){
-      // layout offsets, not the trigger's box: the shelf is tilted by the timeline above while it is measured
+      // layout offsets, not the trigger's box: the shelf is tilted by pitch() while it is measured
       const tl = gsap.timeline({scrollTrigger:{start:() => shelf.offsetTop, end:() => shelf.offsetTop + shelf.offsetHeight - innerHeight, scrub:.6, invalidateOnRefresh:true}});
-      papers.forEach((s, i) => tl.from(s, {...fall, duration:1}, i * .45));
-      tl.from(leaf, {rotationY:180, transformPerspective:1800, duration:1, ease:'power2.inOut'}, '+=.1');
+      // each paper starts falling before the previous one lands; the cover opens as the last one settles
+      papers.forEach(([el, rot], i) => tl.add(land(el, rot, 35), i * .35));
+      tl.add(openLeaf(leaf, 'Y', 1), 1.55);
     } else {
-      // stacked papers: each one lands as it scrolls in
-      papers.forEach(s => gsap.from(s, {...fall, y:-160, scrollTrigger:{trigger:s, start:'top 100%', end:'top 65%', scrub:.6}}));
+      // stacked papers: each one lands as it scrolls in (layout offsets again: the table may still be tilted)
+      const between = (el, a, b) => ({start:() => pageTop(el) - innerHeight * a, end:() => pageTop(el) - innerHeight * b, scrub:.6, invalidateOnRefresh:true});
+      papers.forEach(([el, rot]) => gsap.timeline({scrollTrigger:between(el, 1, .65)}).add(land(el, rot, 10)));
       // the leaf turns sideways when the pages sit side by side, and folds down when they are stacked
       const side = getComputedStyle(document.querySelector('.cuaderno')).gridTemplateColumns.trim().split(/\s+/).length > 1;
-      gsap.from(leaf, {[side ? 'rotationY' : 'rotationX']: side ? 180 : -180, transformPerspective:1800, ease:'power2.inOut',
-        scrollTrigger:{trigger:'#cuaderno', start:'top 55%', end:'top 20%', scrub:.6}});
+      gsap.timeline({scrollTrigger:between(papers[1][0], .55, .2)}).add(side ? openLeaf(leaf, 'Y', 1) : openLeaf(leaf, 'X', -1));
     }
-    return () => { removeEventListener('scroll', onScroll); removeEventListener('resize', onScroll); pitch(true); };
+    return () => {
+      removeEventListener('scroll', onScroll); removeEventListener('resize', onScroll); pitch(true);
+      [...papers.map(([el]) => el), leaf].forEach(rest);
+    };
   });
 }
 
+const inOut = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const clamp01 = x => Math.min(1, Math.max(0, x));
+// where an element sits on the page, ignoring any transform on the way
+const pageTop = el => { let y = 0; for(let n = el; n; n = n.offsetParent) y += n.offsetTop; return y; };
+const rest = el => ['transform', 'opacity', 'visibility', '--alto'].forEach(p => el.style.removeProperty(p));
+
+// a paper falls with weight: it speeds up and flutters on the way down, its shadow says how high it still is (--alto),
+// then it settles with a small overshoot. Drawn straight onto the element so the scrub can run it both ways.
+function land(el, rot, drop){
+  const k = {u:0, s:0};
+  const draw = () => {
+    if(k.s >= 1){ rest(el); return; }
+    const h = 1 - Math.pow(k.u, 1.4), settle = Math.sin(Math.PI * k.s);
+    const r = rot + 9 * h + 3 * Math.sin(k.u * Math.PI * 2) * h - 1.4 * settle;
+    el.style.transform = `translateY(${(-drop * h).toFixed(3)}rem) rotate(${r.toFixed(2)}deg) scale(${(1 + .1 * h - .012 * settle).toFixed(4)})`;
+    el.style.opacity = Math.min(1, k.u * 5).toFixed(3);
+    el.style.visibility = k.u > 0 ? '' : 'hidden';
+    el.style.setProperty('--alto', h.toFixed(3));
+  };
+  draw();
+  return gsap.timeline().to(k, {u:1, duration:.82, ease:'none', onUpdate:draw}).to(k, {s:1, duration:.18, ease:'none', onUpdate:draw});
+}
+
+// the cover opens, lifts a little past flat and settles
+function openLeaf(leaf, axis, sign){
+  const k = {t:0};
+  const draw = () => {
+    if(k.t >= 1){ leaf.style.removeProperty('transform'); return; }
+    const deg = 180 * (1 - inOut(clamp01(k.t / .85))) - 4 * Math.sin(Math.PI * clamp01((k.t - .85) / .15));
+    leaf.style.transform = `perspective(1800px) rotate${axis}(${(sign * deg).toFixed(2)}deg)`;
+  };
+  draw();
+  return gsap.to(k, {t:1, duration:1.1, ease:'none', onUpdate:draw});
+}
+
 // the camera pitches down. Wall and table share one hinge that follows the scroll exactly, so they never part.
-// The table's near edge comes towards you, so it only ever widens; the wall leans back and is overscanned
-// just enough that its corners never enter the frame. Nothing behind them ever shows (checked by check.py).
+// The wall leads and the table follows, touching down just before the end of the first screen with a small bump
+// that only ever tilts it up (flatter than flat would open a gap at its edge). The table's near edge comes towards
+// you, so it only ever widens; the wall leans back and is overscanned so its top edge never enters the frame.
+// Nothing behind them ever shows (checked by check.py). The angles follow the scroll 1:1: smoothing them let
+// slow frames open a gap, so the softness lives in the curves instead.
 const PITCH_WALL = 34, PITCH_TABLE = 24;
 function pitch(reset){
   const hero = document.getElementById('hero'), shelf = document.getElementById('repisa');
-  const vh = innerHeight, P = 2 * vh, p = reset === true ? 0 : Math.min(1, Math.max(0, scrollY / vh));
+  const vh = innerHeight, P = 2 * vh, p = reset === true ? 0 : clamp01(scrollY / vh);
   const fold = vh * (1 - p);                                   // where the wall meets the table, on screen
-  const tw = PITCH_WALL * p * p * Math.PI / 180;               // the wall leans back as the table rises
-  const tt = PITCH_TABLE * Math.pow(1 - p, 1.5);               // the table flattens as it arrives
-  // scale so the wall's top corners, projected from the hinge, stay outside the frame
-  const s = Math.max(1, P / (P * Math.cos(tw) - fold * Math.sin(tw)));
-  const moving = p > 0 && p < 1;
+  const wall = PITCH_WALL * inOut(clamp01(p / .85));
+  const bump = p > .9 ? 1.4 * Math.sin(Math.PI * (p - .9) / .1) : 0;
+  const table = PITCH_TABLE * Math.pow(1 - inOut(clamp01((p - .1) / .8)), 1.2) + bump;
+  // scale so the wall's top edge, projected from the hinge, stays outside the frame; sized as if the hinge sat
+  // 15% of a screen lower, a spare margin for a frame where the scroll and the fixed wall do not quite agree
+  const tw = wall * Math.PI / 180, reach = fold + .15 * vh;
+  const s = Math.max(1, P / (P * Math.cos(tw) - reach * Math.sin(tw)));
   hero.style.transformOrigin = `50% ${fold.toFixed(1)}px`;
-  hero.style.transform = moving ? `perspective(${P}px) rotateX(${(tw * 180 / Math.PI).toFixed(3)}deg) scale(${s.toFixed(4)})` : '';
+  hero.style.transform = p > 0 && p < 1 ? `perspective(${P}px) rotateX(${wall.toFixed(3)}deg) scale(${s.toFixed(4)})` : '';
   hero.style.visibility = p >= 1 ? 'hidden' : '';
   shelf.style.transformOrigin = '50% 0';
-  shelf.style.transform = moving ? `perspective(${P}px) rotateX(${tt.toFixed(3)}deg)` : '';
-  document.getElementById('sombra').style.opacity = (p * .55).toFixed(3);
+  shelf.style.transform = p > 0 && table > .001 ? `perspective(${P}px) rotateX(${table.toFixed(3)}deg)` : '';
+  // the wall darkens as it turns away from the window's light
+  document.getElementById('sombra').style.opacity = (.6 * Math.pow(wall / PITCH_WALL, 1.3)).toFixed(3);
   document.getElementById('more').style.opacity = Math.max(0, 1 - p * 8).toFixed(3);
 }
 setupShelf();
