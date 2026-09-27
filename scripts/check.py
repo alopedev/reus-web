@@ -27,10 +27,21 @@ Rules checked:
   10. The site looks the same as the reference frames in scripts/baseline/<system>/ (a still frame with reduced
      motion and the clock fixed at 10:00 in Madrid): the guard for refactors that must change nothing.
      A missing reference is written from the current build; delete one to renew it.
+  11. Fase 3, the letters' journey: scrolling from the hero to the table, the letters of h1.brand peel off the
+     wall as paper cut-outs and land forming h2#qe, paired by position (reus.letras.pair) — with "Nombre" the
+     pairing must match the approved prototype exactly: N→Q, o→u, m→é, b→e, r→gap (fuses), e→s. Before the
+     journey starts there are no chips and h1 shows normally; midway there are as many chips as source letters
+     and the real h1/h2 are hidden only visually (never visibility:hidden/display:none, their text stays
+     accessible); each chip starts glued to its glyph on the wall and ends glued to its glyph on the table
+     (±3 px, both read live through #hero/#repisa's real transforms); once the wall is gone the chips vanish
+     and the real h2 shows where they landed; scrubbing back and forth is reversible; reduced motion skips the
+     whole journey (final states only). Modo rápido: `python3 scripts/check.py letras` corre solo estos checks
+     en escritorio y móvil (como "paridad"); la suite completa también los incluye.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
-Usage: npm run build && python3 scripts/check.py [paridad]   (or: npm run check)   (paridad: only check 10, in a minute)
+Usage: npm run build && python3 scripts/check.py [paridad|letras]   (or: npm run check)
+       (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute)
 """
 import asyncio, functools, http.server, io, os, pathlib, sys, threading
 from PIL import Image, ImageChops, ImageStat
@@ -261,6 +272,208 @@ async def check_wash(page, name):
     if max(abs(back[0] - base[0]), abs(back[1] - base[1])) > 10: errs.append(f"the wash leaves a trace back at the top ({base[0]:.0f}/{base[1]:.0f} → {back[0]:.0f}/{back[1]:.0f})")
     return errs
 
+# --- Fase 3 · el viaje de letras (h1.brand -> h2#qe) --------------------------------------------------------
+# The pairing Àlex approved for the current placeholder name: chip i is the i-th letter of "Nombre" (source
+# order is preserved on the wall side); QE_TARGET[i] is which character of "Qué es" it lands on (index 3 is the
+# space, where the 'r' chip has no letter to become and fuses instead). See docs/referencias/viaje-letras.md.
+QE_TARGET = [0, 1, 2, 4, 3, 5]
+# the journey's stagger, from the approved prototype (docs/referencias/viaje-letras.md, "Movimiento"): letter i
+# lifts off at roughly this progress
+def letters_start(i): return .06 + i * .035
+
+CHIP_RECT = """(i => { const chips = document.querySelectorAll('#letras .ficha'); const el = chips[i]; if(!el) return null;
+  const b = el.getBoundingClientRect(); return {x: b.left + b.width / 2, y: b.top + b.height / 2}; })"""
+# the on-screen box of the i-th character of an element's own text (Range, not a split span: keeps kerning),
+# through whatever transform its ancestors currently carry (the wall's or the table's tilt)
+GLYPH_RECT = """((sel, i) => { const el = document.querySelector(sel); if(!el) return null;
+  const node = [...el.childNodes].find(n => n.nodeType === 3 && n.textContent.length); if(!node) return null;
+  if(i < 0 || i >= node.textContent.length) return null;
+  const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 1);
+  const rects = r.getClientRects(); if(!rects.length) return null; const b = rects[0];
+  return {x: b.left + b.width / 2, y: b.top + b.height / 2}; })"""
+LETTERS_STATE = """(() => { const chips = document.querySelectorAll('#letras .ficha');
+  const c = s => getComputedStyle(document.querySelector(s));
+  const h1 = c('.brand'), h2 = c('#qe');
+  return {count: chips.length,
+    h1Opacity: +h1.opacity, h1Vis: h1.visibility, h1Disp: h1.display, h1Text: document.querySelector('.brand').textContent,
+    h2Opacity: +h2.opacity, h2Vis: h2.visibility, h2Disp: h2.display, h2Text: document.querySelector('#qe').textContent}; })()"""
+
+async def letters_at(page, p):
+    """Scroll to progress p (matching dropped()) and wait for the page to catch up, exactly like pitch()."""
+    await page.evaluate(f"scrollTo({{top: innerHeight * {p}, behavior: 'instant'}})")
+    await page.wait_for_timeout(200)
+    await hinge_caught_up(page)
+
+async def check_letters_pair(page):
+    """reus.letras.pair(nombre, destino) empareja letra a letra por posición (no por identidad semántica).
+    Letras sobrantes del origen aterrizan en el hueco del destino (su espacio) y se funden; letras de destino
+    sin pareja (nombre más corto) aparecen solas con un fundido corto. Con 'Nombre' -> 'Qué es' debe dar
+    exactamente el emparejado del prototipo aprobado: N->Q, o->u, m->é, b->e, r->hueco (se funde), e->s.
+    reus.letras.state(p) debe existir también: es la función pura que usan el resto de los checks."""
+    ok = await page.evaluate("""() => !!(window.reus && window.reus.letras
+      && typeof window.reus.letras.pair === 'function' && typeof window.reus.letras.state === 'function')""")
+    if not ok: return ["reus.letras.pair/state is missing"]
+    errs = []
+    proto = await page.evaluate("() => window.reus.letras.pair('Nombre', 'Qué es')")
+    got = [[it.get("from"), it.get("to")] for it in proto] if isinstance(proto, list) and all(isinstance(it, dict) for it in proto) else None
+    expected = [["N", "Q"], ["o", "u"], ["m", "é"], ["b", "e"], ["r", None], ["e", "s"]]
+    if got != expected: errs.append(f"pair('Nombre','Qué es') = {got}, expected {expected} (the approved prototype pairing)")
+
+    async def rule(name, dest):
+        res = await page.evaluate("([n, d]) => window.reus.letras.pair(n, d)", [name, dest])
+        if not isinstance(res, list): return [f"pair({name!r}, {dest!r}) did not return an array"]
+        out, real = [], [ch for ch in dest if ch != " "]
+        froms = [it.get("from") for it in res if it.get("from") is not None]
+        tos = [it.get("to") for it in res if it.get("to") is not None]
+        if froms != list(name): out.append(f"pair({name!r}, {dest!r}): source letters read back as {froms}, expected {list(name)}")
+        if tos != real: out.append(f"pair({name!r}, {dest!r}): target letters read back as {tos}, expected {real}")
+        gaps = sum(1 for it in res if it.get("from") is not None and it.get("to") is None)
+        solos = sum(1 for it in res if it.get("from") is None and it.get("to") is not None)
+        empties = sum(1 for it in res if it.get("from") is None and it.get("to") is None)
+        exp_gaps, exp_solos = max(0, len(name) - len(real)), max(0, len(real) - len(name))
+        if gaps != exp_gaps: out.append(f"pair({name!r}, {dest!r}): {gaps} source letters land in the gap, expected {exp_gaps}")
+        if solos != exp_solos: out.append(f"pair({name!r}, {dest!r}): {solos} target letters appear alone, expected {exp_solos}")
+        if empties: out.append(f"pair({name!r}, {dest!r}): {empties} entries have neither a source nor a target letter")
+        return out
+    errs += await rule("Bea", "Qué es")           # shorter than the name: some target letters appear alone
+    errs += await rule("Alexandra", "Qué es")     # longer than the name: excess source letters fuse in the gap
+    return errs
+
+async def check_letters_layer(page):
+    """#letras: fixed, full viewport, non-interactive, a direct child of body (sibling of #hero/#repisa, never
+    nested inside either — their transform/filter would break its fixed positioning), above both of them."""
+    info = await page.evaluate("""() => { const l = document.getElementById('letras'); if(!l) return null;
+      const c = getComputedStyle(l);
+      return {position: c.position, pointerEvents: c.pointerEvents, zIndex: c.zIndex,
+              parentIsBody: l.parentElement === document.body, ariaHidden: l.getAttribute('aria-hidden')}; }""")
+    if not info: return ["#letras is missing"]
+    errs = []
+    if info["position"] != "fixed": errs.append(f"#letras is not position:fixed ({info['position']})")
+    if info["pointerEvents"] != "none": errs.append("#letras is not pointer-events:none")
+    if not info["parentIsBody"]: errs.append("#letras is not a direct child of body")
+    if info["ariaHidden"] != "true": errs.append("#letras is not aria-hidden")
+    try: z = float(info["zIndex"])
+    except (TypeError, ValueError): z = None
+    if z is None or z <= 2: errs.append(f"#letras z-index ({info['zIndex']}) is not above the wall (0) and the table (2)")
+    return errs
+
+async def check_letters_rest(page):
+    """Before the journey starts (p=0) there are no chips and the real h1 shows normally."""
+    await letters_at(page, 0)
+    st = await page.evaluate(LETTERS_STATE)
+    errs = []
+    if st["count"]: errs.append(f"{st['count']} chips visible at p=0")
+    if st["h1Opacity"] < .95: errs.append(f"h1.brand is dimmed at p=0 (opacity {st['h1Opacity']})")
+    return errs
+
+async def check_letters_midway(page):
+    """Halfway through the journey (p=0.3) there are as many chips as letters in the name, the real h1/h2 are
+    hidden only visually (their text must stay in the accessibility tree: never visibility:hidden/display:none)
+    and the chips sit above both the wall and the table."""
+    await letters_at(page, .3)
+    st = await page.evaluate(LETTERS_STATE)
+    errs = []
+    if st["count"] != 6: errs.append(f"{st['count']} chips at p=0.3, expected 6 (as many as letters in 'Nombre')")
+    if st["h1Opacity"] > .4: errs.append(f"h1.brand is not hidden at p=0.3 (opacity {st['h1Opacity']})")
+    if st["h1Vis"] == "hidden" or st["h1Disp"] == "none": errs.append("h1.brand was hidden with visibility/display, not just color/opacity")
+    if not st["h1Text"].strip(): errs.append("h1.brand lost its text content")
+    if st["h2Opacity"] > .4: errs.append(f"h2#qe is not hidden at p=0.3 (opacity {st['h2Opacity']})")
+    if st["h2Vis"] == "hidden" or st["h2Disp"] == "none": errs.append("h2#qe was hidden with visibility/display, not just color/opacity")
+    if not st["h2Text"].strip(): errs.append("h2#qe lost its text content")
+    above = await page.evaluate("""() => { const z = s => { const el = document.querySelector(s); return el ? +getComputedStyle(el).zIndex || 0 : 0; };
+      return z('#letras') > z('#hero') && z('#letras') > z('#repisa'); }""")
+    if not above: errs.append("#letras is not above #hero and #repisa at p=0.3")
+    return errs
+
+async def check_letters_positions(page):
+    """Each chip starts glued to its glyph on the wall (h1.brand), one per letter of the name -- just before its
+    own liftoff -- and ends glued to its glyph on the table (h2#qe) at p=0.97, both read live through the real
+    transforms of #hero/#repisa, within 3 px. Uses the pairing Àlex approved for 'Nombre' -> 'Qué es'."""
+    errs = []
+    for i in range(6):
+        p = max(0, letters_start(i) - .015)
+        await letters_at(page, p)
+        chip = await page.evaluate(f"({CHIP_RECT})({i})")
+        glyph = await page.evaluate(f"({GLYPH_RECT})('.brand', {i})")
+        if not chip or not glyph: errs.append(f"chip {i} or its h1 glyph not measurable at p={p:.3f} (just before liftoff)"); continue
+        d = ((chip["x"] - glyph["x"]) ** 2 + (chip["y"] - glyph["y"]) ** 2) ** .5
+        if d > 3: errs.append(f"chip {i} is {d:.1f}px from its h1 glyph at p={p:.3f} (just before liftoff)")
+    await letters_at(page, .97)
+    for i, di in enumerate(QE_TARGET):
+        chip = await page.evaluate(f"({CHIP_RECT})({i})")
+        glyph = await page.evaluate(f"({GLYPH_RECT})('#qe', {di})")
+        if not chip or not glyph: errs.append(f"chip {i} or its h2 glyph {di} not measurable at p=0.97"); continue
+        d = ((chip["x"] - glyph["x"]) ** 2 + (chip["y"] - glyph["y"]) ** 2) ** .5
+        if d > 3: errs.append(f"chip {i} is {d:.1f}px from its h2 glyph at p=0.97")
+    return errs
+
+async def check_letters_landed(page):
+    """Once the wall is gone (p=1) the chips are gone too, and the real h2 shows where they landed."""
+    await letters_at(page, 1)
+    st = await page.evaluate(LETTERS_STATE)
+    errs = []
+    if st["count"]: errs.append(f"{st['count']} chips still visible at p=1")
+    if st["h2Opacity"] < .95: errs.append(f"h2#qe is not shown at p=1 (opacity {st['h2Opacity']})")
+    return errs
+
+async def check_letters_reversible(page):
+    """Scrubbing 0.3 -> 0.8 -> 0.3 leaves the chips exactly where they were the first time at 0.3."""
+    async def snapshot():
+        return await page.evaluate("""() => [...document.querySelectorAll('#letras .ficha')].map(el => {
+          const b = el.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top)]; })""")
+    await letters_at(page, .3); before = await snapshot()
+    await letters_at(page, .8); await letters_at(page, .3); after = await snapshot()
+    if before != after: return [f"letters at p=0.3 differ after scrubbing to 0.8 and back: {before} != {after}"]
+    return []
+
+async def check_letters_reduced(page):
+    """With reduced motion there is never a chip, and h1/h2 are always shown in their final state, at any scroll."""
+    errs = []
+    for p in (0, .3, .6, 1):
+        await page.evaluate(f"scrollTo({{top: innerHeight * {p}, behavior: 'instant'}})"); await page.wait_for_timeout(200)
+        st = await page.evaluate(LETTERS_STATE)
+        if st["count"]: errs.append(f"{st['count']} chips at p={p} with reduced motion")
+        if st["h1Opacity"] < .95: errs.append(f"h1.brand is dimmed at p={p} with reduced motion")
+        if st["h2Opacity"] < .95: errs.append(f"h2#qe is not shown at p={p} with reduced motion")
+    return errs
+
+async def shoot_letters(page, name):
+    """Screenshots of the journey at a handful of points, for a visual review."""
+    for f in (.1, .25, .4, .6, .9):
+        await letters_at(page, f)
+        await page.screenshot(path=str(shots / f"{name}-letras-{int(f * 100)}.png"))
+
+async def check_letters(page, name):
+    """All of the letters' journey checks for one already-loaded page, plus its review screenshots."""
+    errs = []
+    errs += [f"pair: {e}" for e in await check_letters_pair(page)]
+    errs += [f"layer: {e}" for e in await check_letters_layer(page)]
+    errs += [f"rest: {e}" for e in await check_letters_rest(page)]
+    errs += [f"midway: {e}" for e in await check_letters_midway(page)]
+    errs += [f"positions: {e}" for e in await check_letters_positions(page)]
+    errs += [f"landed: {e}" for e in await check_letters_landed(page)]
+    errs += [f"reversible: {e}" for e in await check_letters_reversible(page)]
+    await shoot_letters(page, name)
+    return errs
+
+async def check_letters_suite(browser):
+    """Quick mode: only the letters' journey checks, on desktop and mobile (like paridad)."""
+    failures = []
+    for name, (w, h) in VIEWPORTS.items():
+        page = await open_page(browser, viewport={"width": w, "height": h})
+        errors = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        await page.goto(page_url); await page.wait_for_timeout(2000)
+        failures += [f"{name}: {e}" for e in await check_letters(page, name)]
+        failures += [f"{name}: JS error: {e}" for e in errors]
+        await page.close()
+        rpage = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce")
+        await rpage.goto(page_url); await rpage.wait_for_timeout(1500)
+        failures += [f"{name} reduced: {e}" for e in await check_letters_reduced(rpage)]
+        await rpage.close()
+    return failures
+# --- fin viaje de letras --------------------------------------------------------------------------------------
+
 async def check_motion(page, name, reduced=False):
     """Halfway down, the wall is tilting (or, with reduced motion, still); at the end everything has landed."""
     errs = []
@@ -354,6 +567,9 @@ async def main():
     async with async_playwright() as p:
         # software WebGL so it also runs on machines without a GPU (slow but faithful)
         browser = await p.chromium.launch(args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
+        if sys.argv[1:] == ["letras"]:
+            failures += await check_letters_suite(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · letras"); sys.exit(1 if failures else 0)
         failures += await check_parity(browser)
         if sys.argv[1:] == ["paridad"]:
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · paridad"); sys.exit(1 if failures else 0)
@@ -384,12 +600,14 @@ async def main():
             failures += [f"{name}: {e}" for e in await check_fall(page)]
             failures += [f"{name}: {e}" for e in await check_wash(page, name)]
             failures += [f"{name}: {e}" for e in await check_backstage(page, name)]
+            failures += [f"{name}: {e}" for e in await check_letters(page, name)]
             await page.close()
         failures += await check_sizes(browser)
         # reduced motion: a still frame and every paper already in place
         page = await open_page(browser, viewport={"width": 1440, "height": 860}, reduced_motion="reduce")
         await page.goto(page_url); await page.wait_for_timeout(3000)
         failures += [f"reduced: {e}" for e in await check_motion(page, "reduced", reduced=True)]
+        failures += [f"reduced: {e}" for e in await check_letters_reduced(page)]
         await page.close()
         await browser.close()
     if failures:
