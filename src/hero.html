@@ -170,7 +170,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 .vapor{ animation:vapor 3.2s ease-in-out infinite; } .vapor.b{ animation-delay:-1.6s; }
 @keyframes vapor{ 0%{ transform:translate(0,0); opacity:0; } 30%{ opacity:.35; } 100%{ transform:translate(-18px,-26px); opacity:0; } }
 .dormida .fila, .dormida .vib, .dormida .onda, .dormida .vapor{ animation-play-state:paused; }
-@media (prefers-reduced-motion: reduce){ .fila, .vib, .onda, .vapor{ animation:none; } }
+@media (prefers-reduced-motion: reduce){ .fila, .sombras .fila, .vib, .onda, .vapor{ animation:none; } }
 /* on a large enough screen the table stays put while the papers land one after another (same query as PINNED in the script) */
 @media (prefers-reduced-motion: no-preference) and (min-width:1000px) and (min-height:780px) and (min-aspect-ratio:1/1){
   #repisa{ height:230vh; }
