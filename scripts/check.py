@@ -8,19 +8,27 @@ Rules checked:
   5. The hero shows a scroll hint; below it, the shelf holds its three paper objects,
      uses the same two fonts and nothing sticks out sideways.
   6. Scrolling tilts the wall away; at the end the papers have landed and the notebook is open.
+     While the gaze drops, the painting always fills the screen: nothing behind it ever shows.
      With reduced motion nothing moves and everything is already in place.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
 Usage: python3 scripts/build.py && python3 scripts/check.py
 """
-import asyncio, pathlib, sys
+import asyncio, io, pathlib, sys
+from PIL import Image
 from playwright.async_api import async_playwright
 
 root = pathlib.Path(__file__).resolve().parent.parent
 page_url = (root / "dist/index.html").as_uri()
 shots = root / "screenshots"; shots.mkdir(exist_ok=True)
 VIEWPORTS = {"desktop": (1440, 860), "mobile": (390, 820)}
+
+async def settle(page):
+    """Software rendering is slow: wait until the scrubbed animations have caught up with the scroll."""
+    try: await page.wait_for_function(f"({LANDED}).length === 0", timeout=8000)
+    except Exception: pass
+    await page.wait_for_timeout(500)
 
 async def check_shelf(page, name):
     """The shelf below the hero: a visible hint to scroll, the three paper objects, nothing sticking out sideways."""
@@ -32,7 +40,7 @@ async def check_shelf(page, name):
     if not await page.evaluate("document.scrollingElement.scrollHeight > innerHeight + 10"):
         return errs + ["page does not scroll"]
     await page.evaluate("scrollTo(0, document.scrollingElement.scrollHeight)")
-    await page.wait_for_timeout(2500)
+    await settle(page)
     shelf = await page.evaluate("""(() => {
       const q = s => document.querySelector(s), f = el => getComputedStyle(el).fontFamily.split(',')[0].replace(/"/g,'');
       const missing = ['#qe', '#folleto', '#cuaderno', '#reverso'].filter(s => !q(s));
@@ -52,6 +60,19 @@ LANDED = """(() => ['#folleto', '#cuaderno', '#reverso', '.cuaderno .izq'].filte
   const flat = c.transform === 'none' || /^matrix\\(1, 0, 0, 1, 0, 0\\)$/.test(c.transform) || s !== '.cuaderno .izq';
   return +c.opacity < .99 || c.visibility === 'hidden' || !flat; }))()"""
 
+async def check_backstage(page, name):
+    """Paint what lies behind the site magenta and make sure no frame of the transition shows it."""
+    await page.evaluate("""(() => { document.documentElement.style.setProperty('background', '#ff00ff', 'important');
+      document.body.style.setProperty('background', '#ff00ff', 'important'); })()""")
+    leaks = []
+    for f in (.1, .25, .4, .55, .7, .85, .95):
+        await page.evaluate(f"scrollTo(0, innerHeight * {f})"); await page.wait_for_timeout(1300)
+        img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB").resize((360, 220))
+        n = sum(1 for r, g, b in img.get_flattened_data() if r > 200 and g < 70 and b > 200)
+        if n: leaks.append(f"{int(f * 100)}% ({n / (360 * 220):.1%})")
+    await page.evaluate("scrollTo(0, 0)")
+    return [f"background shows during the transition at {', '.join(leaks)}"] if leaks else []
+
 async def check_motion(page, name, reduced=False):
     """Halfway down, the wall is tilting (or, with reduced motion, still); at the end everything has landed."""
     errs = []
@@ -61,7 +82,7 @@ async def check_motion(page, name, reduced=False):
     if reduced and tilt not in ("none", ""): errs.append("wall moves with reduced motion")
     if not reduced and tilt in ("none", ""): errs.append("wall does not tilt while scrolling")
     await page.screenshot(path=str(shots / f"{name}-scroll50.png"))
-    await page.evaluate("scrollTo(0, document.scrollingElement.scrollHeight)"); await page.wait_for_timeout(2500)
+    await page.evaluate("scrollTo(0, document.scrollingElement.scrollHeight)"); await settle(page)
     off = await page.evaluate(LANDED)
     if off: errs.append(f"not landed at the end: {', '.join(off)}")
     return errs
@@ -92,6 +113,7 @@ async def main():
             print(f"{name}: name→{box['name']:.0f}px, window {box['winTop']:.0f}–{box['winBottom']:.0f}px, info→{box['info']:.0f}px")
             failures += [f"{name}: {e}" for e in await check_shelf(page, name)]
             failures += [f"{name}: {e}" for e in await check_motion(page, name)]
+            failures += [f"{name}: {e}" for e in await check_backstage(page, name)]
             await page.close()
         # reduced motion: a still frame and every paper already in place
         page = await browser.new_page(viewport={"width": 1440, "height": 860}, reduced_motion="reduce")

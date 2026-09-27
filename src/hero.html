@@ -22,7 +22,9 @@ html{ height:100%; }
 body{ min-height:100%; background:#7d6650; color:var(--paper); font-family:var(--sans); font-weight:500; }
 @media (prefers-reduced-motion: no-preference){ html{ scroll-behavior:smooth; } }
 /* the hero stays put while the shelf scrolls up over it */
-#hero{ position:fixed; inset:0; z-index:0; transform-origin:50% 100%; }
+#hero{ position:fixed; inset:0; z-index:0; }
+/* the wall darkens as it leans away from the camera */
+.sombra{ position:absolute; inset:0; z-index:2; pointer-events:none; background:linear-gradient(#1d1712, #2D241C); opacity:0; }
 strong{ font-weight:700; }
 canvas#gl{ position:fixed; inset:0; width:100%; height:100%; display:block; z-index:0; }
 .stage{ position:relative; z-index:1; height:100%; display:grid; grid-template-rows:auto minmax(0,1fr) auto auto;
@@ -207,6 +209,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   </section>
   <a class="more" id="more" href="#repisa">Qué es y cómo se hizo <span aria-hidden="true">↓</span></a>
 </div>
+<div class="sombra" id="sombra" aria-hidden="true"></div>
 </div>
 
 <main id="repisa" aria-labelledby="qe">
@@ -680,11 +683,10 @@ function setupShelf(){
   gsap.matchMedia().add({motion:'(prefers-reduced-motion: no-preference)', wide:'(min-width:701px)', pinned:PINNED}, ctx => {
     if(!ctx.conditions.motion) return;
     const {wide, pinned} = ctx.conditions, shelf = document.getElementById('repisa');
-    gsap.timeline({scrollTrigger:{trigger:shelf, start:'top bottom', end:'top top', scrub:.6}})
-      .to('#more', {autoAlpha:0, duration:.1, ease:'none'}, 0)
-      .to('#hero', {yPercent:-45, rotationX:40, transformPerspective:1400, duration:1, ease:'power2.inOut'}, 0)
-      .to('#hero', {autoAlpha:0, duration:.3, ease:'none'}, .7)
-      .from(shelf, {rotationX:-45, transformPerspective:1400, transformOrigin:'50% 0%', duration:1, ease:'power2.out'}, 0);
+    // the hinge reads the scroll directly: it must match the table's real position on every frame
+    const onScroll = () => pitch();
+    addEventListener('scroll', onScroll, {passive:true}); addEventListener('resize', onScroll);
+    pitch();
     const fall = {y:-560, rotation:'+=9', scale:1.1, autoAlpha:0, ease:'power2.out'};
     const papers = ['#folleto', '#cuaderno', '#reverso'], leaf = '.cuaderno .izq';
     if(pinned){
@@ -698,7 +700,30 @@ function setupShelf(){
       gsap.from(leaf, {[wide ? 'rotationY' : 'rotationX']: wide ? 180 : -180, transformPerspective:1800, ease:'power2.inOut',
         scrollTrigger:{trigger:'#cuaderno', start:'top 55%', end:'top 20%', scrub:.6}});
     }
+    return () => { removeEventListener('scroll', onScroll); removeEventListener('resize', onScroll); pitch(true); };
   });
+}
+
+// the camera pitches down. Wall and table share one hinge that follows the scroll exactly, so they never part.
+// The table's near edge comes towards you, so it only ever widens; the wall leans back and is overscanned
+// just enough that its corners never enter the frame. Nothing behind them ever shows (checked by check.py).
+const PITCH_WALL = 34, PITCH_TABLE = 24;
+function pitch(reset){
+  const hero = document.getElementById('hero'), shelf = document.getElementById('repisa');
+  const vh = innerHeight, P = 2 * vh, p = reset === true ? 0 : Math.min(1, Math.max(0, scrollY / vh));
+  const fold = vh * (1 - p);                                   // where the wall meets the table, on screen
+  const tw = PITCH_WALL * p * p * Math.PI / 180;               // the wall leans back as the table rises
+  const tt = PITCH_TABLE * Math.pow(1 - p, 1.5);               // the table flattens as it arrives
+  // scale so the wall's top corners, projected from the hinge, stay outside the frame
+  const s = Math.max(1, P / (P * Math.cos(tw) - fold * Math.sin(tw)));
+  const moving = p > 0 && p < 1;
+  hero.style.transformOrigin = `50% ${fold.toFixed(1)}px`;
+  hero.style.transform = moving ? `perspective(${P}px) rotateX(${(tw * 180 / Math.PI).toFixed(3)}deg) scale(${s.toFixed(4)})` : '';
+  hero.style.visibility = p >= 1 ? 'hidden' : '';
+  shelf.style.transformOrigin = '50% 0';
+  shelf.style.transform = moving ? `perspective(${P}px) rotateX(${tt.toFixed(3)}deg)` : '';
+  document.getElementById('sombra').style.opacity = (p * .55).toFixed(3);
+  document.getElementById('more').style.opacity = Math.max(0, 1 - p * 8).toFixed(3);
 }
 setupShelf();
 </script>
