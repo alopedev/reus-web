@@ -93,12 +93,13 @@ async def check_backstage(page, name):
     """Paint what lies behind the site magenta and make sure no frame of the transition shows it."""
     await page.evaluate("""(() => { document.documentElement.style.setProperty('background', '#ff00ff', 'important');
       document.body.style.setProperty('background', '#ff00ff', 'important'); })()""")
-    leaks = []
+    leaks, lagged = [], []
     # each frame is taken once the page has caught up with the scroll: software rendering can lag seconds behind
-    # the compositor, and a frame from that gap shows a stale page, not the design
+    # the compositor, and a frame from that gap is half drawn (a band as tall as the last jump shows the background),
+    # not the design. If the page never catches up, say so instead of reading that frame
     for f in (.1, .25, .4, .55, .7, .85, .95):
         await page.evaluate(f"scrollTo({{top: innerHeight * {f}, behavior: 'instant'}})"); await page.wait_for_timeout(300)
-        await hinge_caught_up(page)
+        if not await hinge_caught_up(page): lagged.append(f"{int(f * 100)}%"); continue
         png = await page.screenshot(); share = magenta(png)
         if share:
             why = await page.evaluate("""(() => { const h = document.getElementById('hero').style, r = document.getElementById('repisa').getBoundingClientRect();
@@ -109,11 +110,12 @@ async def check_backstage(page, name):
         await page.evaluate(f"scrollTo({{top: innerHeight * {a}, behavior: 'instant'}})"); await page.wait_for_timeout(300)
         await hinge_caught_up(page)
         await page.evaluate(f"scrollTo({{top: innerHeight * {b}, behavior: 'instant'}})"); await page.wait_for_timeout(300)
-        await hinge_caught_up(page)
+        if not await hinge_caught_up(page): lagged.append(f"jump {int(a * 100)}→{int(b * 100)}%"); continue
         share = magenta(await page.screenshot())
         if share: leaks.append(f"jump {int(a * 100)}→{int(b * 100)}% ({share:.1%})")
-    await page.evaluate("scrollTo(0, 0)")
-    return [f"background shows during the transition at {', '.join(leaks)}"] if leaks else []
+    await page.evaluate("scrollTo({top: 0, behavior: 'instant'})")
+    return ([f"background shows during the transition at {', '.join(leaks)}"] if leaks else []) + \
+           ([f"the hinge never catches up with the scroll at {', '.join(lagged)} (frame not read)"] if lagged else [])
 
 ANGLE = """(s => { const m = document.querySelector(s).style.transform.match(/rotateX\\((-?[\\d.]+)deg\\)/); return m ? +m[1] : 0; })"""
 
