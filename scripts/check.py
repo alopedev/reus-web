@@ -21,9 +21,9 @@ Rules checked:
      as wide as their text, no text is under 13 px, the notebook's pages never become strips,
      the pinned table fits the screen and, on landscape screens, the hero scales like a poster.
      With reduced motion nothing moves and everything is already in place.
-  9. The wall darkens as a pigment wash advancing from the hinge, painted in the wall's own shader,
-     not a flat DOM veil: near the hinge it goes darker while a spot well above it stays close to
-     its bare-wall color, and nothing lingers once you scroll back to the top.
+  9. The wall darkens as a pigment wash painted in its own shader, not a flat DOM veil: it starts at
+     the hinge and climbs the wall as the wall turns away, the texts on the wall dim with it, and
+     nothing lingers once you scroll back to the top.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
@@ -133,7 +133,7 @@ async def check_rhythm(page):
     for f in (.3, .88, .95):
         await page.evaluate(f"scrollTo({{top: innerHeight * {f}, behavior: 'instant'}})"); await page.wait_for_timeout(300)
         if not await hinge_caught_up(page): errs.append(f"the hinge never catches up with the scroll at {f:.0%}")
-        at[f] = await page.evaluate(f"({{wall: ({ANGLE})('#hero'), table: ({ANGLE})('#repisa'), shade: +document.getElementById('sombra').style.opacity}})")
+        at[f] = await page.evaluate(f"({{wall: ({ANGLE})('#hero'), table: ({ANGLE})('#repisa'), shade: +(document.getElementById('hero').style.getPropertyValue('--lavado') || 0)}})")
     wall, table = at[.3]["wall"] / 34, 1 - at[.3]["table"] / 24
     if wall <= table: errs.append(f"the table arrives before the wall turns (30%: wall {wall:.0%} of its turn, table {table:.0%})")
     if at[.88]["table"] > .15: errs.append(f"the table has not touched down at 88% ({at[.88]['table']:.2f}°)")
@@ -192,46 +192,52 @@ async def check_return(page):
       const leaf = c('.cuaderno .izq').transform; if(leaf === 'none' || /^matrix\\(1, 0, 0, 1, 0, 0\\)$/.test(leaf)) out.push('.cuaderno .izq');
       if(document.getElementById('hero').style.transform) out.push('#hero');
       if(+document.getElementById('sombra').style.opacity > 0) out.push('#sombra');
+      if(c('.stage').filter !== 'none') out.push('the dimmed texts');
       return out; })()"""
     try: await page.wait_for_function(f"{back}.length === 0", timeout=15000)
     except Exception: return [f"scrolling back up does not undo {', '.join(await page.evaluate(back))}"]
     return []
 
-async def check_wash(page, name):
-    """The wall darkens as a pigment wash advancing from the hinge (painted in the shader, in canvas-pixel
-    space), not the flat DOM veil of #sombra: near the hinge it goes markedly darker while, in the same
-    frame, a spot well above the hinge stays close to its bare-wall color; and nothing lingers once you
-    scroll back to the top."""
-    errs = []
-    geo = await page.evaluate("""(() => {
-      const c = document.getElementById('gl'); if(!c) return null;
-      const w = document.getElementById('win').getBoundingClientRect();
-      return {cw: c.width, ch: c.height, winLeft: w.left, vw: innerWidth};
-    })()""")
-    if not geo: return []  # no WebGL: the #sombra fallback is what runs, not this check
-    read_px = """(xy) => { const c = document.getElementById('gl'), g = c.getContext('webgl') || c.getContext('webgl2'); if(!g) return null;
-      const p = new Uint8Array(4); g.readPixels(xy[0], xy[1], 1, 1, g.RGBA, g.UNSIGNED_BYTE, p); return [p[0], p[1], p[2]]; }"""
-    x = round((geo["winLeft"] * .5) * (geo["cw"] / max(1, geo["vw"])))  # left of the window: always wall, at any height
-    def y_for(uv_y): return max(0, min(geo["ch"] - 1, round(uv_y * geo["ch"])))
-    async def sample(uv_y):
-        return await page.evaluate(read_px, [x, y_for(uv_y)])
-    def bright(c): return None if c is None else sum(c) / 3
-    async def sombra_opacity():
-        return await page.evaluate("getComputedStyle(document.getElementById('sombra')).opacity")
+# where points of the wall (in its own px, as laid out at rest) land on screen, through the wall's tilt
+WALL_AT = """(pts => { const cs = getComputedStyle(document.getElementById('hero')), [ox, oy] = cs.transformOrigin.split(' ').map(parseFloat);
+  const m = new DOMMatrix().translate(ox, oy).multiply(cs.transform === 'none' ? new DOMMatrix() : new DOMMatrix(cs.transform)).translate(-ox, -oy);
+  return pts.map(([x, y]) => { const q = m.transformPoint(new DOMPoint(x, y, 0, 1)); return [q.x / q.w, q.y / q.w]; }); })"""
 
-    await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await hinge_caught_up(page); await page.wait_for_timeout(150)
-    base_near, base_far = await sample(.35), await sample(.85)
-    await page.evaluate("scrollTo({top: innerHeight * .5, behavior: 'instant'})"); await hinge_caught_up(page); await page.wait_for_timeout(150)
-    mid_near, mid_far = await sample(.35), await sample(.85)
-    if await sombra_opacity() != '0': errs.append("the flat #sombra veil is active even with WebGL available")
-    if None in (base_near, base_far, mid_near, mid_far): return errs + ["could not read the wall's pixels (no readPixels on #gl)"]
-    bn, bf, mn, mf = bright(base_near), bright(base_far), bright(mid_near), bright(mid_far)
-    if not (mn < bn - 8): errs.append(f"the wall near the hinge does not darken at mid-transition ({bn:.0f} → {mn:.0f})")
-    if not (mn < mf - 8): errs.append(f"the wash is not concentrated near the hinge (near {mn:.0f}, far above it {mf:.0f})")
-    if abs(mf - bf) > 12: errs.append(f"the wash reaches well above the hinge at mid-transition ({bf:.0f} → {mf:.0f})")
-    await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await hinge_caught_up(page); await page.wait_for_timeout(150)
-    back_near = bright(await sample(.35))
-    if back_near is not None and abs(back_near - bn) > 10: errs.append(f"the wash leaves a trace once scrolled back to the top ({bn:.0f} vs {back_near:.0f})")
+def brightness(img, xy):
+    """Mean brightness of a 5 × 5 patch of a screenshot."""
+    x, y = int(xy[0]), int(xy[1]); px = [img.getpixel((min(img.width - 1, max(0, x + i)), min(img.height - 1, max(0, y + j)))) for i in range(-2, 3) for j in range(-2, 3)]
+    return sum(sum(p) / 3 for p in px) / len(px)
+
+async def check_wash(page, name):
+    """The wall's shadow is a pigment wash painted in its own shader, not the flat #sombra veil: it starts at the
+    hinge and climbs the wall as the wall turns away, the texts on the wall dim with it, and nothing lingers once
+    you scroll back to the top. Read from screenshots, so the canvas needs no preserved drawing buffer."""
+    errs = []
+    if not await page.evaluate("!!document.getElementById('gl')"): return []  # no WebGL: the #sombra fallback runs instead
+    async def at(f):
+        await page.evaluate(f"scrollTo({{top: innerHeight * {f}, behavior: 'instant'}})"); await page.wait_for_timeout(300)
+        await hinge_caught_up(page); await page.wait_for_timeout(600)
+    await at(0)
+    # two bare-wall spots beside the window (clear of the seats): one just above where the hinge will be at 30%, one high up
+    near, far = await page.evaluate("""(() => { const w = document.getElementById('win').getBoundingClientRect(), seats = innerWidth / innerHeight > 1.15 ? .25 * innerHeight : 0;
+      const x = w.right + (innerWidth - seats - w.right) / 2; return [[x, hingeAt(.3) - .02 * innerHeight], [x, w.top + .15 * w.height]]; })()""")
+    rest = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
+    base = [brightness(rest, near), brightness(rest, far)]
+    seen = {}
+    for f in (.3, .7):
+        await at(f)
+        img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
+        spots = await page.evaluate(f"({WALL_AT})({[near, far]})")
+        seen[f] = [brightness(img, xy) for xy in spots]
+        if await page.evaluate("+getComputedStyle(document.getElementById('sombra')).opacity > 0"): errs.append(f"the flat #sombra veil darkens the wall at {f:.0%} although WebGL paints it")
+    if not seen[.3][0] < base[0] - 8: errs.append(f"no wash at the hinge at 30% ({base[0]:.0f} → {seen[.3][0]:.0f})")
+    if abs(seen[.3][1] - base[1]) > 10: errs.append(f"the wash already covers the top of the wall at 30% ({base[1]:.0f} → {seen[.3][1]:.0f})")
+    if not seen[.7][1] < base[1] - 8: errs.append(f"the wash does not climb the wall: its top is still bare at 70% ({base[1]:.0f} → {seen[.7][1]:.0f})")
+    if await page.evaluate("getComputedStyle(document.querySelector('.stage')).filter") == "none": errs.append("the texts on the wall do not dim with the wash at 70%")
+    await at(0)
+    img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
+    back = [brightness(img, near), brightness(img, far)]
+    if max(abs(back[0] - base[0]), abs(back[1] - base[1])) > 10: errs.append(f"the wash leaves a trace back at the top ({base[0]:.0f}/{base[1]:.0f} → {back[0]:.0f}/{back[1]:.0f})")
     return errs
 
 async def check_motion(page, name, reduced=False):
