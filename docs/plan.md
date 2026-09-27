@@ -1,0 +1,81 @@
+# A Reus — Plan de proyecto
+
+Sep 26, 2026 · @Àlex Olivé Pérez
+
+## Qué es y qué manda
+
+Web de horarios de tren Barcelona Sants ↔ Reus cuyo fondo es un paisaje en acuarela generado en directo. Es sobre todo una pieza de portfolio para enseñar lo que Àlex hace con Claude, y además una herramienta real.
+
+- **Prioridad 1: la estética.** En caso de conflicto, la belleza gana a la rapidez, siempre que la animación no vaya a tirones.
+- **Prioridad 2: funcionalidad mínima.** Web sencilla: sin cálculo de tiempo hasta la estación ni funciones extra.
+- **Aportación de Àlex:** el criterio y la decisión estética. Claude construye; Àlex elige, descarta y justifica.
+
+## Éxito y valor
+
+Éxito = cumplir estas señales a los dos meses de publicarla:
+
+| Señal | Objetivo |
+| --- | --- |
+| Uso propio | En el 80 % de los viajes a Reus (unos 2 al mes) |
+| Publicación | Colgada en internet y en el portfolio |
+| LinkedIn | 5 reacciones |
+| X | Al menos un comentario positivo |
+| Uso ajeno | 10 personas al mes (requiere contar visitas, fase 2) |
+
+**Qué la hace valiosa para Àlex:** que sea funcionalmente impecable, preciosa y original, que genere un momento «guau» al verla en vídeo, y que la use gente que hace el trayecto.
+
+## Fases
+
+**Fase 1 — el momento «guau» (ahora).** Objetivo: un vídeo corto para X y LinkedIn que impresione en los primeros segundos.
+
+1. Investigación de originalidad: posts y proyectos compartidos en redes desde el lanzamiento de Opus 5.5 (22 sep 2026), para saber qué se ha visto ya y diferenciarse. Después, referencias (Awwwards, Codrops; Mobbin si se paga) y 3 direcciones visuales.
+2. Àlex elige, combina y justifica.
+3. Hero con el paisaje generado en directo a pantalla completa.
+4. Funcionalidad mínima: próximos trenes Sants → Reus con los datos actuales.
+5. Cerrar el hero; definir y diseñar las secciones con scroll (qué es y para quién, cómo leer la pantalla, cómo se hizo con Claude, datos y límites); después, grabar el vídeo.
+
+**Fase 2 — features (después).** Horarios automáticos con avisos, trayecto de vuelta, precios del AVE (si hay fuente), publicación en subdominio gratuito y medición de visitas.
+
+## Tareas y delegación
+
+«Claude» = quién lo construye; la web en sí no usa IA al funcionar.
+
+| # | Tarea | Fase | Claude | Àlex |
+| --- | --- | --- | --- | --- |
+| 1 | Horarios automáticos | 2 | Programa de descarga diaria, filtrado y avisos (fallo, cero trenes, caducidad) | Crear cuentas, recibir avisos, comparar 5–6 trenes reales antes de publicar |
+| 2 | Precios | 2 | Investigar si hay fuente fiable para el AVE | Decidir qué se muestra (o enlace «ver precio») |
+| 3 | Investigación de diseño | 1 | Revisar lo publicado en redes con Opus 5.5, referencias, comparar librerías y skills (shadcn/ui a evaluar, no dada por hecha), 3 direcciones visuales | Elegir, combinar, justificar; registro de decisiones |
+| 4 | Experiencia | 1 | Estructura, textos, selector único de hora | Decidir qué es imprescindible |
+| 5 | Paisaje en directo | 1 | Hero sin marco, espacio en el cielo para el texto, catenaria suavizada, imagen fija de reserva | Juzgar si es bonito; probar en su móvil |
+| 6 | Publicación | 2 | Proyecto, tarea diaria, configuración | Cuentas y botón de publicar |
+| 7 | Medición de visitas | 2 | Contador sencillo y respetuoso con la privacidad | Revisar la cifra mensual |
+| 8 | Lanzamiento | 1 | Ayuda con guion del vídeo y textos | Grabar, publicar en X y LinkedIn, portfolio |
+
+## Decisiones y riesgos
+
+**Decisiones tomadas**
+
+- Paisaje generado en directo, no vídeo; sin marco de ventanilla. Fondo del hero aprobado: acuarela, con el paisaje pintándose al abrir y el tren arrancando después (el hecho a mano queda descartado). Estructura aprobada: interior de compartimento pintado en acuarela con la ventanilla en el centro (mezcla de Alto's Odyssey, The Tuscan Journey y el wireframe C); nombre y hora como cartel sobre la pared, sin bloques blancos, y el nombre nunca pisa la ventanilla. Tipografía: Young Serif (nombre y horas) + Familjen Grotesk en peso medio y negrita (resto del texto). Nombre de la web pendiente. Contexto en el hero (opción C): subtítulo bajo el nombre, etiqueta «Próximo tren» y billete activo con el viaje. Controles públicos: sentido como dos billetes de tren recortados en papel, y hora; sin pausa ni repintar. El celaje de Fortuny no se eligió por ahora. La ventanilla del primer borrador sigue como opción.
+- Estética por encima de rapidez.
+- Subdominio gratuito; sin dominio de pago.
+- Sin pruebas con usuarios antes de publicar.
+- El tiempo hasta la estación lo calcula cada usuario.
+
+**Riesgos abiertos**
+
+- Los horarios actuales caducan el 7 de octubre de 2026.
+- Horario teórico: no refleja retrasos, frecuentes en Rodalies.
+- Precios del AVE: puede no existir fuente accesible (que Trainline los muestre no lo demuestra).
+- Rendimiento del paisaje en móvil sin comprobar en un dispositivo real.
+- Texto sobre fondo en movimiento: riesgo de legibilidad.
+- Condiciones de uso de los datos abiertos de Renfe por verificar.
+
+## Registro de decisiones estéticas
+
+| Decisión | Descartado | Por qué |
+| --- | --- | --- |
+| Mantener como candidata la ventanilla del primer borrador | — | Le gusta mucho a Àlex; sigue en la comparación |
+| Explorar dirección A: acuarela que se pinta sola | — | Da el momento «guau» en los primeros segundos del vídeo |
+| Explorar dirección C: hecho a mano, con el mismo arranque que A | — | El contraste «parece hecho a mano, lo hizo una IA» |
+| Mismo comportamiento en A y C: el paisaje se dibuja al abrir y después el tren arranca y sigue en movimiento | Paisaje en movimiento desde el primer instante | El dibujo inicial es el gancho; el movimiento, la continuidad |
+| No usar B (celaje de Fortuny) como dirección propia | B | Pendiente de valorar como fuente de inspiración dentro de A o C |

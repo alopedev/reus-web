@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nombre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Familjen+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --grain:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' seed='4'/><feColorMatrix values='0 0 0 0 .3  0 0 0 0 .24  0 0 0 0 .16  0 0 0 .09 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
+  --paper:#F1EADC; --shadow:#2D241C; --soft:#E2D6C2;
+  --serif:'Young Serif', 'Iowan Old Style', Georgia, serif;
+  --sans:'Familjen Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{ box-sizing:inherit; }
+html,body{ height:100%; margin:0; }
+body{ background:#7d6650; color:var(--paper); font-family:var(--sans); font-weight:500; overflow:hidden; }
+strong{ font-weight:700; }
+canvas#gl{ position:fixed; inset:0; width:100%; height:100%; display:block; z-index:0; }
+.stage{ position:relative; z-index:1; height:100%; display:grid; grid-template-rows:auto minmax(0,1fr) auto;
+  gap:clamp(14px,2.4vh,28px); padding:clamp(16px,3vh,34px) clamp(18px,4.4vw,64px) clamp(16px,3vh,30px); }
+
+/* name and direction, on the wall above the window */
+.top{ display:flex; align-items:flex-start; justify-content:space-between; gap:20px; }
+.brand{ font-family:var(--serif); font-weight:400; margin:0; line-height:.9; letter-spacing:-.02em;
+  font-size:clamp(3.4rem,7.4vw,6.6rem); color:var(--paper); text-shadow:.05em .05em 0 var(--shadow); }
+.sub{ margin:.55rem 0 0; font-size:clamp(1rem,1.35vw,1.15rem); color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.35); }
+.brandBox{ min-width:0; }
+
+/* two train tickets, cut out of paper: the printed one is the trip you're looking at */
+.tickets{ position:relative; display:flex; align-items:flex-start; gap:10px; }
+.tk{ all:unset; box-sizing:border-box; cursor:pointer; position:relative; display:block; color:var(--shadow);
+  filter:drop-shadow(4px 4px 0 var(--shadow)); transition:transform .25s ease, filter .25s ease; }
+.tk .pp{ display:block; background:#EFE6D2 var(--grain); padding:12px 44px 12px 16px; clip-path:var(--cut); }
+.tk .stub{ position:absolute; top:8px; bottom:8px; right:30px; border-left:1.5px dashed rgba(45,36,28,.45); }
+.tk .k{ display:block; font-size:.8rem; opacity:.75; }
+.tk .route{ display:block; font-family:var(--serif); font-size:clamp(1.25rem,2vw,1.8rem); line-height:1.15; margin-top:2px; }
+.tk .row{ display:block; font-size:.95rem; margin-top:4px; white-space:nowrap; }
+.tk .route{ white-space:nowrap; }
+.tk .row b{ font-family:var(--serif); font-weight:400; font-size:1.12em; }
+.tk.on{ transform:rotate(-1.5deg); cursor:default; }
+.tk.off{ transform:rotate(2.5deg) translateY(10px); filter:drop-shadow(5px 5px 0 var(--shadow)); }
+.tk.off .pp{ background-color:#E4D8BE; padding:10px 40px 10px 14px; }
+.tk.off:hover{ transform:rotate(1deg) translate(-2px,6px); filter:drop-shadow(7px 7px 0 var(--shadow)); }
+.tk.off:active{ transform:rotate(1deg) translate(3px,13px); filter:drop-shadow(1px 1px 0 var(--shadow)); }
+.tk.off .route{ font-size:clamp(1.05rem,1.4vw,1.25rem); }
+.tk:focus-visible{ outline:2px solid var(--paper); outline-offset:6px; }
+.label{ margin:0 0 .2rem; font-family:var(--sans); font-weight:700; font-size:clamp(.95rem,1.2vw,1.05rem); color:var(--soft); text-shadow:0 1px 2px rgba(0,0,0,.35); grid-column:1 / -1; }
+
+/* the window: an empty frame; the painting shows through from the canvas behind */
+.winCell{ display:grid; place-items:center; min-height:0; container-type:size; }
+#win{ width:min(60vw, 100cqw, 100cqh * 1.62); aspect-ratio:1.62; border-radius:clamp(22px,3vw,44px); }
+
+/* the departure, on the lower panel of the carriage */
+.info{ display:grid; grid-template-columns:auto 1fr; align-items:end; column-gap:clamp(18px,3vw,44px); row-gap:10px; }
+.dep{ font-family:var(--serif); font-weight:400; margin:0; line-height:.85; letter-spacing:-.02em;
+  font-size:clamp(4.2rem,9.6vw,8.4rem); text-shadow:.05em .05em 0 var(--shadow); }
+.lines{ padding-bottom:.35rem; text-shadow:0 1px 2px rgba(0,0,0,.35); }
+.lines p{ margin:0; }
+.soon{ font-size:clamp(1rem,1.3vw,1.12rem); color:var(--soft); }
+.soon strong{ color:var(--paper); }
+.arr{ font-family:var(--serif); font-size:clamp(1.35rem,2vw,1.8rem); margin-top:.15rem!important; }
+.then{ margin-top:.3rem!important; color:var(--soft); font-size:clamp(1rem,1.3vw,1.1rem); }
+.then b{ font-family:var(--serif); font-weight:400; font-size:1.22em; color:var(--paper); margin:0 .12em; }
+/* the following trains are doors to the next option */
+.tt{ font:inherit; font-family:var(--serif); font-weight:400; font-size:1.22em; color:var(--paper); background:none; border:0; padding:.05em .1em; margin:0 .06em; cursor:pointer;
+  text-decoration:underline dotted; text-decoration-thickness:1.5px; text-underline-offset:.22em; text-shadow:inherit; }
+.tt:hover{ text-decoration-style:solid; }
+.tt:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
+.prev{ margin-top:.2rem!important; color:var(--soft); font-size:clamp(.95rem,1.2vw,1.02rem); }
+.prev:empty{ display:none; }
+.dep.swap{ animation:swap .45s ease; }
+@keyframes swap{ from{ opacity:.2; transform:translateY(8px); } to{ opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce){ .dep.swap{ animation:none; } }
+.note{ font-size:.86rem; color:var(--soft); margin-top:.3rem!important; }
+.note:empty{ display:none; }
+
+/* the day as a ruler: each tick is a train */
+.ruler{ grid-column:1 / -1; position:relative; margin-top:clamp(8px,1.6vh,16px); }
+.rulerHead{ display:flex; justify-content:flex-end; gap:1.1em; align-items:baseline; font-size:.95rem; color:var(--soft); margin-bottom:4px; text-shadow:0 1px 2px rgba(0,0,0,.35); }
+.rulerHead output{ font-family:var(--serif); font-size:1.15rem; color:var(--paper); }
+.now{ font:inherit; font-family:var(--sans); font-weight:500; font-size:.95rem; color:var(--paper); background:none; border:0; padding:.1em 0; cursor:pointer;
+  text-decoration:underline dotted; text-decoration-thickness:1.5px; text-underline-offset:.3em; text-shadow:inherit; }
+.now:hover{ text-decoration-style:solid; }
+.now[hidden]{ display:none; }
+.track{ position:relative; height:26px; }
+.ticks{ position:absolute; left:0; right:0; top:50%; height:12px; transform:translateY(-50%); pointer-events:none; }
+.ticks i{ position:absolute; top:0; width:1.5px; height:12px; background:var(--paper); opacity:.75; transform:translateX(-50%); }
+.ticks i.on{ height:20px; top:-4px; width:2.5px; opacity:1; }
+.hours{ position:relative; height:1.2em; margin-top:4px; font-size:.82rem; color:var(--soft); text-shadow:0 1px 2px rgba(0,0,0,.35); }
+.hours span{ position:absolute; transform:translateX(-50%); }
+.track::before{ content:""; position:absolute; left:0; right:0; top:50%; height:1.5px; background:var(--paper); opacity:.6; }
+input[type=range]{ -webkit-appearance:none; appearance:none; position:absolute; inset:0; width:100%; height:26px; margin:0; background:transparent; cursor:pointer; }
+input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--paper); box-shadow:2px 2px 0 var(--shadow); border:0; }
+input[type=range]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%; background:var(--paper); box-shadow:2px 2px 0 var(--shadow); border:0; }
+input[type=range]::-moz-range-track{ background:transparent; }
+button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outline-offset:4px; }
+
+.top, .info{ opacity:0; transform:translateY(6px); transition:opacity 1s ease, transform 1s ease; }
+.in .top, .in .info{ opacity:1; transform:none; }
+.in .info{ transition-delay:.25s; }
+@media (prefers-reduced-motion: reduce){ .top, .info{ transition:none; opacity:1; transform:none; } }
+
+@media (max-width:700px), (max-aspect-ratio:4/5){
+  .top{ flex-direction:column; align-items:stretch; gap:14px; }
+  .tickets{ justify-content:space-between; }
+  .tk.on{ flex:1 1 auto; min-width:0; }
+  .tk .pp{ padding-right:38px; }
+  .tk.off .k{ display:none; }
+  .tk .row{ font-size:.86rem; }
+  .tk .pp{ padding-left:12px; }
+  .tk.off{ flex:0 0 auto; }
+  #win{ width:min(calc(100cqw - 36px), 100cqh * 1.05); aspect-ratio:1.05; border-radius:28px; }
+  .info{ grid-template-columns:1fr; }
+  .dep{ font-size:clamp(4rem,22vw,6rem); }
+}
+.sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="top">
+    <div class="brandBox">
+      <h1 class="brand">Nombre</h1>
+      <p class="sub">Horarios de tren entre Barcelona y Reus.</p>
+    </div>
+    <div class="tickets" id="tickets" role="group" aria-label="Sentido del viaje"></div>
+  </div>
+  <div class="winCell"><div id="win" aria-hidden="true"></div></div>
+  <section class="info" id="info" aria-live="polite">
+    <p class="label" id="lbl">Próximo tren</p>
+    <p class="dep" id="dep">--:--</p>
+    <div class="lines">
+      <p class="soon" id="soon"></p>
+      <p class="then" id="then"></p>
+      <p class="prev" id="prev"></p>
+      <p class="note" id="note"></p>
+    </div>
+    <div class="ruler">
+      <div class="rulerHead"><span><span id="tLbl">Trenes desde las</span> <output id="tOut" for="t">--:--</output></span><button type="button" class="now" id="nowBtn" hidden>Volver al próximo tren</button></div>
+      <div class="track"><div class="ticks" id="ticks"></div><input type="range" id="t" min="300" max="1439" step="1" aria-label="Elegir tren"></div>
+      <div class="hours" id="hours" aria-hidden="true"></div>
+    </div>
+  </section>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const DATA = __DATA__;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const root = document.documentElement;
+function madridNow(){
+  const p = new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+  const g = t => p.find(x=>x.type===t).value;
+  return {date:`${g('year')}-${g('month')}-${g('day')}`, min:(+g('hour'))*60+(+g('minute'))};
+}
+const addDays = (iso,n) => { const d=new Date(iso+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); };
+const weekday = iso => new Date(iso+'T12:00:00Z').getUTCDay();
+const hhmm = m => { m=((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); };
+const dur = m => { if(m<1) return 'ahora'; const h=Math.floor(m/60), r=m%60; return h?(r?`${h} h ${r} min`:`${h} h`):`${r} min`; };
+
+/* one light drives the landscape and the carriage it shines into */
+function daylight(min){
+  const h = min/60;
+  if(h<7 || h>=21) return {name:'night', top:[.20,.24,.40], hor:[.42,.46,.62], sun:[.95,.94,.86], sunUV:[.82,.84], hemi:[0x7080b0,0x202433,.55], dir:[0xaab8e0,.35,[-.3,.8,.4]],
+    wallA:[.27,.27,.35], wallB:[.17,.17,.24], wood:[.15,.13,.16], seat:[.09,.09,.12]};
+  if(h<10) return {name:'dawn', top:[.78,.64,.56], hor:[.95,.83,.66], sun:[.95,.62,.36], sunUV:[.8,.5], hemi:[0xf2d9c2,0x6b5a45,.8], dir:[0xffc690,.9,[.6,.35,.5]],
+    wallA:[.66,.53,.45], wallB:[.46,.35,.30], wood:[.36,.25,.20], seat:[.21,.19,.21]};
+  if(h<18) return {name:'day', top:[.52,.66,.78], hor:[.88,.91,.90], sun:[.97,.82,.46], sunUV:[.82,.82], hemi:[0xe3ecf2,0x7d6e4d,.85], dir:[0xfff3de,.85,[.4,.9,.5]],
+    wallA:[.60,.52,.42], wallB:[.42,.35,.27], wood:[.34,.25,.18], seat:[.19,.20,.21]};
+  return {name:'dusk', top:[.60,.44,.60], hor:[.96,.72,.56], sun:[.96,.55,.32], sunUV:[.8,.46], hemi:[0xf0c7c7,0x5a4a52,.75], dir:[0xff9f7a,.8,[-.6,.3,.5]],
+    wallA:[.58,.44,.41], wallB:[.39,.29,.28], wood:[.31,.21,.19], seat:[.19,.16,.19]};
+}
+
+function build3D(){
+  if(!window.THREE) return null;
+  const canvas = document.createElement('canvas'); canvas.id='gl'; canvas.setAttribute('aria-hidden','true');
+  let renderer;
+  try{ renderer = new THREE.WebGLRenderer({canvas, antialias:false, powerPreference:'low-power'}); }catch(e){ return null; }
+  if(!renderer.getContext()) return null;
+  document.body.prepend(canvas);
+  renderer.setClearColor(0x000000, 0);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 5000);
+  camera.position.set(0, 3.4, 0);
+function rng(seed){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013904223)>>>0; return s/4294967296; }; }
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x777766, .95); scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xffffff, .8); scene.add(sun);
+  const mat = c => new THREE.MeshPhongMaterial({color:c, flatShading:true, shininess:0, specular:0x000000});
+  const vmat = new THREE.MeshPhongMaterial({vertexColors:true, flatShading:true, shininess:0, specular:0x000000});
+  const C = h => new THREE.Color(h);
+  const pig = {sap:C(0x8D9A62), vine:C(0x74854A), olive:C(0x8C9960), ochre:C(0xC9A060), earth:C(0xB39478), sand:C(0xE4D6B6), sea:C(0x40708F), indigo:C(0x46507A), pine:C(0x4F6B3C), roof:C(0xB5705A), wall:C(0xEBE3D2), wave:C(0xDCE6EA)};
+
+  const L = 240;
+  function periodic(x, z, amps){ let y=0; amps.forEach(([a,k,p])=> y += a*Math.sin((x/L)*Math.PI*2*k + z*p)); return y; }
+  function tile(seed){
+    const r = rng(seed), g = new THREE.Group();
+    const geo = new THREE.PlaneGeometry(L, 72, 80, 18); geo.rotateX(-Math.PI/2); geo.translate(L/2, 0, -37);
+    const pos = geo.attributes.position, col = [];
+    for(let i=0;i<pos.count;i++){
+      const x=pos.getX(i), z=pos.getZ(i);
+      pos.setY(i, z < -62 ? -0.2 : periodic(x, z, [[.35,3,.08],[.18,7,.2]]));
+      let c; if(z < -62) c = pig.sand; else { const f = Math.floor(x/30) % 4; c = [pig.earth, pig.ochre, pig.sap, pig.earth][(f + (z< -30?1:0)) % 4]; }
+      const k = .92 + r()*.16; col.push(c.r*k, c.g*k, c.b*k);
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.computeVertexNormals();
+    g.add(new THREE.Mesh(geo, vmat));
+    const dummy = new THREE.Object3D();
+    function instanced(geom, color, list, jitter=.12){
+      const m = new THREE.InstancedMesh(geom, mat(color), list.length);
+      list.forEach((t,i)=>{ dummy.position.set(t[0],t[1],t[2]); dummy.rotation.set(0,t[4]||0,0); dummy.scale.set(t[3][0],t[3][1],t[3][2]); dummy.updateMatrix(); m.setMatrixAt(i, dummy.matrix);
+        const c = new THREE.Color(color); c.offsetHSL(0, 0, (r()-.5)*jitter); m.setColorAt(i, c); });
+      g.add(m);
+    }
+    const olives=[], trunks=[];
+    for(let i=0;i<30;i++){ const x=r()*L, z=-19-r()*32, s=.8+r()*.6; olives.push([x, 1.9*s, z, [1.3*s,.95*s,1.3*s], r()*3]); trunks.push([x, .8*s, z, [s,s,s]]); }
+    instanced(new THREE.IcosahedronGeometry(1.5,0), pig.olive, olives, .18);
+    instanced(new THREE.CylinderGeometry(.16,.24,1.6,5), pig.earth.clone().multiplyScalar(.6), trunks);
+    const vines=[];
+    [[0,70],[88,150],[168,236]].forEach(([a,b])=>{ for(let z=-5.5; z>-17; z-=1.7) for(let x=a; x<b; x+=1.4) vines.push([x+r()*.3, .6, z, [1, .9+r()*.5, .9]]); });
+    instanced(new THREE.IcosahedronGeometry(.55,0), pig.vine, vines, .2);
+    const pines=[], ptr=[];
+    for(let i=0;i<9;i++){ const x=r()*L, z=-54-r()*7, s=.9+r()*.4; pines.push([x, 6.2*s, z, [2.8*s,.8*s,2.8*s], r()*3]); ptr.push([x, 3*s, z, [s, s, s]]); }
+    instanced(new THREE.IcosahedronGeometry(1.6,0), pig.pine, pines, .12);
+    instanced(new THREE.CylinderGeometry(.18,.26,6,5), pig.earth.clone().multiplyScalar(.55), ptr);
+    for(let i=0;i<3;i++){
+      const x = 30 + i*80 + r()*20, z = -34 - r()*14, w = 6+r()*3;
+      const house = new THREE.Mesh(new THREE.BoxGeometry(w, 4, 5), mat(pig.wall)); house.position.set(x, 2, z); g.add(house);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(w*.72, 2.2, 4), mat(pig.roof)); roof.position.set(x, 5.1, z); roof.rotation.y = Math.PI/4; roof.scale.set(1,1,.8); g.add(roof);
+    }
+    const waves=[];
+    for(let i=0;i<60;i++) waves.push([r()*L, .32, -75-r()*160, [4+r()*10, 1, 1]]);
+    instanced(new THREE.BoxGeometry(1,.05,.35), pig.wave, waves, .05);
+    return g;
+  }
+  const tiles = [tile(7), tile(7)]; tiles.forEach(t=>scene.add(t));
+  const sea = new THREE.Mesh(new THREE.PlaneGeometry(8000, 2400), mat(pig.sea)); sea.rotation.x = -Math.PI/2; sea.position.set(0, .25, -1270); scene.add(sea);
+  function ridge(width, z, base, amps, color, segs){
+    const geo = new THREE.PlaneGeometry(width, 1, segs, 1); const p = geo.attributes.position;
+    for(let i=0;i<p.count;i++){ const x=p.getX(i)+width/2; if(p.getY(i)>0){ let y=base; amps.forEach(([a,k])=> y += a*Math.sin(x/width*Math.PI*2*k + k)); p.setY(i, y); } else p.setY(i, -40); }
+    geo.translate(width/2, 0, 0); geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, mat(color)); m.position.z = z; return m;
+  }
+  const RW = 3600;
+  const headlands = [0,1].map(()=> ridge(RW, -1700, 40, [[55,2],[25,5],[10,11]], pig.indigo, 180));
+  headlands.forEach(m=>scene.add(m));
+
+
+  const rt = new THREE.WebGLRenderTarget(2, 2, {format:THREE.RGBAFormat, minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter});
+  const post = new THREE.ShaderMaterial({
+    uniforms:{ tScene:{value:rt.texture}, res:{value:new THREE.Vector2(1,1)}, sres:{value:new THREE.Vector2(1,1)}, tq:{value:0}, reveal:{value:1},
+      skyTop:{value:new THREE.Vector3()}, skyHor:{value:new THREE.Vector3()}, sunCol:{value:new THREE.Vector3()}, sunPos:{value:new THREE.Vector2()},
+      aspect:{value:1}, waspect:{value:1}, hor:{value:.42}, win:{value:new THREE.Vector4(.2,.3,.8,.8)}, wrad:{value:.04}, seats:{value:1},
+      wallA:{value:new THREE.Vector3()}, wallB:{value:new THREE.Vector3()}, wood:{value:new THREE.Vector3()}, seat:{value:new THREE.Vector3()} },
+    vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`,
+    fragmentShader:`
+      precision highp float;
+      uniform sampler2D tScene; uniform vec2 res, sres; uniform float tq, reveal, aspect, waspect, hor, wrad, seats;
+      uniform vec3 skyTop, skyHor, sunCol, wallA, wallB, wood, seat; uniform vec2 sunPos; uniform vec4 win;
+      varying vec2 vUv;
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+      float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+        return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x), mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x), f.y); }
+      float fbm(vec2 p){ float v=0., a=.5; for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.03; a*=.5; } return v; }
+      float sdRR(vec2 p, vec2 b, float r){ vec2 q=abs(p)-b+r; return length(max(q,0.))+min(max(q.x,q.y),0.)-r; }
+      vec4 quad(vec2 uv, vec2 dir, out float var){
+        vec2 px = 1./res; vec4 m = vec4(0.); vec3 s = vec3(0.);
+        for(int j=0;j<3;j++) for(int i=0;i<3;i++){ vec4 c = texture2D(tScene, uv + vec2(float(i),float(j))*dir*px*1.6); m += c; s += c.rgb*c.rgb; }
+        m /= 9.; s /= 9.; s = abs(s - m.rgb*m.rgb); var = s.r+s.g+s.b; return m;
+      }
+      vec4 kuwahara(vec2 uv){
+        float v0,v1,v2,v3;
+        vec4 a=quad(uv,vec2(-1.,-1.),v0), b=quad(uv,vec2(1.,-1.),v1), c=quad(uv,vec2(1.,1.),v2), d=quad(uv,vec2(-1.,1.),v3);
+        vec4 r=a; float mv=v0; if(v1<mv){mv=v1;r=b;} if(v2<mv){mv=v2;r=c;} if(v3<mv){mv=v3;r=d;} return r;
+      }
+      vec3 sky(vec2 w, float t){
+        float hy = clamp((w.y-hor)/(1.-hor),0.,1.);
+        vec3 s = mix(skyHor, skyTop, pow(hy,.75));
+        s = mix(s, s*.88, fbm(w*vec2(2.2,1.6)+vec2(t*.02,0.))*.75);
+        vec2 d = (w - sunPos)*vec2(waspect,1.);
+        float rr = length(d) + (fbm(d*10.+t)-.5)*.02;
+        return mix(s, sunCol, smoothstep(.09,.08,rr)*.85);
+      }
+      // what the window shows, before it becomes paint
+      vec3 outside(vec2 w, float t, out float e, out float pen){
+        vec2 wo = vec2(fbm(w*vec2(7.,5.)+t*1.7), fbm(w*vec2(6.,8.)-t*1.3)) - .5;
+        vec2 s = w + wo*.006;
+        vec4 k = kuwahara(s);
+        float a = smoothstep(.3,.7,k.a);
+        vec3 obj = k.rgb/max(k.a,.001);
+        float lum = dot(obj, vec3(.299,.587,.114));
+        obj = mix(vec3(lum), obj, .8); obj = mix(obj, vec3(1.), .1);
+        vec2 px = 1./res;
+        vec4 bl = (texture2D(tScene,s+vec2(4.,1.)*px)+texture2D(tScene,s-vec2(4.,1.)*px)+texture2D(tScene,s+vec2(-1.,4.)*px)+texture2D(tScene,s-vec2(-1.,4.)*px))*.25;
+        e = smoothstep(.06,.35,length(k-bl)); pen = smoothstep(.55,1.,e)*.2;
+        return mix(sky(w,t), obj, a);
+      }
+      float ring(float sd, float w){ return 1. - smoothstep(0., w, abs(sd)); }
+
+      void main(){
+        vec2 uv = vUv, t2 = vec2(tq);
+        float t = tq;
+        vec2 P = uv*vec2(aspect,1.);
+        vec2 wc = (win.xy+win.zw)*.5, wh = (win.zw-win.xy)*.5;
+        vec2 wobble = (vec2(fbm(uv*vec2(16.,11.)+3.), fbm(uv*vec2(12.,17.)-5.))-.5)*.006;   // hand-painted edges
+        float sdW = sdRR((uv+wobble-wc)*vec2(aspect,1.), wh*vec2(aspect,1.), wrad);
+        float fw = .022;
+        vec3 col; float edge = 0., pen = 0., order;
+
+        if(sdW < 0.){
+          vec2 w = (uv - win.xy)/(win.zw - win.xy);
+          float e;
+          col = outside(w, t, e, pen);
+          edge = e*.35;
+          // the sash bar across the glass, and a faint reflection
+          float bar = ring(w.y-.64, .012*(1.+.3*noise(uv*80.)));
+          col = mix(col, wood*.9, bar*.9);
+          col = mix(col, vec3(1.), .06*smoothstep(.2,.9,w.x-w.y+.5)*(1.-smoothstep(.0,.3,abs(w.x-w.y-.1))));
+          order = .45 + (w.y > hor ? (1.-w.y)/(1.-hor)*.24 : .24 + (hor-w.y)/hor*.3) + (fbm(w*vec2(3.,4.)+3.1)-.5)*.25;
+        } else {
+          // the carriage wall, lit by the window
+          float y = uv.y;
+          float dado = win.y - .07;
+          vec3 wall = mix(wallB, wallA, smoothstep(dado-.004, dado+.004, y + wobble.y));
+          wall *= .9 + .12*smoothstep(1., .55, y);                         // shadow under the luggage rack
+          float glow = exp(-max(sdW,0.)*7.);
+          wall = mix(wall, wall*(1.-0.3) + skyHor*.45, glow*.35);             // daylight spilling onto the wall
+          wall *= .82 + .18*smoothstep(0.,.35,uv.x)*smoothstep(1.,.65,uv.x); // corners fall into shade
+          col = wall;
+          // panelling on the lower wall
+          float seam = ring(fract(P.x*3.2)-.5, .004) * step(y, dado);
+          col = mix(col, col*.8, seam*.6);
+          // rail and shelf under the window
+          float rail = ring(y-dado, .006);
+          col = mix(col, wood, rail);
+          float shelfSd = sdRR((uv+wobble-vec2(wc.x, win.y-.032))*vec2(aspect,1.), vec2(wh.x*aspect+.05, .011), .006);
+          float shelf = 1.-smoothstep(0.,.003,shelfSd);
+          col = mix(col, mix(wood, wood*1.35, smoothstep(-.011,.004,(uv.y-(win.y-.032)))), shelf);
+          // window frame: a thick wooden surround with a lit inner lip
+          float frame = 1.-smoothstep(fw-.002, fw, sdW);
+          vec3 fcol = mix(wood*1.25, wood*.75, smoothstep(0., fw, sdW));
+          col = mix(col, fcol, frame);
+          col = mix(col, col*.7, ring(sdW-fw, .006)*.8);                     // shadow cast by the frame
+          // seats, only where there is room at the sides
+          if(seats > .5){
+            vec2 q = vec2(min(uv.x, 1.-uv.x)*aspect, uv.y);
+            float sdS = sdRR(q - vec2(.02, .28), vec2(.2, .4), .09) + (fbm(uv*9.)-.5)*.02;
+            float sm = 1.-smoothstep(0.,.004,sdS);
+            vec3 sc = seat*(.85+.3*smoothstep(.1,.6,uv.y)) + skyHor*.06*glow;
+            sc = mix(sc, sc*.65, ring(uv.y-.44, .004));                       // cushion seam
+            col = mix(col, sc, sm);
+            edge += ring(sdS, .006)*.6;
+          }
+          edge += ring(sdW-fw, .005)*.5 + ring(y-dado, .005)*.3 + ring(shelfSd,.005)*.5;
+          order = (1.-uv.y)*.25 + (fbm(uv*vec2(3.,2.)+7.)-.5)*.3;
+        }
+
+        // paint it: absorbance, uneven density, granulation, darker edges, paper
+        float wet = clamp((reveal*1.3 - order)/.16, 0., 1.);
+        float front = wet*(1.-wet)*4.;
+        vec3 A = 1. - col;
+        A *= .86 + .3*fbm(uv*vec2(3.5,2.5)*vec2(aspect,1.)+11.);
+        A *= 1. + (noise(uv*sres*.4)-.5)*(sdW<0.?.35:.18)*smoothstep(.1,.6,dot(A,vec3(.333)));
+        A *= 1. + edge*.4;
+        A *= mix(.25, 1., wet) * (1. + front*.9) * step(.001, wet+front);
+        vec3 paper = vec3(.94,.93,.90) * (.965 + .06*fbm(uv*sres*.09));
+        vec3 c = paper * (1. - clamp(A,0.,1.));
+        c *= 1. - pen*wet*vec3(.62,.6,.55);
+        gl_FragColor = vec4(c, 1.);
+      }`
+  });
+  const postScene = new THREE.Scene(), postCam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2), post));
+  const U = post.uniforms;
+  function resize(){
+    const cw = innerWidth, ch = innerHeight;
+    let s = Math.min(devicePixelRatio||1, 1.25);
+    const cap = 1.5e6; if(cw*ch*s*s > cap) s = Math.sqrt(cap/(cw*ch));
+    const W = Math.max(2, Math.round(cw*s)), H = Math.max(2, Math.round(ch*s));
+    renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+    U.sres.value.set(W, H); U.aspect.value = W/H;
+    const r = document.getElementById('win').getBoundingClientRect();
+    U.win.value.set(r.left/cw, 1-r.bottom/ch, r.right/cw, 1-r.top/ch);
+    U.wrad.value = parseFloat(getComputedStyle(document.getElementById('win')).borderTopLeftRadius)/ch;
+    U.seats.value = (cw/ch > 1.15 && r.left > cw*.12) ? 1 : 0;
+    const rw = Math.max(2, Math.round(r.width*s*.8)), rh = Math.max(2, Math.round(r.height*s*.8));
+    rt.setSize(rw, rh); U.res.value.set(rw, rh);
+    const wa = r.width/Math.max(1,r.height); U.waspect.value = wa;
+    camera.aspect = wa; camera.fov = wa < 1.3 ? 50 : 40;
+    const hor = .42; U.hor.value = hor;
+    const vfov = camera.fov*Math.PI/180;
+    camera.rotation.set(Math.atan(Math.tan(vfov/2)*(1-2*hor)), 0, 0);
+    camera.updateProjectionMatrix();
+  }
+  function setTime(min){
+    const p = daylight(min);
+    U.skyTop.value.set(...p.top); U.skyHor.value.set(...p.hor); U.sunCol.value.set(...p.sun); U.sunPos.value.set(...p.sunUV);
+    U.wallA.value.set(...p.wallA); U.wallB.value.set(...p.wallB); U.wood.value.set(...p.wood); U.seat.value.set(...p.seat);
+    hemi.color.set(p.hemi[0]); hemi.groundColor.set(p.hemi[1]); hemi.intensity = p.hemi[2];
+    sun.color.set(p.dir[0]); sun.intensity = p.dir[1]; sun.position.set(...p.dir[2]);
+    document.body.style.background = `rgb(${p.wallB.map(v=>Math.round(v*255)).join(',')})`;
+    return p.name;
+  }
+  let offset = 0;
+  function frame(dx, time, reveal){
+    offset += dx;
+    const tx = -(((offset % L)+L) % L); tiles[0].position.x = tx - L/2; tiles[1].position.x = tx + L/2;
+    const hx = -(((offset % RW)+RW) % RW); headlands[0].position.x = hx - RW/2; headlands[1].position.x = hx + RW/2;
+    U.tq.value = time; U.reveal.value = reveal;
+    renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, camera);
+    renderer.setRenderTarget(null); renderer.render(postScene, postCam);
+  }
+  resize(); addEventListener('resize', resize);
+  return {frame, setTime, resize};
+}
+
+const world = build3D();
+
+const PAINT = 4.6, SPEED = 22;
+const state = {dir:'reus', useNow:true, minute:null};
+let t0 = performance.now(), lastT = t0, rafId = 0, acc = 0, v = 0, playing = !reduce;
+const stage = document.getElementById('stage');
+function repaint(){
+  t0 = performance.now(); v = 0; stage.classList.remove('in');
+  if(reduce || !world){ stage.classList.add('in'); if(world) world.frame(0,0,1); return; }
+  playing = true; kick();
+}
+function loop(t){
+  const dt = Math.min(.05, (t-lastT)/1000); lastT = t;
+  const el = (t - t0)/1000, reveal = Math.min(1, el/PAINT);
+  if(el > PAINT*.75) stage.classList.add('in');
+  const target = el > PAINT ? SPEED * (state.dir==='bcn' ? -1 : 1) : 0;
+  v += (target - v) * Math.min(1, dt*.45);
+  acc += dt;
+  if(acc >= 1/30){ world.frame(v*acc, Math.floor(el*8)/8, reveal); acc = 0; }
+  if(playing && !document.hidden) rafId = requestAnimationFrame(loop); else rafId = 0;
+}
+function kick(){ if(!rafId && world){ lastT = performance.now(); rafId = requestAnimationFrame(loop); } }
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && playing) kick(); });
+addEventListener('resize', ()=>{ if(!playing && world) world.frame(0,0,1); });
+addEventListener('keydown', e=>{
+  if(e.target.closest && e.target.closest('input,button')) return;
+  if(e.key==='r' || e.key==='R') repaint();
+  if(e.code==='Space'){ e.preventDefault(); playing=!playing; if(playing) kick(); }
+});
+
+// days missing from the data borrow the latest known day of the same kind (weekday, Saturday or Sunday)
+function dayData(iso){
+  if(DATA[iso]) return {d:DATA[iso], exact:true};
+  const kind = x => { const w = weekday(x); return w===6 ? 6 : w===0 ? 0 : 1; };
+  const ref = Object.keys(DATA).sort().reverse().find(x => kind(x)===kind(iso));
+  return {d:DATA[ref], exact:false};
+}
+const tIn = document.getElementById('t'), tOut = document.getElementById('tOut'), nowBtn = document.getElementById('nowBtn');
+const R0 = 300, R1 = 1439, pos = m => ((Math.min(R1,Math.max(R0,m))-R0)/(R1-R0)*100).toFixed(2)+'%';
+document.getElementById('hours').innerHTML = [6,9,12,15,18,21].map(x=>`<span style="left:${pos(x*60)}">${x} h</span>`).join('');
+let todayTrains = [], shown = null;
+function render(){
+  const now = madridNow();
+  const start = state.useNow ? now.min : state.minute;
+  const key = state.dir==='reus' ? 'r' : 'b';
+  const from = state.dir==='reus' ? 'Sants' : 'Reus', to = state.dir==='reus' ? 'Reus' : 'Barcelona Sants';
+  let iso = now.date, {d, exact} = dayData(iso);
+  todayTrains = d[key];
+  let list = d[key].filter(([dep]) => dep >= start + (state.useNow?2:0)).slice(0,3), tomorrow = false;
+  if(!list.length){ iso = addDays(now.date,1); ({d, exact} = dayData(iso)); list = d[key].slice(0,3); tomorrow = true; }
+  const [a, ...rest] = list;
+  const live = state.useNow && !tomorrow;
+  document.getElementById('lbl').textContent = state.useNow || tomorrow ? 'Próximo tren' : 'Tren elegido';
+  // the ruler: every tick is a train, the chosen one stands taller
+  document.getElementById('ticks').innerHTML = todayTrains.map(([dep])=>`<i class="${!tomorrow && dep===a[0]?'on':''}" style="left:${pos(dep)}"></i>`).join('');
+  tIn.value = state.useNow ? Math.min(R1, Math.max(R0, now.min)) : start;
+  document.getElementById('tLbl').textContent = state.useNow ? 'Son las' : 'Tren de las';
+  tOut.textContent = hhmm(state.useNow ? now.min : a[0]);
+  tIn.setAttribute('aria-valuetext', tomorrow ? 'no quedan trenes hoy' : `tren de las ${hhmm(a[0])}`);
+  nowBtn.hidden = state.useNow;
+  if(world) world.setTime(tomorrow ? a[0] : start);
+  document.getElementById('soon').innerHTML = tomorrow ? 'Hoy ya no quedan trenes. El primero de mañana' :
+    live ? `Sale de ${from} en <strong>${dur(a[0]-now.min)}</strong>` : `Sale de ${from}`;
+  const dep = document.getElementById('dep');
+  if(shown !== a[0] + state.dir){ dep.textContent = hhmm(a[0]); if(shown !== null){ dep.classList.remove('swap'); void dep.offsetWidth; dep.classList.add('swap'); } shown = a[0] + state.dir; }
+  drawTickets(from, to, a);
+  document.getElementById('then').innerHTML = rest.length ? `Luego ${rest.map(r=>`<button type="button" class="tt" data-m="${r[0]}" aria-label="Ver el tren de las ${hhmm(r[0])}">${hhmm(r[0])}</button>`).join(' y ')}` : '';
+  const prev = !tomorrow && !live ? [...todayTrains].reverse().find(([x]) => x < a[0]) : null;
+  document.getElementById('prev').innerHTML = prev ? `Anterior <button type="button" class="tt" data-m="${prev[0]}" aria-label="Ver el tren anterior, de las ${hhmm(prev[0])}">${hhmm(prev[0])}</button>` : '';
+  document.getElementById('note').textContent = exact ? '' : 'Horario aproximado: aún no tengo el oficial de este día.';
+  if(world && (!playing || reduce)) world.frame(0,0,1);
+}
+function pick(m){ state.useNow = false; state.minute = m; render(); }
+nowBtn.addEventListener('click', ()=>{ state.useNow = true; render(); tIn.focus({preventScroll:true}); });
+document.getElementById('info').addEventListener('click', e=>{ const b = e.target.closest('.tt'); if(b) pick(+b.dataset.m); });
+// dragging or tapping the ruler lands on the nearest train, never between two
+let rq = 0;
+function snap(){
+  const v = +tIn.value; if(!todayTrains.length) return;
+  const near = todayTrains.reduce((b,[x]) => Math.abs(x-v) < Math.abs(b-v) ? x : b, todayTrains[0][0]);
+  state.useNow = false; state.minute = near;
+  if(!rq) rq = requestAnimationFrame(()=>{ rq=0; render(); });
+}
+tIn.addEventListener('input', snap); tIn.addEventListener('change', snap); tIn.addEventListener('pointerup', ()=> setTimeout(snap, 0));
+// keys step from train to train
+tIn.addEventListener('keydown', e=>{
+  const cur = +document.getElementById('dep').textContent.slice(0,2)*60 + +document.getElementById('dep').textContent.slice(3,5);
+  const deps = todayTrains.map(([x])=>x); let m = null;
+  if(e.key==='ArrowRight' || e.key==='ArrowUp') m = deps.find(x => x > cur);
+  else if(e.key==='ArrowLeft' || e.key==='ArrowDown') m = [...deps].reverse().find(x => x < cur);
+  else if(e.key==='Home') m = deps[0];
+  else if(e.key==='End') m = deps[deps.length-1];
+  else return;
+  e.preventDefault(); if(m != null) pick(m);
+});
+// a ragged scissor cut, different for every ticket, with the two punch notches of the stub
+function cut(seed, notchFromRight){
+  let s = seed; const r = ()=> (s = (s*9301+49297)%233280)/233280;
+  const pts = [], n = 16, j = ()=> (r()*2.4).toFixed(2);
+  for(let i=0;i<=n;i++) pts.push(`${(i/n*100).toFixed(2)}% ${j()}%`);
+  for(let i=1;i<=4;i++){ const y = i*20; pts.push(`calc(100% - ${j()}%) ${y}%`); }
+  for(let i=n;i>=0;i--) pts.push(`${(i/n*100).toFixed(2)}% calc(100% - ${j()}%)`);
+  for(let i=4;i>=1;i--){ const y = i*20; pts.push(`${j()}% ${y}%`); }
+  return `polygon(${pts.join(',')})`;
+}
+function drawTickets(from, to, a){
+  const other = state.dir==='reus' ? {d:'bcn', route:'Reus → Sants', title:'A Barcelona'} : {d:'reus', route:'Sants → Reus', title:'A Reus'};
+  const mins = a[1]-a[0];
+  document.getElementById('tickets').innerHTML = `
+    <button type="button" class="tk on" aria-pressed="true" style="--cut:${cut(7)}">
+      <span class="pp"><span class="k">Billete sencillo, tren directo</span>
+      <span class="route">${from} → ${to==='Barcelona Sants'?'Sants':to}</span>
+      <span class="row">Llega a las <b>${hhmm(a[1])}</b> · ${dur(mins)}</span></span><span class="stub" aria-hidden="true"></span>
+    </button>
+    <button type="button" class="tk off" data-d="${other.d}" aria-pressed="false" style="--cut:${cut(23)}" aria-label="Cambiar a ${other.title}">
+      <span class="pp"><span class="k">${other.route}</span><span class="route">${other.title}</span></span><span class="stub" aria-hidden="true"></span>
+    </button>`;
+}
+document.getElementById('tickets').addEventListener('click', e=>{
+  const b = e.target.closest('.tk.off'); if(!b) return;
+  state.dir = b.dataset.d; render();
+  requestAnimationFrame(()=> document.querySelector('.tk.off')?.focus({preventScroll:true}));
+  if(world) world.resize();
+});
+setInterval(()=>{ if(state.useNow) render(); }, 30000);
+render();
+document.fonts && document.fonts.ready.then(()=> world && world.resize());
+repaint();
+</script>
+</body>
+</html>
