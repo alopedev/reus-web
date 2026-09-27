@@ -37,8 +37,9 @@ Rules checked:
      and the real h2 shows where they landed; scrubbing back and forth is reversible; reduced motion skips the
      whole journey (final states only). Modo rápido: `python3 scripts/check.py letras` corre solo estos checks
      en escritorio y móvil (como "paridad"); la suite completa también los incluye. Antes de tocar el scroll,
-     espera a que `.top`/`.info` hayan terminado su propia transición de entrada (independiente del scroll,
-     añadida por scenery.ts al acabar el pintado del paisaje) -- nunca con un tiempo fijo, la regla de siempre.
+     ambos modos esperan (`hero_settled`) a que `.top`/`.info` hayan terminado su propia transición de entrada
+     (independiente del scroll, añadida por scenery.ts al acabar el pintado del paisaje) -- nunca con un tiempo
+     fijo, la regla de siempre.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
@@ -360,12 +361,19 @@ async def check_letters_layer(page):
     return errs
 
 async def check_letters_rest(page):
-    """Before the journey starts (p=0) there are no chips and the real h1 shows normally."""
+    """Before the journey starts (p=0) there are no chips and the real h1 shows normally. The relay from h1 to
+    chips must not fire before the first letter's own liftoff (letters_start(0)): a chip may already exist just
+    before it lifts off (it sits glued to the wall, pixel-identical to h1 -- check_letters_positions relies on
+    that), but h1 itself must still read at full opacity right up to that point."""
+    errs = []
     await letters_at(page, 0)
     st = await page.evaluate(LETTERS_STATE)
-    errs = []
     if st["count"]: errs.append(f"{st['count']} chips visible at p=0")
-    if st["h1Opacity"] < .95: errs.append(f"h1.brand is dimmed at p=0 (opacity {st['h1Opacity']})")
+    if st["h1Opacity"] < .95: errs.append("h1.brand is dimmed at p=0")
+    p = max(0, letters_start(0) - .02)
+    await letters_at(page, p)
+    st = await page.evaluate(LETTERS_STATE)
+    if st["h1Opacity"] < .95: errs.append(f"h1.brand is dimmed at p={p:.3f}, before letter 0 even lifts off (opacity {st['h1Opacity']})")
     return errs
 
 async def check_letters_midway(page):
@@ -588,6 +596,7 @@ async def main():
             page.on("pageerror", lambda e: errors.append(str(e)))
             await page.goto(page_url)
             await page.wait_for_timeout(9000)  # let the paint-in finish
+            await hero_settled(page)  # ...and .top/.info's own entrance transition too (check_letters needs it settled)
             box = await page.evaluate("""(() => {
               const r = s => document.querySelector(s).getBoundingClientRect();
               const f = s => { const c = getComputedStyle(document.querySelector(s)); return c.fontFamily.split(',')[0].replace(/"/g,''); };

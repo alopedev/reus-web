@@ -2,14 +2,26 @@
    A layer of its own, fixed and above both the wall (#hero, z-index 0) and the table (#repisa, z-index 2):
    nested inside either, its transform/filter would break its own fixed positioning and .escena would clip it. */
 #letras{ position:fixed; inset:0; z-index:5; pointer-events:none; }
-.ficha{ position:absolute; left:0; top:0; transform-style:preserve-3d; line-height:1;
+.ficha{ position:absolute; left:0; top:0; line-height:1;
   font-family:var(--serif); font-weight:400; letter-spacing:-.02em; }
-/* will-change never goes on .ficha itself: promoting the flipping element to its own layer confuses backface
-   culling under software compositing (reproduced standalone, independent of this app -- both faces show at
-   once, one of them mirrored). It is safe on the shadow, which never carries the flip. */
-.ficha .cara{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-  backface-visibility:hidden; -webkit-backface-visibility:hidden;
-  text-shadow:.05em .05em 0 rgba(45,36,28,.85); border-radius:.15em; }
+/* the 3D flip lives on its own child (.flip), never mixed into .ficha's own transform: combining the flip's
+   rotateY with .ficha's rotateZ/scale in one matrix is what confused backface culling under software
+   compositing (both faces showed at once, one of them mirrored -- reproduced standalone, independent of this
+   app). Isolating the flip also keeps .som out of the rotation, so its offset is never mirrored mid-flip. */
+.ficha .flip{ position:absolute; inset:0; transform-style:preserve-3d; }
+/* will-change never goes on .flip: promoting the flipping element to its own layer confuses backface culling
+   under software compositing the same way. It is safe on the shadow, which never carries the flip -- and only
+   while the shadow's own chip is actually in flight (see letters.ts), never for the whole 0<p<1 stretch. */
+.ficha .cara{ position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; border-radius:.15em; }
 .ficha .back{ transform:rotateY(180deg); }
-.ficha .som{ position:absolute; inset:0; border-radius:.15em; z-index:-1; will-change:transform, opacity; }
+/* material: two static layers, cartel (paper-colored text, like .brand/.intro h2) and recorte (paper-cutout
+   card with grain), crossfaded by opacity only -- never by writing color/background per frame. */
+.ficha .mat{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; border-radius:.15em; }
+.ficha .cartel{ color:var(--paper); text-shadow:.05em .05em 0 var(--shadow); }
+.ficha .recorte{ background:#EFE6D2 var(--grain); color:#2D241C; }
+/* the wall's pigment wash (--lavado), as a plain dark overlay instead of a computed color: opacity alone
+   reproduces the same brightness*(1-.45*lavado) math, since a black layer composited at that alpha over any
+   color yields exactly color*(1-alpha). Only visible while a chip is still glued to the wall (cartel state). */
+.ficha .lavado{ position:absolute; inset:0; border-radius:.15em; background:#000; opacity:0; }
+.ficha .som{ position:absolute; inset:0; border-radius:.15em; z-index:-1; }
 @media (prefers-reduced-motion: reduce){ #letras{ display:none; } }

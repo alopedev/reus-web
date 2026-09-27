@@ -55,7 +55,7 @@ export function pair(name: string, dest: string): PairEntry[] {
 interface Glyph { x: number; y: number; w: number; h: number }
 export interface Chip {
   i: number; from: string; to: string; x: number; y: number; w: number; h: number; fontSize: number;
-  rz: number; ry: number; scale: number; scrap: number; gone: number; arc: number; wallShade: number;
+  rz: number; ry: number; scale: number; scrap: number; gone: number; arc: number; wallShade: number; flying: boolean;
 }
 export interface LettersState { h1Opacity: number; h2Opacity: number; chips: Chip[] }
 
@@ -70,6 +70,11 @@ let entries: PairEntry[] = [];
 let srcGlyphs: (Glyph | null)[] = [];
 let dstGlyphs: (Glyph | null)[] = [];
 let srcFont = 16, dstFont = 16;
+// #repisa is a normal-flow block: its real width is the layout viewport (excludes a classic scrollbar's own
+// width), not innerWidth (which includes it) -- the same distinction table.ts makes with esc.clientWidth. #hero
+// needs no such cache: position:fixed;inset:0 is sized to innerWidth regardless of a classic scrollbar. Cached
+// at measure() time, never read live in state()/render() (a scroll-time layout read, which the project avoids)
+let tableW = 0;
 
 // a single character's box, measured with a Range (keeps Young Serif's kerning, unlike splitting into spans)
 function glyphsOf(el: HTMLElement): (Glyph | null)[] {
@@ -106,6 +111,7 @@ export function measure(): void {
   dstGlyphs = glyphsOf(qe).map(g => g && {x: g.x, y: g.y - shelfTop, w: g.w, h: g.h});
   srcFont = parseFloat(getComputedStyle(brand).fontSize) || 16;
   dstFont = parseFloat(getComputedStyle(qe).fontSize) || 16;
+  tableW = document.documentElement.clientWidth;
   hero.style.transform = heroT; shelf.style.transform = shelfT;
   top.style.transform = topT; top.style.transition = topTr;
   resetChips();
@@ -127,7 +133,7 @@ function projectWall(g: Glyph, ps: Pose): {x: number; y: number} {
 // #repisa's own top -- which sits at hingeAt(p) on screen, the same hinge the wall shares. g.y already comes in
 // relative to that top (see measure()): #repisa moves with the scroll even with its own transform cleared
 function projectTable(g: Glyph, ps: Pose): {x: number; y: number} {
-  const ox = innerWidth / 2, ly = g.y;
+  const ox = tableW / 2, ly = g.y;
   const lx = g.x - ox;
   const rad = ps.table * Math.PI / 180;
   const ry = ly * Math.cos(rad), rz = ly * Math.sin(rad);
@@ -139,7 +145,8 @@ function projectTable(g: Glyph, ps: Pose): {x: number; y: number} {
 // liftoff a chip tracks the live wall (it hasn't left yet); after it lands it tracks the live table (it rides it
 // to p=1); in between it flies between the two poses frozen at the instants it left and arrives.
 export function state(p: number): LettersState {
-  const h1Opacity = p <= 0 ? 1 : Math.max(0, 1 - p / .03);
+  // the relay to chips happens at the start of the journey (the first letter's own liftoff), never earlier
+  const h1Opacity = p <= START0 ? 1 : Math.max(0, 1 - (p - START0) / .03);
   const h2Opacity = clamp01((p - .95) / .05);
   const chips: Chip[] = [];
   if(measured && p > 0 && p < 1){
@@ -162,44 +169,58 @@ export function state(p: number): LettersState {
       const settle = t > .82 ? Math.sin(Math.PI * (t - .82) / .18) : 0;
       const dir = i % 2 ? 1 : -1;
       const rz = arc * 13 * dir - 1.6 * settle * dir;
-      const ry = 180 * clamp01(t / .7);   // the flip ends before the settle, so the overshoot lands on a fixed face
+      // a letter with no letter to become (the gap) never flips: its front just fades away on arrival -- there is
+      // no back face to show, so no empty backface to worry about
+      const ry = e.to == null ? 0 : 180 * clamp01(t / .7);   // the flip ends before the settle, on a fixed face
       const scale = lerp(1, dstFont / srcFont, te) * (1 + .015 * settle);
       const scrap = clamp01(2.4 * arc);   // cartel <-> recorte follows the arc's height, not time
       const gone = e.to == null ? clamp01((t - .45) * 2.5) : 0;   // a chip with no letter to become melts on arrival
       const wallShade = t <= 0 ? pose(p).shade : 0;   // darkens like the wall's texts only while still glued to it
+      const flying = t > 0 && t < 1;   // strictly mid-flight, not glued to the wall or the table: only then is the
+      // shadow worth its own compositor layer (will-change solo durante el viaje)
       chips.push({i, from: e.from, to: e.to ?? '', x, y, w: srcFont * 1.3, h: srcFont * 1.3, fontSize: srcFont,
-        rz, ry, scale, scrap, gone, arc, wallShade});
+        rz, ry, scale, scrap, gone, arc, wallShade, flying});
     });
   }
   return {h1Opacity, h2Opacity, chips};
 }
 
 // ---------- DOM: a pool of .ficha elements, updated from state(), never rebuilt each frame ----------
-const PAPER: [number, number, number] = [241, 234, 220], DARK: [number, number, number] = [45, 36, 28];
-const SCRAPBG: [number, number, number] = [239, 230, 210];
-const rgb = (c: number[], a: number): string => `rgba(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])},${a.toFixed(3)})`;
-
+const DARK = 'rgb(45,36,28)';
 let pool: (HTMLElement | null)[] = [];
 
 function resetChips(): void { pool.forEach(el => el && el.remove()); pool = []; }
+
+// a face is two static material layers (cartel/recorte, colors fixed in CSS) crossfaded by opacity, plus a
+// plain dark overlay for the wall's wash (--lavado): a black layer at opacity a over color C paints C*(1-a),
+// the same brightness*(1-.45*lavado) the wall's own texts use -- so no color is ever computed or written here
+function makeFace(cls: string): HTMLElement {
+  const cara = document.createElement('div'); cara.className = `cara ${cls}`;
+  const cartel = document.createElement('div'); cartel.className = 'mat cartel';
+  const recorte = document.createElement('div'); recorte.className = 'mat recorte';
+  const lavado = document.createElement('div'); lavado.className = 'lavado';
+  cara.append(cartel, recorte, lavado);
+  return cara;
+}
 
 function makeChip(c: Chip): HTMLElement {
   const el = document.createElement('div'); el.className = 'ficha';
   el.style.width = c.w.toFixed(1) + 'px'; el.style.height = c.h.toFixed(1) + 'px'; el.style.fontSize = c.fontSize.toFixed(2) + 'px';
   const som = document.createElement('div'); som.className = 'som';
-  const front = document.createElement('div'); front.className = 'cara front';
-  const back = document.createElement('div'); back.className = 'cara back';
-  el.append(som, front, back);
+  som.style.background = DARK;   // constant: set once here, never rewritten per frame
+  const flip = document.createElement('div'); flip.className = 'flip';
+  flip.append(makeFace('front'), makeFace('back'));
+  el.append(som, flip);
   return el;
 }
 
-function faceStyle(el: HTMLElement, letter: string, scrap: number, wallShade: number): void {
-  if(el.textContent !== letter) el.textContent = letter;
-  const shaded: [number, number, number] = [PAPER[0] * (1 - .45 * wallShade), PAPER[1] * (1 - .45 * wallShade), PAPER[2] * (1 - .45 * wallShade)];
-  const textColor: [number, number, number] = [
-    shaded[0] + (DARK[0] - shaded[0]) * scrap, shaded[1] + (DARK[1] - shaded[1]) * scrap, shaded[2] + (DARK[2] - shaded[2]) * scrap];
-  el.style.color = rgb(textColor, 1);
-  el.style.background = scrap > .01 ? rgb(SCRAPBG, scrap) : 'transparent';
+// transform/opacity only: crossfades the two material layers and the wash overlay, never writes color/background
+function faceStyle(cara: HTMLElement, letter: string, scrap: number, wallShade: number): void {
+  const cartel = cara.children[0] as HTMLElement, recorte = cara.children[1] as HTMLElement, lavado = cara.children[2] as HTMLElement;
+  if(cartel.textContent !== letter){ cartel.textContent = letter; recorte.textContent = letter; }
+  cartel.style.opacity = (1 - scrap).toFixed(3);
+  recorte.style.opacity = scrap.toFixed(3);
+  lavado.style.opacity = (.45 * wallShade).toFixed(3);
 }
 
 function syncChips(container: HTMLElement, chips: Chip[]): void {
@@ -208,16 +229,19 @@ function syncChips(container: HTMLElement, chips: Chip[]): void {
   chips.forEach(c => {
     let el = pool[c.i];
     if(!el){ el = makeChip(c); pool[c.i] = el; container.appendChild(el); }
-    el.style.transform = `translate(${(c.x - c.w / 2).toFixed(1)}px, ${(c.y - c.h / 2).toFixed(1)}px) perspective(900px) rotateZ(${c.rz.toFixed(2)}deg) rotateY(${c.ry.toFixed(1)}deg) scale(${c.scale.toFixed(4)})`;
+    el.style.transform = `translate(${(c.x - c.w / 2).toFixed(1)}px, ${(c.y - c.h / 2).toFixed(1)}px) perspective(900px) rotateZ(${c.rz.toFixed(2)}deg) scale(${c.scale.toFixed(4)})`;
     el.style.opacity = (1 - c.gone).toFixed(3);
-    const som = el.children[0] as HTMLElement, front = el.children[1] as HTMLElement, back = el.children[2] as HTMLElement;
+    const som = el.children[0] as HTMLElement, flip = el.children[1] as HTMLElement;
+    flip.style.transform = `rotateY(${c.ry.toFixed(1)}deg)`;
+    const front = flip.children[0] as HTMLElement, back = flip.children[1] as HTMLElement;
     faceStyle(front, c.from, c.scrap, c.wallShade);
     faceStyle(back, c.to, c.scrap, c.wallShade);
     // the hard shadow only exists while the chip is airborne (glued to the wall or the table, it has none of its
     // own -- the text-shadow on its face already reads as "cartel" there): it grows farther and lighter with arc
-    som.style.background = rgb(DARK, 1);
     som.style.opacity = (.55 * c.arc * (1 - .3 * c.arc) * (1 - c.gone)).toFixed(3);
     som.style.transform = `translate(${(4 + 20 * c.arc).toFixed(1)}px, ${(4 + 20 * c.arc).toFixed(1)}px)`;
+    // will-change only for the window a chip is actually in flight, never for the whole 0<p<1 stretch
+    som.style.willChange = c.flying ? 'transform, opacity' : 'auto';
   });
 }
 
