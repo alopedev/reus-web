@@ -11,7 +11,10 @@ Rules checked:
      While the gaze drops, the painting always fills the screen: nothing behind it ever shows,
      not even right after a sudden jump of the scroll.
      The wall leads and the table follows; the table touches down before the end of the first
-     screen and bounces up a little. A paper in the air casts its shadow farther than at rest.
+     screen and bounces up a little; the wall's shade follows its angle, not the scroll.
+     Each paper in the air casts its shadow farther and lighter than at rest; on the pinned table
+     each paper starts falling before the previous one lands and the cover opens as the last one
+     settles. Scrolling back to the top undoes everything.
   7. The table is painted in watercolor once it arrives and carries its travel things
      (coffee, pen, Rodalies ticket); the page never scrolls sideways.
   8. Across 11 screen sizes (360 px to 2560 px): nothing leaves the screen sideways, tickets are
@@ -78,6 +81,11 @@ LANDED = """(() => ['#folleto', '#cuaderno', '#reverso', '.cuaderno .izq'].filte
   const flat = c.transform === 'none' || /^matrix\\(1, 0, 0, 1, 0, 0\\)$/.test(c.transform) || s !== '.cuaderno .izq';
   return +c.opacity < .99 || c.visibility === 'hidden' || !flat; }))()"""
 
+def magenta(png):
+    """Share of a screenshot where the magenta background shows through (read on a 360 × 220 thumbnail)."""
+    img = Image.open(io.BytesIO(png)).convert("RGB").resize((360, 220))
+    return sum(1 for r, g, b in img.get_flattened_data() if r > 200 and g < 70 and b > 200) / (360 * 220)
+
 async def check_backstage(page, name):
     """Paint what lies behind the site magenta and make sure no frame of the transition shows it."""
     await page.evaluate("""(() => { document.documentElement.style.setProperty('background', '#ff00ff', 'important');
@@ -85,19 +93,17 @@ async def check_backstage(page, name):
     leaks = []
     for f in (.1, .25, .4, .55, .7, .85, .95):
         await page.evaluate(f"scrollTo(0, innerHeight * {f})"); await page.wait_for_timeout(1300)
-        shot = Image.open(io.BytesIO(await page.screenshot())).convert("RGB"); img = shot.resize((360, 220))
-        n = sum(1 for r, g, b in img.get_flattened_data() if r > 200 and g < 70 and b > 200)
-        if n:
+        png = await page.screenshot(); share = magenta(png)
+        if share:
             why = await page.evaluate("""(() => { const h = document.getElementById('hero').style, r = document.getElementById('repisa').getBoundingClientRect();
               const top = document.elementFromPoint(innerWidth / 2, 20);
               return `scroll ${(scrollY / innerHeight).toFixed(3)}, wall ${h.visibility || 'visible'} ${h.transform || 'flat'} @ ${h.transformOrigin}, table top ${r.top.toFixed(0)}, at the top ${top ? top.id || top.className || top.tagName : 'nothing'}`; })()""")
-            leaks.append(f"{int(f * 100)}% ({n / (360 * 220):.1%}; {why})"); shot.save(shots / f"{name}-fondo-{int(f * 100)}.png")
+            leaks.append(f"{int(f * 100)}% ({share:.1%}; {why})"); (shots / f"{name}-fondo-{int(f * 100)}.png").write_bytes(png)
     for a, b in ((.05, .9), (.9, .1)):
         await page.evaluate(f"scrollTo({{top: innerHeight * {a}, behavior: 'instant'}})"); await page.wait_for_timeout(1300)
         await page.evaluate(f"scrollTo({{top: innerHeight * {b}, behavior: 'instant'}})")
-        img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB").resize((360, 220))
-        n = sum(1 for r, g, b in img.get_flattened_data() if r > 200 and g < 70 and b > 200)
-        if n: leaks.append(f"jump {int(a * 100)}→{int(b * 100)}% ({n / (360 * 220):.1%})")
+        share = magenta(await page.screenshot())
+        if share: leaks.append(f"jump {int(a * 100)}→{int(b * 100)}% ({share:.1%})")
     await page.evaluate("scrollTo(0, 0)")
     return [f"background shows during the transition at {', '.join(leaks)}"] if leaks else []
 
@@ -106,42 +112,82 @@ ANGLE = """(s => { const m = document.querySelector(s).style.transform.match(/ro
 async def hinge_caught_up(page):
     """Software rendering gives very few frames: wait until the hinge has caught up with the scroll."""
     try:
+        # hingeAt and dropped come from the page: the hinge is defined in one place only
         await page.wait_for_function("""Math.abs(parseFloat(document.getElementById('hero').style.transformOrigin.split(' ')[1])
-          - (innerHeight - Math.min(scrollY, innerHeight))) < 1""", timeout=15000)
+          - hingeAt(dropped())) < 1""", timeout=15000)
         return True
     except Exception: return False
 
 async def check_rhythm(page):
-    """The wall leads and the table follows; the table lands before the end of the first screen and bounces up a little."""
+    """The wall leads and the table follows; the table lands before the end of the first screen and bounces up a little.
+    The wall's shade follows its angle: it holds still once the wall has finished turning."""
     errs, at = [], {}
     for f in (.3, .88, .95):
         await page.evaluate(f"scrollTo({{top: innerHeight * {f}, behavior: 'instant'}})"); await page.wait_for_timeout(300)
         if not await hinge_caught_up(page): errs.append(f"the hinge never catches up with the scroll at {f:.0%}")
-        at[f] = await page.evaluate(f"({{wall: ({ANGLE})('#hero'), table: ({ANGLE})('#repisa')}})")
+        at[f] = await page.evaluate(f"({{wall: ({ANGLE})('#hero'), table: ({ANGLE})('#repisa'), shade: +document.getElementById('sombra').style.opacity}})")
     wall, table = at[.3]["wall"] / 34, 1 - at[.3]["table"] / 24
     if wall <= table: errs.append(f"the table arrives before the wall turns (30%: wall {wall:.0%} of its turn, table {table:.0%})")
     if at[.88]["table"] > .15: errs.append(f"the table has not touched down at 88% ({at[.88]['table']:.2f}°)")
     if at[.95]["table"] < .5: errs.append(f"the table does not bounce as it lands ({at[.95]['table']:.2f}° at 95%)")
+    if not at[.3]["shade"] < at[.88]["shade"]: errs.append(f"the wall does not darken as it turns ({at[.3]['shade']:.2f} → {at[.88]['shade']:.2f})")
+    if abs(at[.88]["shade"] - at[.95]["shade"]) > .01: errs.append(f"the wall's shade follows the scroll, not its angle ({at[.88]['shade']:.2f} → {at[.95]['shade']:.2f} with the wall still)")
     return errs
 
-SHADOW = """(() => { const c = getComputedStyle(document.querySelector('#folleto')), n = c.boxShadow.match(/(-?[\\d.]+)px/);
-  return {x: n ? +n[1] : 0, o: +c.opacity, rest: .375 * parseFloat(getComputedStyle(document.documentElement).fontSize)}; })()"""
+async def check_overlap(page):
+    """On the pinned table each paper starts falling before the previous one lands, and the cover opens as the last one settles."""
+    spans = await page.evaluate("""(() => {
+      if(getComputedStyle(document.querySelector('.escena')).position !== 'sticky') return null;
+      // the pinned timeline: three papers and the notebook's cover
+      const st = ScrollTrigger.getAll().find(t => t.animation && t.animation.getChildren(false).length === 4);
+      return st ? st.animation.getChildren(false).map(c => [c.startTime(), c.endTime()]) : []; })()""")
+    if spans is None: return []
+    if len(spans) != 4: return ["no pinned timeline with three papers and the cover"]
+    names = ["leaflet", "notebook", "ticket", "cover"]
+    return [f"the {names[i + 1]} waits for the {names[i]} to land" for i in range(3) if not spans[i + 1][0] < spans[i][1]]
+
+# each paper's hard shadow: how far it lies (x), how dark it is (a), how visible the paper is (o) and its resting offset
+SHADOWS = """(() => {
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const read = (sel, prop, rest, holder) => { const v = getComputedStyle(document.querySelector(sel))[prop];
+    const c = v.match(/rgba?\\(([^)]*)\\)/), n = v.replace(/rgba?\\([^)]*\\)/, '').match(/(-?[\\d.]+)px/);
+    const a = c ? c[1].split(/[\\s,\\/]+/).filter(Boolean)[3] : undefined;
+    return {x: n ? Math.abs(+n[1]) : 0, a: a === undefined ? 1 : +a, o: +getComputedStyle(document.querySelector(holder)).opacity, rest: rest * rem}; };
+  return {leaflet: read('#folleto', 'boxShadow', .375, '#folleto'), notebook: read('#cuaderno .der', 'boxShadow', .375, '#cuaderno'),
+          cover: read('#cuaderno .tapa', 'boxShadow', .375, '#cuaderno'), ticket: read('#reverso', 'filter', .3, '#reverso')}; })()"""
 
 async def check_fall(page):
-    """While the leaflet is in the air its shadow lies farther from it than when it rests on the table."""
+    """While a paper is in the air its shadow lies farther from it, and lighter, than when it rests on the table."""
     await page.evaluate("scrollTo({top: innerHeight * 1.2, behavior: 'instant'})"); await page.wait_for_timeout(1500)
     spots = await page.evaluate("""(() => {
-      const shelf = document.getElementById('repisa'), el = document.getElementById('folleto');
+      const shelf = document.getElementById('repisa');
       if(getComputedStyle(document.querySelector('.escena')).position === 'sticky') {
-        const a = shelf.offsetTop, b = a + shelf.offsetHeight - innerHeight; return [.08, .16, .24].map(t => a + (b - a) * t); }
-      let top = 0; for(let n = el; n; n = n.offsetParent) top += n.offsetTop;
-      return [.95, .87, .8].map(t => top - innerHeight * t); })()""")
-    far = 0
+        const a = shelf.offsetTop, b = a + shelf.offsetHeight - innerHeight; return [.08, .16, .24, .32, .4].map(t => a + (b - a) * t); }
+      // stacked papers fall one by one as they scroll in
+      return ['#folleto', '#cuaderno', '#reverso'].flatMap(s => { let top = 0; for(let n = document.querySelector(s); n; n = n.offsetParent) top += n.offsetTop;
+        return [.95, .87, .8].map(t => top - innerHeight * t); }); })()""")
+    far, light = {}, {}
     for y in spots:
         await page.evaluate(f"scrollTo({{top: {y}, behavior: 'instant'}})"); await page.wait_for_timeout(1500)
-        sh = await page.evaluate(SHADOW)
-        if sh["o"] > .3: far = max(far, sh["x"] / sh["rest"])
-    return [] if far > 1.6 else [f"a falling paper keeps its resting shadow (at most {far:.2f}× in the air)"]
+        for paper, sh in (await page.evaluate(SHADOWS)).items():
+            if sh["o"] > .3:
+                far[paper] = max(far.get(paper, 0), sh["x"] / sh["rest"]); light[paper] = min(light.get(paper, 1), sh["a"])
+    errs = [f"the {p} keeps its resting shadow in the air (at most {far.get(p, 0):.2f}×)" for p in ("leaflet", "notebook", "cover", "ticket") if far.get(p, 0) <= 1.6]
+    return errs + [f"the {p}'s shadow is as dark in the air as at rest" for p in ("leaflet", "notebook", "cover", "ticket") if light.get(p, 1) > .9]
+
+async def check_return(page):
+    """Scrolling back to the top undoes everything: the wall stands flat, the papers are gone and the notebook is closed."""
+    await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await page.wait_for_timeout(300)
+    await hinge_caught_up(page)
+    back = """(() => { const c = s => getComputedStyle(document.querySelector(s)), out = [];
+      ['#folleto', '#cuaderno', '#reverso'].forEach(s => { if(+c(s).opacity > .01 && c(s).visibility !== 'hidden') out.push(s); });
+      const leaf = c('.cuaderno .izq').transform; if(leaf === 'none' || /^matrix\\(1, 0, 0, 1, 0, 0\\)$/.test(leaf)) out.push('.cuaderno .izq');
+      if(document.getElementById('hero').style.transform) out.push('#hero');
+      if(+document.getElementById('sombra').style.opacity > 0) out.push('#sombra');
+      return out; })()"""
+    try: await page.wait_for_function(f"{back}.length === 0", timeout=15000)
+    except Exception: return [f"scrolling back up does not undo {', '.join(await page.evaluate(back))}"]
+    return []
 
 async def check_motion(page, name, reduced=False):
     """Halfway down, the wall is tilting (or, with reduced motion, still); at the end everything has landed."""
@@ -156,8 +202,8 @@ async def check_motion(page, name, reduced=False):
     await page.evaluate("scrollTo(0, document.scrollingElement.scrollHeight)"); await settle(page)
     off = await page.evaluate(LANDED)
     if off: errs.append(f"not landed at the end: {', '.join(off)}")
-    sh = await page.evaluate(SHADOW)
-    if abs(sh["x"] - sh["rest"]) > 1: errs.append(f"the leaflet's shadow is not at rest at the end ({sh['x']:.1f} px, rest {sh['rest']:.1f} px)")
+    for paper, sh in (await page.evaluate(SHADOWS)).items():
+        if abs(sh["x"] - sh["rest"]) > 1 or sh["a"] < .99: errs.append(f"the {paper}'s shadow is not at rest at the end ({sh['x']:.1f} px at {sh['a']:.2f}, rest {sh['rest']:.1f} px)")
     return errs
 
 SIZES = {"360x740": (360, 740), "390x844": (390, 844), "430x932": (430, 932), "768x1024": (768, 1024), "1000x1300": (1000, 1300),
@@ -219,7 +265,9 @@ async def main():
             print(f"{name}: name→{box['name']:.0f}px, window {box['winTop']:.0f}–{box['winBottom']:.0f}px, info→{box['info']:.0f}px")
             failures += [f"{name}: {e}" for e in await check_shelf(page, name)]
             failures += [f"{name}: {e}" for e in await check_motion(page, name)]
+            failures += [f"{name}: {e}" for e in await check_return(page)]
             failures += [f"{name}: {e}" for e in await check_rhythm(page)]
+            failures += [f"{name}: {e}" for e in await check_overlap(page)]
             failures += [f"{name}: {e}" for e in await check_fall(page)]
             failures += [f"{name}: {e}" for e in await check_backstage(page, name)]
             await page.close()

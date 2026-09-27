@@ -1004,10 +1004,14 @@ function openLeaf(leaf, axis, sign){
 // Nothing behind them ever shows (checked by check.py). The angles follow the scroll 1:1: smoothing them let
 // slow frames open a gap, so the softness lives in the curves instead.
 const PITCH_WALL = 34, PITCH_TABLE = 24;
+// how far the gaze has dropped (0 at the hero, 1 once the table fills the screen), and where the wall meets the
+// table on screen for it. check.py reads both to know when the page has caught up with the scroll
+const dropped = () => clamp01(scrollY / innerHeight);
+const hingeAt = p => innerHeight * (1 - p);
 function pitch(reset){
   const hero = document.getElementById('hero'), shelf = document.getElementById('repisa');
-  const vh = innerHeight, P = 2 * vh, p = reset === true ? 0 : clamp01(scrollY / vh);
-  const fold = vh * (1 - p);                                   // where the wall meets the table, on screen
+  const vh = innerHeight, P = 2 * vh, p = reset === true ? 0 : dropped();
+  const fold = hingeAt(p);
   const wall = PITCH_WALL * inOut(clamp01(p / .85));
   const bump = p > .9 ? 1.4 * Math.sin(Math.PI * (p - .9) / .1) : 0;
   const table = PITCH_TABLE * Math.pow(1 - inOut(clamp01((p - .1) / .8)), 1.2) + bump;
