@@ -9,6 +9,8 @@ Rules checked:
      uses the same two fonts and nothing sticks out sideways.
   6. Scrolling tilts the wall away; at the end the papers have landed and the notebook is open.
      While the gaze drops, the painting always fills the screen: nothing behind it ever shows.
+  7. The table is painted in watercolor once it arrives and carries its travel things
+     (coffee, pen, Rodalies ticket); the page never scrolls sideways.
      With reduced motion nothing moves and everything is already in place.
 Also saves screenshots to screenshots/ for a visual review.
 
@@ -43,12 +45,22 @@ async def check_shelf(page, name):
     await settle(page)
     shelf = await page.evaluate("""(() => {
       const q = s => document.querySelector(s), f = el => getComputedStyle(el).fontFamily.split(',')[0].replace(/"/g,'');
-      const missing = ['#qe', '#folleto', '#cuaderno', '#reverso'].filter(s => !q(s));
-      const wide = [...document.querySelectorAll('#repisa *')].filter(el => { const r = el.getBoundingClientRect(); return r.width && (r.right > innerWidth + 1 || r.left < -1); })
+      const missing = ['#qe', '#folleto', '#cuaderno', '#reverso', '#lienzo', '#cafe', '#boli', '#rodalies'].filter(s => !q(s));
+      // decorative layers (.deco) are clipped to the table, so what they hold may run past the edges
+      const wide = [...document.querySelectorAll('#repisa *')].filter(el => { if(el.closest('.deco')) return false; const r = el.getBoundingClientRect(); return r.width && (r.right > innerWidth + 1 || r.left < -1); })
         .slice(0, 3).map(el => el.id || el.className || el.tagName);
-      return {missing, wide, heading: q('#qe') ? f(q('#qe')) : null, body: q('#repisa p') ? f(q('#repisa p')) : null};
+      const sideways = document.scrollingElement.scrollWidth > innerWidth + 1;
+      return {missing, wide, sideways, heading: q('#qe') ? f(q('#qe')) : null, body: q('#repisa p') ? f(q('#repisa p')) : null};
     })()""")
     if shelf["missing"]: errs.append(f"shelf is missing {', '.join(shelf['missing'])}")
+    if shelf["sideways"]: errs.append("the page scrolls sideways")
+    try:
+        await page.wait_for_function("document.getElementById('lienzo')?.dataset.pintada === '1'", timeout=12000)
+        px = await page.evaluate("""(() => { const c = document.getElementById('lienzo'), g = c.getContext('webgl'), p = new Uint8Array(4);
+          g.readPixels(c.width >> 1, c.height >> 1, 1, 1, g.RGBA, g.UNSIGNED_BYTE, p); return p[0] + p[1] + p[2]; })()""")
+        if px > 600: errs.append("the table is still bare paper")
+    except Exception:
+        errs.append("the table never gets painted")
     if shelf["wide"]: errs.append(f"shelf sticks out sideways: {', '.join(shelf['wide'])}")
     if shelf["heading"] and shelf["heading"] != "Young Serif": errs.append(f"shelf heading font is {shelf['heading']}")
     if shelf["body"] and shelf["body"] != "Karla": errs.append(f"shelf text font is {shelf['body']}")
