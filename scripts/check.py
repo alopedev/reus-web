@@ -7,6 +7,8 @@ Rules checked:
   4. Small text uses Familjen Grotesk; times use Young Serif.
   5. The hero shows a scroll hint; below it, the shelf holds its three paper objects,
      uses the same two fonts and nothing sticks out sideways.
+  6. Scrolling tilts the wall away; at the end the papers have landed and the notebook is open.
+     With reduced motion nothing moves and everything is already in place.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
@@ -29,7 +31,7 @@ async def check_shelf(page, name):
     if hint["bottom"] > hint["h"]: errs.append("scroll hint is below the fold")
     if not await page.evaluate("document.scrollingElement.scrollHeight > innerHeight + 10"):
         return errs + ["page does not scroll"]
-    await page.evaluate("document.querySelector('#repisa').scrollIntoView({block:'start'})")
+    await page.evaluate("scrollTo(0, document.scrollingElement.scrollHeight)")
     await page.wait_for_timeout(2500)
     shelf = await page.evaluate("""(() => {
       const q = s => document.querySelector(s), f = el => getComputedStyle(el).fontFamily.split(',')[0].replace(/"/g,'');
@@ -42,7 +44,26 @@ async def check_shelf(page, name):
     if shelf["wide"]: errs.append(f"shelf sticks out sideways: {', '.join(shelf['wide'])}")
     if shelf["heading"] and shelf["heading"] != "Young Serif": errs.append(f"shelf heading font is {shelf['heading']}")
     if shelf["body"] and shelf["body"] != "Familjen Grotesk": errs.append(f"shelf text font is {shelf['body']}")
-    await page.locator('#repisa').screenshot(path=str(shots / f"{name}-repisa.png"))
+    await page.screenshot(path=str(shots / f"{name}-repisa.png"))
+    return errs
+
+LANDED = """(() => ['#folleto', '#cuaderno', '#reverso', '.cuaderno .izq'].filter(s => {
+  const el = document.querySelector(s); if(!el) return false; const c = getComputedStyle(el);
+  const flat = c.transform === 'none' || /^matrix\\(1, 0, 0, 1, 0, 0\\)$/.test(c.transform) || s !== '.cuaderno .izq';
+  return +c.opacity < .99 || c.visibility === 'hidden' || !flat; }))()"""
+
+async def check_motion(page, name, reduced=False):
+    """Halfway down, the wall is tilting (or, with reduced motion, still); at the end everything has landed."""
+    errs = []
+    await page.evaluate("scrollTo(0, 0)"); await page.wait_for_timeout(800)
+    await page.evaluate("scrollTo(0, innerHeight * .5)"); await page.wait_for_timeout(1800)
+    tilt = await page.evaluate("getComputedStyle(document.querySelector('#hero')).transform")
+    if reduced and tilt not in ("none", ""): errs.append("wall moves with reduced motion")
+    if not reduced and tilt in ("none", ""): errs.append("wall does not tilt while scrolling")
+    await page.screenshot(path=str(shots / f"{name}-scroll50.png"))
+    await page.evaluate("scrollTo(0, document.scrollingElement.scrollHeight)"); await page.wait_for_timeout(2500)
+    off = await page.evaluate(LANDED)
+    if off: errs.append(f"not landed at the end: {', '.join(off)}")
     return errs
 
 async def main():
@@ -70,7 +91,13 @@ async def main():
             await page.screenshot(path=str(shots / f"{name}.png"))
             print(f"{name}: name→{box['name']:.0f}px, window {box['winTop']:.0f}–{box['winBottom']:.0f}px, info→{box['info']:.0f}px")
             failures += [f"{name}: {e}" for e in await check_shelf(page, name)]
+            failures += [f"{name}: {e}" for e in await check_motion(page, name)]
             await page.close()
+        # reduced motion: a still frame and every paper already in place
+        page = await browser.new_page(viewport={"width": 1440, "height": 860}, reduced_motion="reduce")
+        await page.goto(page_url); await page.wait_for_timeout(3000)
+        failures += [f"reduced: {e}" for e in await check_motion(page, "reduced", reduced=True)]
+        await page.close()
         await browser.close()
     if failures:
         print("FAIL\n  " + "\n  ".join(failures)); sys.exit(1)
