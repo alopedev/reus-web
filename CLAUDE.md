@@ -11,12 +11,12 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 ## Comandos
 
 - `npm install` la primera vez; `npm run dev` abre la web en local con recarga al guardar
-- `npm run build`: genera `dist/` con Vite (`src/index.html` + `src/main.js` + `data/trains.json`)
+- `npm run build`: comprueba tipos (TypeScript estricto) y genera `dist/` con Vite (`src/index.html` + `src/main.ts` + `data/trains.json`); `npm run typecheck` solo comprueba tipos
 - `python3 scripts/check.py`: comprueba reglas de diseño en escritorio y móvil y guarda capturas en `screenshots/`. Ejecútalo después de cada cambio visual y revisa las capturas antes de dar nada por terminado
 - `python3 scripts/extract_trains.py`: descarga el GTFS abierto de Renfe y regenera `data/trains.json` (14 días desde hoy)
 - `check.py` sirve `dist/` por HTTP: ejecuta siempre `npm run check` (compila y comprueba). `python3 scripts/check.py paridad` solo compara con los fotogramas de referencia de `scripts/baseline/` (un minuto); borra uno para renovarlo cuando un cambio visible esté aprobado
 - `check.py` necesita Playwright + Chromium (`pip install playwright && playwright install chromium`); usa WebGL por software y espera 9 s por viewport
-- No hay tests unitarios ni linter; `check.py` es la única verificación automática
+- No hay tests unitarios ni linter; las verificaciones son los tipos (`tsc`) y `check.py`
 
 ## Cómo trabajamos
 
@@ -49,7 +49,7 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 - Escala de cartel: el `font-size` de `html` sigue a la pantalla (`min(1.111vw, 1.778vh)`, mínimo 14 px; en vertical, el ancho) y todos los tamaños del hero y la mesa van en `rem`. No uses px ni `clamp(…vw…)` sueltos: rompen la proporción. La geometría en JS (mesa, objetos) se mide en `rem` leyendo el tamaño de la raíz
 - La maquetación de la mesa decide por el espacio real (container queries sobre `.escena`), no por el tamaño de pantalla. La mesa fija (sticky) exige pantalla apaisada de ≥ 1000 × 780: misma media query en CSS y en `PINNED` del script
 - `check.py` recorre 11 tamaños de pantalla (360 a 2560 px); si cambias tamaños, revisa también esas capturas
-- Módulos en `src/`: `main.js` (arranque, en este orden: mundo, mesa, paisaje, horarios, transición), `state.js` (`state`, `reduce`), `time.js` (hora de Madrid y horarios), `light.js` (`daylight`), `world.js` (escena 3D + acuarela), `table.js` (mesa pintada y capas vivas), `scenery.js` (bucle del paisaje, atajos R/P), `timetable.js` (hora grande, billetes, regla), `shelf.js` (transición: `pitch`, caída de papeles, tapa). Shaders en `src/shaders/*.frag` (importados con `?raw`); estilos en `src/styles/`
+- Módulos TypeScript en `src/`: `main.ts` (arranque, en este orden: mundo, mesa, paisaje, horarios, transición), `state.ts` (`state`, `reduce`), `time.ts` (hora de Madrid y horarios, tipos `Train`/`DayTimetable`), `light.ts` (`daylight`), `world.ts` (escena 3D + acuarela, interfaz `World`), `table.ts` (mesa pintada y capas vivas), `scenery.ts` (bucle del paisaje, atajos R/P), `timetable.ts` (hora grande, billetes, regla), `shelf.ts` (transición: `pitch`, caída de papeles, tapa), `dom.ts` (`byId`/`find` para elementos que siempre existen en `index.html`). Shaders en `src/shaders/*.frag` (importados con `?raw`); estilos en `src/styles/`
 - Edita `src/`; `dist/` se regenera. Los horarios se importan de `data/trains.json`. `check.py` lee el estado de la página por `window.reus` (`hingeAt`, `dropped`, `ScrollTrigger`): si renombras algo, actualízalo ahí
 - `check.py` depende de los selectores `.brand`, `#win`, `#info`, `.soon` y `#dep`: si los renombras, actualiza el script
 - Flujo en runtime: `build3D()` devuelve `world` (`setTime`, `frame(dx, time, reveal)`) o `null` sin WebGL (la página debe seguir funcionando). `loop()` limita el render a 30 fps y para el `requestAnimationFrame` en pausa o con la pestaña oculta

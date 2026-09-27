@@ -1,33 +1,45 @@
+import type { BufferGeometry } from 'three';
 import { BoxGeometry, Color, ConeGeometry, CylinderGeometry, DirectionalLight, Float32BufferAttribute, Group, HemisphereLight, IcosahedronGeometry, InstancedMesh, LinearFilter, Mesh, MeshPhongMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, RGBAFormat, Scene, ShaderMaterial, Vector2, Vector3, Vector4, WebGLRenderTarget, WebGLRenderer } from 'three';
-import { daylight } from './light.js';
+import { daylight, type Hour } from './light';
 import watercolorFrag from './shaders/watercolor.frag?raw';
+
+export interface World {
+  frame(dx: number, time: number, reveal: number): void;   // move the landscape by dx and paint it
+  setTime(min: number): Hour;                              // light it for a time of day
+  resize(): void;
+  setWash(foldY: number, shade: number): void;             // the pigment wash on the wall (see shelf.ts)
+}
+// something scattered on the landscape: position, size, and turn around the vertical axis
+type Placement = [x: number, y: number, z: number, size: [number, number, number], turn?: number];
+// waves of a curve: amplitude, how many across, and how fast they change with depth
+type Wave = [amp: number, k: number, p: number];
 
 // the landscape through the window: a 3D scene rendered to a target, then painted in watercolor by the post
 // pass, which also paints the carriage wall around the window. Returns null without WebGL
-export function build3D(){
+export function build3D(): World | null {
   const canvas = document.createElement('canvas'); canvas.id='gl'; canvas.setAttribute('aria-hidden','true');
-  let renderer;
+  let renderer: WebGLRenderer;
   try{ renderer = new WebGLRenderer({canvas, antialias:false, powerPreference:'low-power'}); }catch(e){ return null; }
   if(!renderer.getContext()) return null;
-  document.getElementById('hero').prepend(canvas); document.getElementById('hero').classList.add('pintada');
+  const hero = document.getElementById('hero')!; hero.prepend(canvas); hero.classList.add('pintada');
   renderer.setClearColor(0x000000, 0);
   const scene = new Scene();
   const camera = new PerspectiveCamera(40, 1, 0.5, 5000);
   camera.position.set(0, 3.4, 0);
-function rng(seed){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013904223)>>>0; return s/4294967296; }; }
+function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013904223)>>>0; return s/4294967296; }; }
   const hemi = new HemisphereLight(0xffffff, 0x777766, .95); scene.add(hemi);
   const sun = new DirectionalLight(0xffffff, .8); scene.add(sun);
-  const mat = c => new MeshPhongMaterial({color:c, flatShading:true, shininess:0, specular:0x000000});
+  const mat = (c: Color) => new MeshPhongMaterial({color:c, flatShading:true, shininess:0, specular:0x000000});
   const vmat = new MeshPhongMaterial({vertexColors:true, flatShading:true, shininess:0, specular:0x000000});
-  const C = h => new Color(h);
+  const C = (h: number) => new Color(h);
   const pig = {sap:C(0x8D9A62), vine:C(0x74854A), olive:C(0x8C9960), ochre:C(0xC9A060), earth:C(0xB39478), sand:C(0xE4D6B6), sea:C(0x40708F), indigo:C(0x46507A), pine:C(0x4F6B3C), roof:C(0xB5705A), wall:C(0xEBE3D2), wave:C(0xDCE6EA)};
 
   const L = 240;
-  function periodic(x, z, amps){ let y=0; amps.forEach(([a,k,p])=> y += a*Math.sin((x/L)*Math.PI*2*k + z*p)); return y; }
-  function tile(seed){
+  function periodic(x: number, z: number, amps: Wave[]){ let y=0; amps.forEach(([a,k,p])=> y += a*Math.sin((x/L)*Math.PI*2*k + z*p)); return y; }
+  function tile(seed: number){
     const r = rng(seed), g = new Group();
     const geo = new PlaneGeometry(L, 72, 80, 18); geo.rotateX(-Math.PI/2); geo.translate(L/2, 0, -37);
-    const pos = geo.attributes.position, col = [];
+    const pos = geo.attributes.position, col: number[] = [];
     for(let i=0;i<pos.count;i++){
       const x=pos.getX(i), z=pos.getZ(i);
       pos.setY(i, z < -62 ? -0.2 : periodic(x, z, [[.35,3,.08],[.18,7,.2]]));
@@ -37,20 +49,20 @@ function rng(seed){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013904223)>
     geo.setAttribute('color', new Float32BufferAttribute(col, 3)); geo.computeVertexNormals();
     g.add(new Mesh(geo, vmat));
     const dummy = new Object3D();
-    function instanced(geom, color, list, jitter=.12){
+    function instanced(geom: BufferGeometry, color: Color, list: Placement[], jitter=.12){
       const m = new InstancedMesh(geom, mat(color), list.length);
       list.forEach((t,i)=>{ dummy.position.set(t[0],t[1],t[2]); dummy.rotation.set(0,t[4]||0,0); dummy.scale.set(t[3][0],t[3][1],t[3][2]); dummy.updateMatrix(); m.setMatrixAt(i, dummy.matrix);
         const c = new Color(color); c.offsetHSL(0, 0, (r()-.5)*jitter); m.setColorAt(i, c); });
       g.add(m);
     }
-    const olives=[], trunks=[];
+    const olives: Placement[] = [], trunks: Placement[] = [];
     for(let i=0;i<30;i++){ const x=r()*L, z=-19-r()*32, s=.8+r()*.6; olives.push([x, 1.9*s, z, [1.3*s,.95*s,1.3*s], r()*3]); trunks.push([x, .8*s, z, [s,s,s]]); }
     instanced(new IcosahedronGeometry(1.5,0), pig.olive, olives, .18);
     instanced(new CylinderGeometry(.16,.24,1.6,5), pig.earth.clone().multiplyScalar(.6), trunks);
-    const vines=[];
+    const vines: Placement[] = [];
     [[0,70],[88,150],[168,236]].forEach(([a,b])=>{ for(let z=-5.5; z>-17; z-=1.7) for(let x=a; x<b; x+=1.4) vines.push([x+r()*.3, .6, z, [1, .9+r()*.5, .9]]); });
     instanced(new IcosahedronGeometry(.55,0), pig.vine, vines, .2);
-    const pines=[], ptr=[];
+    const pines: Placement[] = [], ptr: Placement[] = [];
     for(let i=0;i<9;i++){ const x=r()*L, z=-54-r()*7, s=.9+r()*.4; pines.push([x, 6.2*s, z, [2.8*s,.8*s,2.8*s], r()*3]); ptr.push([x, 3*s, z, [s, s, s]]); }
     instanced(new IcosahedronGeometry(1.6,0), pig.pine, pines, .12);
     instanced(new CylinderGeometry(.18,.26,6,5), pig.earth.clone().multiplyScalar(.55), ptr);
@@ -59,14 +71,14 @@ function rng(seed){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013904223)>
       const house = new Mesh(new BoxGeometry(w, 4, 5), mat(pig.wall)); house.position.set(x, 2, z); g.add(house);
       const roof = new Mesh(new ConeGeometry(w*.72, 2.2, 4), mat(pig.roof)); roof.position.set(x, 5.1, z); roof.rotation.y = Math.PI/4; roof.scale.set(1,1,.8); g.add(roof);
     }
-    const waves=[];
+    const waves: Placement[] = [];
     for(let i=0;i<60;i++) waves.push([r()*L, .32, -75-r()*160, [4+r()*10, 1, 1]]);
     instanced(new BoxGeometry(1,.05,.35), pig.wave, waves, .05);
     return g;
   }
   const tiles = [tile(7), tile(7)]; tiles.forEach(t=>scene.add(t));
   const sea = new Mesh(new PlaneGeometry(8000, 2400), mat(pig.sea)); sea.rotation.x = -Math.PI/2; sea.position.set(0, .25, -1270); scene.add(sea);
-  function ridge(width, z, base, amps, color, segs){
+  function ridge(width: number, z: number, base: number, amps: [amp: number, k: number][], color: Color, segs: number){
     const geo = new PlaneGeometry(width, 1, segs, 1); const p = geo.attributes.position;
     for(let i=0;i<p.count;i++){ const x=p.getX(i)+width/2; if(p.getY(i)>0){ let y=base; amps.forEach(([a,k])=> y += a*Math.sin(x/width*Math.PI*2*k + k)); p.setY(i, y); } else p.setY(i, -40); }
     geo.translate(width/2, 0, 0); geo.computeVertexNormals();
@@ -97,9 +109,9 @@ function rng(seed){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013904223)>
     const W = Math.max(2, Math.round(cw*s)), H = Math.max(2, Math.round(ch*s));
     renderer.setPixelRatio(1); renderer.setSize(W, H, false);
     U.sres.value.set(W, H); U.aspect.value = W/H;
-    const r = document.getElementById('win').getBoundingClientRect();
+    const win = document.getElementById('win')!, r = win.getBoundingClientRect();
     U.win.value.set(r.left/cw, 1-r.bottom/ch, r.right/cw, 1-r.top/ch);
-    U.wrad.value = parseFloat(getComputedStyle(document.getElementById('win')).borderTopLeftRadius)/ch;
+    U.wrad.value = parseFloat(getComputedStyle(win).borderTopLeftRadius)/ch;
     U.seats.value = (cw/ch > 1.15 && r.left > cw*.12) ? 1 : 0;
     const rw = Math.max(2, Math.round(r.width*s*.8)), rh = Math.max(2, Math.round(r.height*s*.8));
     rt.setSize(rw, rh); U.res.value.set(rw, rh);
@@ -110,7 +122,7 @@ function rng(seed){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013904223)>
     camera.rotation.set(Math.atan(Math.tan(vfov/2)*(1-2*hor)), 0, 0);
     camera.updateProjectionMatrix();
   }
-  function setTime(min){
+  function setTime(min: number){
     const p = daylight(min);
     U.skyTop.value.set(...p.top); U.skyHor.value.set(...p.hor); U.sunCol.value.set(...p.sun); U.sunPos.value.set(...p.sunUV);
     U.wallA.value.set(...p.wallA); U.wallB.value.set(...p.wallB); U.wood.value.set(...p.wood); U.seat.value.set(...p.seat);
@@ -120,7 +132,7 @@ function rng(seed){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013904223)>
     return p.name;
   }
   let offset = 0;
-  function frame(dx, time, reveal){
+  function frame(dx: number, time: number, reveal: number){
     offset += dx;
     const tx = -(((offset % L)+L) % L); tiles[0].position.x = tx - L/2; tiles[1].position.x = tx + L/2;
     const hx = -(((offset % RW)+RW) % RW); headlands[0].position.x = hx - RW/2; headlands[1].position.x = hx + RW/2;
@@ -132,7 +144,7 @@ function rng(seed){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013904223)>
   // running (paused, or before the landscape starts), so it redraws just the post pass over the scene
   // already in the render target, at most once per frame however many scroll events arrive
   let washRaf = 0;
-  function setWash(foldY, shade){
+  function setWash(foldY: number, shade: number){
     U.foldY.value = foldY; U.shade.value = shade;
     if(!washRaf) washRaf = requestAnimationFrame(() => { washRaf = 0; renderer.setRenderTarget(null); renderer.render(postScene, postCam); });
   }

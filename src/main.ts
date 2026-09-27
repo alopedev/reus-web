@@ -2,11 +2,11 @@ import './styles/base.css';
 import './styles/hero.css';
 import './styles/table.css';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { build3D } from './world.js';
-import { createTable } from './table.js';
-import { createScenery } from './scenery.js';
-import { setupTimetable } from './timetable.js';
-import { setupShelf, dropped, hingeAt } from './shelf.js';
+import { build3D } from './world';
+import { createTable } from './table';
+import { createScenery } from './scenery';
+import { setupTimetable } from './timetable';
+import { setupShelf, dropped, hingeAt } from './shelf';
 
 const world = build3D();
 const table = createTable();
@@ -18,4 +18,5 @@ scenery.repaint();
 setupShelf(world);
 
 // what check.py reads from the page (modules keep everything else private)
+declare global { interface Window { reus: { hingeAt: typeof hingeAt, dropped: typeof dropped, ScrollTrigger: typeof ScrollTrigger } } }
 window.reus = { hingeAt, dropped, ScrollTrigger };

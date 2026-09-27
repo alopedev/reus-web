@@ -1,24 +1,26 @@
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { byId, find } from './dom';
+import type { World } from './world';
 
-let world = null;   // the landscape, for the wash on the wall; null without WebGL
+let world: World | null = null;   // the landscape, for the wash on the wall; null without WebGL
 
 // scrolling down, the gaze drops from the window to the table: the wall tilts away, the table rises and lands,
 // the papers fall onto it and the notebook opens. Follows the finger both ways.
-export function setupShelf(w){
+export function setupShelf(w: World | null): void {
   world = w;
   gsap.registerPlugin(ScrollTrigger);
   const PINNED = '(min-width:1000px) and (min-height:780px) and (min-aspect-ratio:1/1)';
   gsap.matchMedia().add({motion:'(prefers-reduced-motion: no-preference)', wide:'(min-width:701px)', pinned:PINNED}, ctx => {
-    if(!ctx.conditions.motion) return;
-    const {pinned} = ctx.conditions, shelf = document.getElementById('repisa');
+    if(!ctx.conditions?.motion) return;
+    const {pinned} = ctx.conditions, shelf = byId('repisa');
     // the hinge reads the scroll directly: it must match the table's real position on every frame
     const onScroll = () => pitch();
     addEventListener('scroll', onScroll, {passive:true}); addEventListener('resize', onScroll);
     pitch();
     // each paper with the tilt it rests at (the same as in the stylesheet)
-    const papers = [['#folleto', -2.5], ['#cuaderno', 1], ['#reverso', -1.2]].map(([s, r]) => [document.querySelector(s), r]);
-    const leaf = document.querySelector('.cuaderno .izq');
+    const papers = ([['#folleto', -2.5], ['#cuaderno', 1], ['#reverso', -1.2]] as const).map(([s, r]): [HTMLElement, number] => [find(s), r]);
+    const leaf = find('.cuaderno .izq');
     if(pinned){
       // layout offsets, not the trigger's box: the shelf is tilted by pitch() while it is measured
       const tl = gsap.timeline({scrollTrigger:{start:() => shelf.offsetTop, end:() => shelf.offsetTop + shelf.offsetHeight - innerHeight, scrub:.6, invalidateOnRefresh:true}});
@@ -27,10 +29,10 @@ export function setupShelf(w){
       tl.add(openLeaf(leaf, 'Y', 1), 1.55);
     } else {
       // stacked papers: each one lands as it scrolls in (layout offsets again: the table may still be tilted)
-      const between = (el, a, b) => ({start:() => pageTop(el) - innerHeight * a, end:() => pageTop(el) - innerHeight * b, scrub:.6, invalidateOnRefresh:true});
+      const between = (el: HTMLElement, a: number, b: number) => ({start:() => pageTop(el) - innerHeight * a, end:() => pageTop(el) - innerHeight * b, scrub:.6, invalidateOnRefresh:true});
       papers.forEach(([el, rot]) => gsap.timeline({scrollTrigger:between(el, 1, .65)}).add(land(el, rot, 10)));
       // the leaf turns sideways when the pages sit side by side, and folds down when they are stacked
-      const side = getComputedStyle(document.querySelector('.cuaderno')).gridTemplateColumns.trim().split(/\s+/).length > 1;
+      const side = getComputedStyle(find('.cuaderno')).gridTemplateColumns.trim().split(/\s+/).length > 1;
       gsap.timeline({scrollTrigger:between(papers[1][0], .55, .2)}).add(side ? openLeaf(leaf, 'Y', 1) : openLeaf(leaf, 'X', -1));
     }
     return () => {
@@ -40,15 +42,15 @@ export function setupShelf(w){
   });
 }
 
-const inOut = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-const clamp01 = x => Math.min(1, Math.max(0, x));
+const inOut = (t: number) => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 // where an element sits on the page, ignoring any transform on the way
-const pageTop = el => { let y = 0; for(let n = el; n; n = n.offsetParent) y += n.offsetTop; return y; };
-const rest = el => ['transform', 'opacity', 'visibility', '--alto'].forEach(p => el.style.removeProperty(p));
+const pageTop = (el: HTMLElement) => { let y = 0; for(let n: HTMLElement | null = el; n; n = n.offsetParent as HTMLElement | null) y += n.offsetTop; return y; };
+const rest = (el: HTMLElement) => ['transform', 'opacity', 'visibility', '--alto'].forEach(p => el.style.removeProperty(p));
 
 // a paper falls with weight: it speeds up and flutters on the way down, its shadow says how high it still is (--alto),
 // then it settles with a small overshoot. Drawn straight onto the element so the scrub can run it both ways.
-function land(el, rot, drop){
+function land(el: HTMLElement, rot: number, drop: number){
   const k = {u:0, s:0};
   const draw = () => {
     if(k.s >= 1){ rest(el); return; }
@@ -64,7 +66,7 @@ function land(el, rot, drop){
 }
 
 // the cover opens, lifts a little past flat and settles
-function openLeaf(leaf, axis, sign){
+function openLeaf(leaf: HTMLElement, axis: 'X' | 'Y', sign: 1 | -1){
   const k = {t:0};
   const draw = () => {
     if(k.t >= 1){ leaf.style.removeProperty('transform'); return; }
@@ -84,11 +86,11 @@ function openLeaf(leaf, axis, sign){
 const PITCH_WALL = 34, PITCH_TABLE = 24;
 // how far the gaze has dropped (0 at the hero, 1 once the table fills the screen), and where the wall meets the
 // table on screen for it. check.py reads both to know when the page has caught up with the scroll
-export const dropped = () => clamp01(scrollY / innerHeight);
-export const hingeAt = p => innerHeight * (1 - p);
-function pitch(reset){
-  const hero = document.getElementById('hero'), shelf = document.getElementById('repisa');
-  const vh = innerHeight, P = 2 * vh, p = reset === true ? 0 : dropped();
+export const dropped = (): number => clamp01(scrollY / innerHeight);
+export const hingeAt = (p: number): number => innerHeight * (1 - p);
+function pitch(reset = false){
+  const hero = byId('hero'), shelf = byId('repisa');
+  const vh = innerHeight, P = 2 * vh, p = reset ? 0 : dropped();
   const fold = hingeAt(p);
   const wall = PITCH_WALL * inOut(clamp01(p / .85));
   const bump = p > .9 ? 1.4 * Math.sin(Math.PI * (p - .9) / .1) : 0;
@@ -108,6 +110,6 @@ function pitch(reset){
   const shade = Math.pow(wall / PITCH_WALL, 1.3);
   if(shade > 0) hero.style.setProperty('--lavado', shade.toFixed(3)); else hero.style.removeProperty('--lavado');
   if(world) world.setWash(p, shade);
-  else document.getElementById('sombra').style.opacity = (.6 * shade).toFixed(3);
-  document.getElementById('more').style.opacity = Math.max(0, 1 - p * 8).toFixed(3);
+  else byId('sombra').style.opacity = (.6 * shade).toFixed(3);
+  byId('more').style.opacity = Math.max(0, 1 - p * 8).toFixed(3);
 }

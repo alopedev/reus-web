@@ -1,5 +1,13 @@
+export type Rgb = [number, number, number];
+export type Hour = 'night' | 'dawn' | 'day' | 'dusk';
+export interface Daylight {
+  name: Hour; top: Rgb; hor: Rgb; sun: Rgb; sunUV: [number, number];
+  hemi: [sky: number, ground: number, intensity: number]; dir: [color: number, intensity: number, position: Rgb];
+  wallA: Rgb; wallB: Rgb; wood: Rgb; seat: Rgb;
+}
+
 /* one light drives the landscape and the carriage it shines into */
-export function daylight(min){
+export function daylight(min: number): Daylight {
   const h = min/60;
   if(h<7 || h>=21) return {name:'night', top:[.20,.24,.40], hor:[.42,.46,.62], sun:[.95,.94,.86], sunUV:[.82,.84], hemi:[0x7080b0,0x202433,.55], dir:[0xaab8e0,.35,[-.3,.8,.4]],
     wallA:[.27,.27,.35], wallB:[.17,.17,.24], wood:[.15,.13,.16], seat:[.09,.09,.12]};
