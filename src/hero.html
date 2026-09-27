@@ -17,11 +17,15 @@
   padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
 }
 *,*::before,*::after{ box-sizing:inherit; }
-html,body{ height:100%; margin:0; }
-body{ background:#7d6650; color:var(--paper); font-family:var(--sans); font-weight:500; overflow:hidden; }
+html,body{ margin:0; }
+html{ height:100%; }
+body{ min-height:100%; background:#7d6650; color:var(--paper); font-family:var(--sans); font-weight:500; }
+@media (prefers-reduced-motion: no-preference){ html{ scroll-behavior:smooth; } }
+/* the hero stays put while the shelf scrolls up over it */
+#hero{ position:fixed; inset:0; z-index:0; transform-origin:50% 100%; }
 strong{ font-weight:700; }
 canvas#gl{ position:fixed; inset:0; width:100%; height:100%; display:block; z-index:0; }
-.stage{ position:relative; z-index:1; height:100%; display:grid; grid-template-rows:auto minmax(0,1fr) auto;
+.stage{ position:relative; z-index:1; height:100%; display:grid; grid-template-rows:auto minmax(0,1fr) auto auto;
   gap:clamp(14px,2.4vh,28px); padding:clamp(16px,3vh,34px) clamp(18px,4.4vw,64px) clamp(16px,3vh,30px); }
 
 /* name and direction, on the wall above the window */
@@ -119,9 +123,51 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .dep{ font-size:clamp(4rem,22vw,6rem); }
 }
 .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+
+/* the hint that there is more below, in the same dotted language as everything you can press */
+.more{ justify-self:center; margin-top:calc(-1 * clamp(8px,1.6vh,18px)); font-size:.95rem; color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.35);
+  text-decoration:underline dotted; text-decoration-thickness:1.5px; text-underline-offset:.3em; }
+.more:hover{ text-decoration-style:solid; }
+.more:focus-visible{ outline:2px solid var(--paper); outline-offset:4px; }
+
+/* the shelf: the gaze drops to the table, where paper objects explain the site */
+#repisa{ position:relative; z-index:2; margin-top:100vh; margin-top:100svh; min-height:100vh;
+  padding:clamp(40px,8vh,96px) clamp(18px,5vw,96px) clamp(60px,10vh,120px);
+  background:repeating-linear-gradient(90deg, rgba(0,0,0,.08) 0 2px, transparent 2px 240px), var(--grain), linear-gradient(#54412F, #46362A); }
+.mesa{ max-width:1240px; margin:0 auto; display:grid; grid-template-columns:minmax(0,340px) minmax(0,1fr);
+  grid-template-areas:"intro intro" "folleto cuaderno" "folleto reverso"; gap:clamp(36px,5vh,56px) clamp(36px,4.4vw,64px); align-items:start; }
+.intro{ grid-area:intro; }
+.intro h2{ margin:0 0 .35em; font-family:var(--serif); font-weight:400; line-height:.95; letter-spacing:-.02em;
+  font-size:clamp(3rem,6vw,4.8rem); color:var(--paper); text-shadow:.05em .05em 0 var(--shadow); }
+.intro p{ margin:0; max-width:34em; font-size:clamp(1.02rem,1.3vw,1.18rem); line-height:1.45; text-shadow:0 1px 2px rgba(0,0,0,.35); }
+.papel{ background:#EFE6D2 var(--grain); color:var(--shadow); padding:24px 28px; box-shadow:6px 6px 0 var(--shadow); }
+.papel h2{ margin:.2em 0 .5em; font-family:var(--serif); font-weight:400; font-size:clamp(1.6rem,2.2vw,1.9rem); line-height:1.1; }
+.papel p, .papel li{ margin:0; font-size:.98rem; line-height:1.6; }
+.papel ol, .papel ul{ margin:0; padding:0; list-style:none; }
+.papel b{ font-weight:700; }
+.kicker{ display:block; font-size:.76rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; opacity:.72; }
+.tachado{ text-decoration:line-through; text-decoration-thickness:1.5px; opacity:.55; }
+.folleto{ grid-area:folleto; transform:rotate(-2.5deg); }
+.mini{ position:relative; height:118px; margin:4px 0 16px; background:#8B6F55; }
+.mini .w{ position:absolute; left:28%; top:12%; width:44%; height:56%; border:5px solid #4A3A2C; border-radius:12px; background:linear-gradient(#EAD9BF 55%, #4E7189 55% 64%, #CDB57E 64%); }
+.mini .n{ position:absolute; width:22px; height:22px; border-radius:50%; background:var(--shadow); color:var(--paper); font-size:.75rem; font-weight:700; line-height:22px; text-align:center; }
+.cuaderno{ grid-area:cuaderno; display:grid; grid-template-columns:1fr 1fr; transform:rotate(1deg); box-shadow:6px 6px 0 var(--shadow); }
+.cuaderno .hoja{ padding:26px 28px; box-shadow:none; }
+.cuaderno .izq{ background-color:#EAE0CA; border-right:1.5px dashed rgba(45,36,28,.4); }
+.cuaderno .lema{ margin-top:18px; font-family:var(--serif); font-size:1.05rem; color:#7A4B3A; }
+.reverso{ grid-area:reverso; max-width:620px; transform:rotate(-1.2deg); filter:drop-shadow(5px 5px 0 var(--shadow)); }
+.reverso .papel{ box-shadow:none; padding:20px 34px; clip-path:polygon(0 0,100% 0,100% 40%,98.4% 50%,100% 60%,100% 100%,0 100%,0 60%,1.6% 50%,0 40%); }
+.reverso .fuente{ margin-top:8px; font-size:.86rem; opacity:.8; }
+@media (max-width:700px){
+  .mesa{ grid-template-columns:minmax(0,1fr); grid-template-areas:"intro" "folleto" "cuaderno" "reverso"; }
+  .cuaderno{ grid-template-columns:minmax(0,1fr); }
+  .cuaderno .izq{ border-right:0; border-bottom:1.5px dashed rgba(45,36,28,.4); }
+  .reverso .papel{ padding:20px 26px; }
+}
 </style>
 </head>
 <body>
+<div id="hero">
 <div class="stage" id="stage">
   <div class="top">
     <div class="brandBox">
@@ -146,7 +192,65 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
       <div class="hours" id="hours" aria-hidden="true"></div>
     </div>
   </section>
+  <a class="more" id="more" href="#repisa">Qué es y cómo se hizo <span aria-hidden="true">↓</span></a>
 </div>
+</div>
+
+<main id="repisa" aria-labelledby="qe">
+  <div class="mesa">
+    <header class="intro">
+      <h2 id="qe">Qué es</h2>
+      <p>Una sola pregunta: ¿cuándo sale el próximo tren directo entre Barcelona y Reus? La respuesta aparece al abrir, sin escribir origen, destino ni fecha. Para quien repite el trayecto y solo quiere saber si llega.</p>
+    </header>
+
+    <article class="papel folleto" id="folleto" aria-labelledby="h-leer">
+      <span class="kicker">Folleto</span>
+      <h2 id="h-leer">Cómo leerla</h2>
+      <div class="mini" aria-hidden="true"><div class="w"></div>
+        <span class="n" style="left:8px;top:84px">1</span><span class="n" style="right:8px;top:8px">2</span>
+        <span class="n" style="left:40%;top:88px">3</span><span class="n" style="left:66%;top:88px">4</span></div>
+      <ol>
+        <li><b>1</b> · La hora grande es el próximo tren.</li>
+        <li><b>2</b> · El billete impreso es tu sentido; pulsa el otro para cambiarlo.</li>
+        <li><b>3</b> · Lo subrayado a puntos se puede pulsar.</li>
+        <li><b>4</b> · La regla es el día: cada raya, un tren. La luz sigue la hora.</li>
+      </ol>
+    </article>
+
+    <article class="cuaderno" id="cuaderno" aria-labelledby="h-hizo">
+      <div class="papel hoja izq">
+        <span class="kicker">Cuaderno · decisiones</span>
+        <h2 id="h-hizo">Cómo se hizo</h2>
+        <ul>
+          <li>Paisaje generado en directo · <span class="tachado">vídeo</span></li>
+          <li>Acuarela que se pinta sola · <span class="tachado">hecho a mano</span></li>
+          <li>Billetes de papel para el sentido · <span class="tachado">pestañas</span></li>
+          <li>Sin pausa ni repintar para el público · <span class="tachado">controles</span></li>
+        </ul>
+        <p class="lema">Àlex decide; Claude construye.</p>
+      </div>
+      <div class="papel hoja der">
+        <span class="kicker">Cuaderno · técnica</span>
+        <h2>Por dentro</h2>
+        <ul>
+          <li>Escena 3D con Three.js</li>
+          <li>Shader de acuarela: Kuwahara y modelo de pigmento</li>
+          <li>Un único HTML, sin servidor</li>
+          <li>Horarios del GTFS abierto de Renfe</li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="reverso" id="reverso" aria-labelledby="h-datos">
+      <div class="papel">
+        <span class="kicker">Reverso del billete</span>
+        <h2 id="h-datos">Datos y límites</h2>
+        <p>Horario teórico: no refleja retrasos ni incidencias. Solo regionales directos entre Sants y Reus. No vende billetes. <span id="hasta"></span></p>
+        <p class="fuente">Fuente: Renfe, datos abiertos (GTFS).</p>
+      </div>
+    </article>
+  </div>
+</main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 const DATA = __DATA__;
@@ -181,7 +285,7 @@ function build3D(){
   let renderer;
   try{ renderer = new THREE.WebGLRenderer({canvas, antialias:false, powerPreference:'low-power'}); }catch(e){ return null; }
   if(!renderer.getContext()) return null;
-  document.body.prepend(canvas);
+  document.getElementById('hero').prepend(canvas);
   renderer.setClearColor(0x000000, 0);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 5000);
@@ -436,8 +540,10 @@ function loop(t){
   v += (target - v) * Math.min(1, dt*.45);
   acc += dt;
   if(acc >= 1/30){ world.frame(v*acc, Math.floor(el*8)/8, reveal); acc = 0; }
-  if(playing && !document.hidden) rafId = requestAnimationFrame(loop); else rafId = 0;
+  if(playing && !document.hidden && !offstage) rafId = requestAnimationFrame(loop); else rafId = 0;
 }
+let offstage = false;
+addEventListener('scroll', ()=>{ const off = scrollY >= innerHeight - 1; if(off !== offstage){ offstage = off; if(!off && playing) kick(); } }, {passive:true});
 function kick(){ if(!rafId && world){ lastT = performance.now(); rafId = requestAnimationFrame(loop); } }
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && playing) kick(); });
 addEventListener('resize', ()=>{ if(!playing && world) world.frame(0,0,1); });
@@ -542,6 +648,8 @@ document.getElementById('tickets').addEventListener('click', e=>{
   if(world) world.resize();
 });
 setInterval(()=>{ if(state.useNow) render(); }, 30000);
+{ const last = Object.keys(DATA).sort().pop();
+  document.getElementById('hasta').textContent = `Horarios cargados hasta el ${new Date(last+'T12:00:00Z').toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'})}; los días siguientes se aproximan.`; }
 render();
 document.fonts && document.fonts.ready.then(()=> world && world.resize());
 repaint();

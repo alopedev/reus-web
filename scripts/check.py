@@ -42,7 +42,7 @@ async def check_shelf(page, name):
     if shelf["wide"]: errs.append(f"shelf sticks out sideways: {', '.join(shelf['wide'])}")
     if shelf["heading"] and shelf["heading"] != "Young Serif": errs.append(f"shelf heading font is {shelf['heading']}")
     if shelf["body"] and shelf["body"] != "Familjen Grotesk": errs.append(f"shelf text font is {shelf['body']}")
-    await page.screenshot(path=str(shots / f"{name}-repisa.png"), full_page=True)
+    await page.locator('#repisa').screenshot(path=str(shots / f"{name}-repisa.png"))
     return errs
 
 async def main():
