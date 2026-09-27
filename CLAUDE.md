@@ -45,6 +45,9 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 - IDs de parada GTFS: Barcelona-Sants 71801, Reus 71400
 - Días sin dato usan el último día conocido del mismo tipo y la web avisa de «horario aproximado»
 - Los horarios del GTFS caducan en ~2 semanas: regenera antes de publicar o de grabar
+- Escala de cartel: el `font-size` de `html` sigue a la pantalla (`min(1.111vw, 1.778vh)`, mínimo 14 px; en vertical, el ancho) y todos los tamaños del hero y la mesa van en `rem`. No uses px ni `clamp(…vw…)` sueltos: rompen la proporción. La geometría en JS (mesa, objetos) se mide en `rem` leyendo el tamaño de la raíz
+- La maquetación de la mesa decide por el espacio real (container queries sobre `.escena`), no por el tamaño de pantalla. La mesa fija (sticky) exige pantalla apaisada de ≥ 1000 × 780: misma media query en CSS y en `PINNED` del script
+- `check.py` recorre 11 tamaños de pantalla (360 a 2560 px); si cambias tamaños, revisa también esas capturas
 - Edita solo `src/hero.html`; `dist/` se regenera. El marcador `__DATA__` (`const DATA = __DATA__;`) debe seguir existiendo o `build.py` falla
 - `check.py` depende de los selectores `.brand`, `#win`, `#info`, `.soon` y `#dep`: si los renombras, actualiza el script
 - Flujo en runtime: `build3D()` devuelve `world` (`setTime`, `frame(dx, time, reveal)`) o `null` sin WebGL (la página debe seguir funcionando). `loop()` limita el render a 30 fps y para el `requestAnimationFrame` en pausa o con la pestaña oculta
