@@ -131,9 +131,14 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 .more:focus-visible{ outline:2px solid var(--paper); outline-offset:4px; }
 
 /* the shelf: the gaze drops to the table, where paper objects explain the site */
-#repisa{ position:relative; z-index:2; margin-top:100vh; margin-top:100svh; min-height:100vh;
-  padding:clamp(40px,8vh,96px) clamp(18px,5vw,96px) clamp(60px,10vh,120px);
+#repisa{ position:relative; z-index:2; margin-top:100vh; margin-top:100svh;
   background:repeating-linear-gradient(90deg, rgba(0,0,0,.08) 0 2px, transparent 2px 240px), var(--grain), linear-gradient(#54412F, #46362A); }
+.escena{ min-height:100vh; padding:clamp(40px,8vh,96px) clamp(18px,5vw,96px) clamp(60px,10vh,120px); }
+/* on a large enough screen the table stays put while the papers land one after another (same query as PINNED in the script) */
+@media (prefers-reduced-motion: no-preference) and (min-width:1000px) and (min-height:760px){
+  #repisa{ height:230vh; }
+  .escena{ position:sticky; top:0; height:100vh; min-height:0; padding-top:clamp(28px,6vh,72px); padding-bottom:clamp(20px,4vh,48px); }
+}
 .mesa{ max-width:1240px; margin:0 auto; display:grid; grid-template-columns:minmax(0,340px) minmax(0,1fr);
   grid-template-areas:"intro intro" "folleto cuaderno" "folleto reverso"; gap:clamp(36px,5vh,56px) clamp(36px,4.4vw,64px); align-items:start; }
 .intro{ grid-area:intro; }
@@ -151,9 +156,15 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 .mini{ position:relative; height:118px; margin:4px 0 16px; background:#8B6F55; }
 .mini .w{ position:absolute; left:28%; top:12%; width:44%; height:56%; border:5px solid #4A3A2C; border-radius:12px; background:linear-gradient(#EAD9BF 55%, #4E7189 55% 64%, #CDB57E 64%); }
 .mini .n{ position:absolute; width:22px; height:22px; border-radius:50%; background:var(--shadow); color:var(--paper); font-size:.75rem; font-weight:700; line-height:22px; text-align:center; }
-.cuaderno{ grid-area:cuaderno; display:grid; grid-template-columns:1fr 1fr; transform:rotate(1deg); box-shadow:6px 6px 0 var(--shadow); }
-.cuaderno .hoja{ padding:26px 28px; box-shadow:none; }
-.cuaderno .izq{ background-color:#EAE0CA; border-right:1.5px dashed rgba(45,36,28,.4); }
+.cuaderno{ grid-area:cuaderno; display:grid; grid-template-columns:1fr 1fr; transform:rotate(1deg); }
+.cuaderno .hoja{ position:relative; }
+.cuaderno .papel{ height:100%; padding:26px 28px; }
+.cuaderno .izq{ z-index:1; transform-origin:100% 50%; transform-style:preserve-3d; }
+.cuaderno .cara{ background-color:#EAE0CA; border-right:1.5px dashed rgba(45,36,28,.4); backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+.tapa{ position:absolute; inset:0; display:flex; flex-direction:column; justify-content:flex-end; padding:28px; background:#7A4B3A var(--grain); color:var(--paper);
+  box-shadow:-6px 6px 0 var(--shadow); transform:rotateY(180deg); backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+.tapa b{ font-family:var(--serif); font-weight:400; font-size:2rem; line-height:1; }
+.tapa span{ margin-top:10px; font-size:.9rem; opacity:.8; }
 .cuaderno .lema{ margin-top:18px; font-family:var(--serif); font-size:1.05rem; color:#7A4B3A; }
 .reverso{ grid-area:reverso; max-width:620px; transform:rotate(-1.2deg); filter:drop-shadow(5px 5px 0 var(--shadow)); }
 .reverso .papel{ box-shadow:none; padding:20px 34px; clip-path:polygon(0 0,100% 0,100% 40%,98.4% 50%,100% 60%,100% 100%,0 100%,0 60%,1.6% 50%,0 40%); }
@@ -161,7 +172,9 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 @media (max-width:700px){
   .mesa{ grid-template-columns:minmax(0,1fr); grid-template-areas:"intro" "folleto" "cuaderno" "reverso"; }
   .cuaderno{ grid-template-columns:minmax(0,1fr); }
-  .cuaderno .izq{ border-right:0; border-bottom:1.5px dashed rgba(45,36,28,.4); }
+  .cuaderno .izq{ transform-origin:50% 100%; }
+  .cuaderno .cara{ border-right:0; border-bottom:1.5px dashed rgba(45,36,28,.4); }
+  .tapa{ transform:rotateX(180deg); box-shadow:6px -6px 0 var(--shadow); }
   .reverso .papel{ padding:20px 26px; }
 }
 </style>
@@ -197,6 +210,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 </div>
 
 <main id="repisa" aria-labelledby="qe">
+ <div class="escena">
   <div class="mesa">
     <header class="intro">
       <h2 id="qe">Qué es</h2>
@@ -218,7 +232,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
     </article>
 
     <article class="cuaderno" id="cuaderno" aria-labelledby="h-hizo">
-      <div class="papel hoja izq">
+      <div class="hoja izq"><div class="papel cara">
         <span class="kicker">Cuaderno · decisiones</span>
         <h2 id="h-hizo">Cómo se hizo</h2>
         <ul>
@@ -228,7 +242,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
           <li>Sin pausa ni repintar para el público · <span class="tachado">controles</span></li>
         </ul>
         <p class="lema">Àlex decide; Claude construye.</p>
-      </div>
+      </div><div class="tapa" aria-hidden="true"><b>Cuaderno<br>de viaje</b><span>Barcelona ↔ Reus</span></div></div>
       <div class="papel hoja der">
         <span class="kicker">Cuaderno · técnica</span>
         <h2>Por dentro</h2>
@@ -250,8 +264,11 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
       </div>
     </article>
   </div>
+ </div>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.15.0/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.15.0/ScrollTrigger.min.js"></script>
 <script>
 const DATA = __DATA__;
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -653,6 +670,37 @@ setInterval(()=>{ if(state.useNow) render(); }, 30000);
 render();
 document.fonts && document.fonts.ready.then(()=> world && world.resize());
 repaint();
+
+// scrolling down, the gaze drops from the window to the table: the wall tilts away,
+// the table rises, the papers fall onto it and the notebook opens. Follows the finger both ways.
+function setupShelf(){
+  if(!window.gsap || !window.ScrollTrigger) return;
+  gsap.registerPlugin(ScrollTrigger);
+  const PINNED = '(min-width:1000px) and (min-height:760px)';
+  gsap.matchMedia().add({motion:'(prefers-reduced-motion: no-preference)', wide:'(min-width:701px)', pinned:PINNED}, ctx => {
+    if(!ctx.conditions.motion) return;
+    const {wide, pinned} = ctx.conditions, shelf = document.getElementById('repisa');
+    gsap.timeline({scrollTrigger:{trigger:shelf, start:'top bottom', end:'top top', scrub:.6}})
+      .to('#more', {autoAlpha:0, duration:.1, ease:'none'}, 0)
+      .to('#hero', {yPercent:-45, rotationX:40, transformPerspective:1400, duration:1, ease:'power2.inOut'}, 0)
+      .to('#hero', {autoAlpha:0, duration:.3, ease:'none'}, .7)
+      .from(shelf, {rotationX:-45, transformPerspective:1400, transformOrigin:'50% 0%', duration:1, ease:'power2.out'}, 0);
+    const fall = {y:-560, rotation:'+=9', scale:1.1, autoAlpha:0, ease:'power2.out'};
+    const papers = ['#folleto', '#cuaderno', '#reverso'], leaf = '.cuaderno .izq';
+    if(pinned){
+      // layout offsets, not the trigger's box: the shelf is tilted by the timeline above while it is measured
+      const tl = gsap.timeline({scrollTrigger:{start:() => shelf.offsetTop, end:() => shelf.offsetTop + shelf.offsetHeight - innerHeight, scrub:.6, invalidateOnRefresh:true}});
+      papers.forEach((s, i) => tl.from(s, {...fall, duration:1}, i * .45));
+      tl.from(leaf, {rotationY:180, transformPerspective:1800, duration:1, ease:'power2.inOut'}, '+=.1');
+    } else {
+      // stacked papers: each one lands as it scrolls in
+      papers.forEach(s => gsap.from(s, {...fall, y:-160, scrollTrigger:{trigger:s, start:'top 100%', end:'top 65%', scrub:.6}}));
+      gsap.from(leaf, {[wide ? 'rotationY' : 'rotationX']: wide ? 180 : -180, transformPerspective:1800, ease:'power2.inOut',
+        scrollTrigger:{trigger:'#cuaderno', start:'top 55%', end:'top 20%', scrub:.6}});
+    }
+  });
+}
+setupShelf();
 </script>
 </body>
 </html>
