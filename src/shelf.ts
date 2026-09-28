@@ -18,7 +18,8 @@ export function setupShelf(w: World | null): void {
     // the hinge reads the scroll directly: it must match the table's real position on every frame
     const onScroll = () => pitch();
     // the letters' rest positions scale with the root: re-measure on resize, from the same listener as pitch()
-    const onResize = () => { letters.measure(); pitch(); };
+    const onResize = () => { restTop = shelf.offsetTop; letters.measure(); pitch(); };
+    restTop = shelf.offsetTop;
     addEventListener('scroll', onScroll, {passive:true}); addEventListener('resize', onResize);
     document.fonts ? document.fonts.ready.then(() => { letters.measure(); pitch(); }) : letters.measure();
     pitch();
@@ -91,8 +92,13 @@ function openLeaf(leaf: HTMLElement, axis: 'X' | 'Y', sign: 1 | -1){
 const PITCH_WALL = 34, PITCH_TABLE = 24;
 // how far the gaze has dropped (0 at the hero, 1 once the table fills the screen), and where the wall meets the
 // table on screen for it. check.py reads both to know when the page has caught up with the scroll
-export const dropped = (): number => clamp01(scrollY / innerHeight);
-export const hingeAt = (p: number): number => innerHeight * (1 - p);
+// Both follow where the table rests on the page (its layout top, 100svh), never innerHeight: iOS Safari's toolbar
+// shrinks as you scroll and innerHeight grows past that rest, which would part the hinge from the table's real edge.
+// Read on resize only (a layout read); 0 until the shelf is set up, and then innerHeight stands in
+let restTop = 0;
+const tableRest = () => restTop || innerHeight;
+export const dropped = (): number => clamp01(scrollY / tableRest());
+export const hingeAt = (p: number): number => tableRest() * (1 - p);
 
 export interface Pose { p: number; vh: number; P: number; fold: number; wall: number; table: number; s: number; shade: number; }
 // the wall and table's angles, hinge and scale for a given progress: the one place this geometry is computed,

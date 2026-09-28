@@ -21,8 +21,8 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 ## Siguiente paso
 
-1. Comprobar la web publicada en un móvil real (fluidez, toque en la regla)
-2. Fase 3 · viaje de letras: **hecho** (`src/letters.ts` + capa `#letras`, rama `fase3-letras`). Fase 4 · tren de papel sobre una vía en la mesa (prototipo aprobado en la página «Transición»). Reutilizar el patrón de `land()` (estado dibujado por un proxy, reversible con scrub) y la sombra según la altura
+1. Comprobar la web publicada en un móvil real (fluidez, toque en la regla). Revisada ya en Safari del simulador de iOS (28-09): ventanilla panorámica, paisaje ×2 y bisagra con la barra encogida. Pendientes de esa revisión: la barra flotante de Safari tapa el pie del hero, los tachados de «Cómo se hizo» saltan de línea solos, la mesa acaba antes que la página y la repisa pintada bajo la ventanilla se corta en los dos bordes
+2. Fase 3 · viaje de letras: **hecho** (`src/letters.ts` + capa `#letras`, ya en `main`). Fase 4 · tren de papel sobre una vía en la mesa (prototipo aprobado en la página «Transición»). Reutilizar el patrón de `land()` (estado dibujado por un proxy, reversible con scrub) y la sombra según la altura
 3. Grabar el vídeo para X y LinkedIn
 4. Pendiente técnico: subir Three.js desde r128 (hoy ~186 KB comprimido, casi todo Three entero; las versiones nuevas permiten descartar lo que no se usa). Cambia luz y color: hacerlo con la paridad visual como red y renovar referencias solo si Àlex aprueba el resultado
 
@@ -30,6 +30,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 - Nunca suavizar los ángulos de pared/mesa con un bucle propio: con frames lentos deja ver el fondo. La suavidad va en las curvas
 - `check.py` corre con render por software a ~2 fps: los checks nuevos deben esperar a que la bisagra alcance el scroll (`hinge_caught_up`), no un tiempo fijo, y usar `behavior:'instant'`
+- En Safari de iOS, `innerHeight` no es la altura de reposo de la mesa: la barra se encoge al hacer scroll y `innerHeight` crece (40 pt en un iPhone 17 Pro) mientras `#repisa` sigue a `100svh`. La bisagra (`dropped`/`hingeAt`) usa `#repisa.offsetTop`, leído en `resize`. En Chromium de escritorio son iguales: `check_toolbar` lo simula bajando la mesa 40 px. Para ver la web en iOS: simulador + `xcrun simctl openurl <udid> http://127.0.0.1:<puerto>` (comparte la red del Mac)
 - Si `check_backstage` detecta el fondo, guarda `screenshots/<vista>-fondo-<pct>.png` y el estado del muro en el mensaje
 - La fuga intermitente de `check_backstage` no era de la bisagra, sino de la captura (resuelto en `fa8ba76` + endurecido después). Con `scrollTo(0, y)` el scroll es suave (`scroll-behavior:smooth`) y la espera fija de 1300 ms no bastaba con la máquina cargada: la captura salía de un frame a medio pintar. Firma inequívoca: una franja magenta recta y a todo el ancho, tan alta como el último salto de scroll (128 px = 15 % de 860 en saltos de 15 %, 84 px en el de 85→95 %) e independiente del ángulo de la pared; a veces la captura entera en magenta. No es la misma clase de fallo que el suavizado de ángulos: aquel abría un hueco real entre pared y mesa; este es un frame viejo. La pared, por sí sola, tapa toda la pantalla en cualquier punto del giro (es `fixed` y su escala se calcula con su propia bisagra; margen ≥ 0 comprobado analíticamente de p = 0 a 1)
 - Medición: procedimiento viejo 0/6 pasadas limpias; con `behavior:'instant'` + `hinge_caught_up`, 30/30 sin fuga (con otra sesión cargando la CPU). Si la bisagra no alcanza el scroll, `check_backstage` ahora lo dice («the hinge never catches up … frame not read») en vez de leer ese frame

@@ -8,6 +8,7 @@ export interface World {
   setTime(min: number): Hour;                              // light it for a time of day
   resize(): void;
   setWash(foldY: number, shade: number): void;             // the pigment wash on the wall (see shelf.ts)
+  grain(): number;                                         // px of the landscape per px of the window (check.py)
 }
 // something scattered on the landscape: position, size, and turn around the vertical axis
 type Placement = [x: number, y: number, z: number, size: [number, number, number], turn?: number];
@@ -102,6 +103,10 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
   const postScene = new Scene(), postCam = new OrthographicCamera(-1,1,1,-1,0,1);
   postScene.add(new Mesh(new PlaneGeometry(2,2), post));
   const U = post.uniforms;
+  // the stacked hero (phones, portrait tablets; the same media query as hero.css) has a small window: its landscape
+  // is painted twice as fine, since the brush strokes are sized in the target's pixels and would read as pixels there
+  const STACKED = matchMedia('(max-width:700px), (max-aspect-ratio:4/5)');
+  let grain = 0;
   function resize(){
     const cw = innerWidth, ch = innerHeight;
     let s = Math.min(devicePixelRatio||1, 1.25);
@@ -113,7 +118,9 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     U.win.value.set(r.left/cw, 1-r.bottom/ch, r.right/cw, 1-r.top/ch);
     U.wrad.value = parseFloat(getComputedStyle(win).borderTopLeftRadius)/ch;
     U.seats.value = (cw/ch > 1.15 && r.left > cw*.12) ? 1 : 0;
-    const rw = Math.max(2, Math.round(r.width*s*.8)), rh = Math.max(2, Math.round(r.height*s*.8));
+    const k = s * .8 * (STACKED.matches ? 2 : 1);
+    const rw = Math.max(2, Math.round(r.width*k)), rh = Math.max(2, Math.round(r.height*k));
+    grain = rw / Math.max(1, r.width);
     rt.setSize(rw, rh); U.res.value.set(rw, rh);
     const wa = r.width/Math.max(1,r.height); U.waspect.value = wa;
     camera.aspect = wa; camera.fov = wa < 1.3 ? 50 : 40;
@@ -149,5 +156,5 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     if(!washRaf) washRaf = requestAnimationFrame(() => { washRaf = 0; renderer.setRenderTarget(null); renderer.render(postScene, postCam); });
   }
   resize(); addEventListener('resize', resize);
-  return {frame, setTime, resize, setWash};
+  return {frame, setTime, resize, setWash, grain: () => grain};
 }

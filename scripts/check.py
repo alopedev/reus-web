@@ -258,8 +258,12 @@ async def check_wash(page, name):
         await hinge_caught_up(page); await page.wait_for_timeout(600)
     await at(0)
     # two bare-wall spots beside the window (clear of the seats): one just above where the hinge will be at 30%, one high up
+    # a panoramic window (stacked hero) leaves no bare wall beside its frame: then the high spot sits just above the frame
     near, far = await page.evaluate("""(() => { const w = document.getElementById('win').getBoundingClientRect(), seats = innerWidth / innerHeight > 1.15 ? .25 * innerHeight : 0;
-      const x = w.right + (innerWidth - seats - w.right) / 2; return [[x, reus.hingeAt(.3) - .02 * innerHeight], [x, w.top + .15 * w.height]]; })()""")
+      const frame = .022 * innerHeight, rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const beside = innerWidth - seats - (w.right + frame) > 2 * rem;
+      const x = beside ? w.right + (innerWidth - seats - w.right) / 2 : innerWidth - 1.5 * rem;
+      return [[x, reus.hingeAt(.3) - .02 * innerHeight], [x, beside ? w.top + .15 * w.height : w.top - frame - .6 * rem]]; })()""")
     rest = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
     base = [brightness(rest, near), brightness(rest, far)]
     seen = {}
