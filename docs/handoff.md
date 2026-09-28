@@ -22,9 +22,10 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 ## Siguiente paso
 
 1. Comprobar la web publicada en un móvil real (fluidez, toque en la regla). Revisada ya en Safari del simulador de iOS (28-09): ventanilla panorámica, paisaje ×2 y bisagra con la barra encogida. Pendientes de esa revisión: la barra flotante de Safari tapa el pie del hero, la mesa acaba antes que la página y la repisa pintada bajo la ventanilla se corta en los dos bordes
-2. Fase 3 · viaje de letras: **hecho** (`src/letters.ts` + capa `#letras`, ya en `main`). Fase 4 · tren de papel sobre una vía en la mesa (prototipo aprobado en la página «Transición»). Reutilizar el patrón de `land()` (estado dibujado por un proxy, reversible con scrub) y la sombra según la altura
-3. Grabar el vídeo para X y LinkedIn
-4. Pendiente técnico: subir Three.js desde r128 (hoy ~186 KB comprimido, casi todo Three entero; las versiones nuevas permiten descartar lo que no se usa). Cambia luz y color: hacerlo con la paridad visual como red y renovar referencias solo si Àlex aprueba el resultado
+2. Fase 3 · viaje de letras: **hecho** (`src/letters.ts` + capa `#letras`, ya en `main`). Fase 4 · tren de papel sobre una vía en la mesa: **aparcada** (28-09, decisión de Àlex: el diseño ya es suficientemente espectacular). Para retomarla: prototipo aprobado en la página «Transición»; reutilizar el patrón de `land()` (estado dibujado por un proxy, reversible con scrub) y la sombra según la altura
+3. **Nueva prioridad (28-09): producto antes que diseño.** En este orden: (a) generalizar la web a más trayectos: regionales de Renfe en Catalunya y, si se puede gratis y legal, los AVE Barcelona ↔ Camp de Tarragona (investigación en curso); el origen se elige pulsando un billete y el destino pulsando el otro; (b) el nombre; (c) el copy
+4. Grabar el vídeo para X y LinkedIn
+5. Pendiente técnico: subir Three.js desde r128 (hoy ~186 KB comprimido, casi todo Three entero; las versiones nuevas permiten descartar lo que no se usa). Cambia luz y color: hacerlo con la paridad visual como red y renovar referencias solo si Àlex aprueba el resultado
 
 ## Lecciones técnicas
 
