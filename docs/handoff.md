@@ -23,7 +23,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 1. Comprobar la web publicada en un móvil real (fluidez, toque en la regla). Revisada ya en Safari del simulador de iOS (28-09): ventanilla panorámica, paisaje ×2 y bisagra con la barra encogida. Pendientes de esa revisión: la barra flotante de Safari tapa el pie del hero, la mesa acaba antes que la página y la repisa pintada bajo la ventanilla se corta en los dos bordes
 2. Fase 3 · viaje de letras: **hecho** (`src/letters.ts` + capa `#letras`, ya en `main`). Fase 4 · tren de papel sobre una vía en la mesa: **aparcada** (28-09, decisión de Àlex: el diseño ya es suficientemente espectacular). Para retomarla: prototipo aprobado en la página «Transición»; reutilizar el patrón de `land()` (estado dibujado por un proxy, reversible con scrub) y la sombra según la altura
-3. **Nueva prioridad (28-09): producto antes que diseño.** En este orden: (a) generalizar la web a más trayectos: regionales de Renfe en Catalunya y, si se puede gratis y legal, los AVE Barcelona ↔ Camp de Tarragona (investigación en curso); el origen se elige pulsando un billete y el destino pulsando el otro; (b) el nombre; (c) el copy
+3. **Nueva prioridad (28-09): producto antes que diseño.** En este orden: (a) generalizar la web a más trayectos: regionales de Renfe en Catalunya (sin R1–R8) y AVE/Avlo de Renfe Barcelona ↔ Camp de Tarragona (investigación: `docs/referencias/datos-horarios.md`); el origen se elige pulsando un billete y el destino pulsando el otro; (b) el nombre; (c) el copy
 4. Grabar el vídeo para X y LinkedIn
 5. Pendiente técnico: subir Three.js desde r128 (hoy ~186 KB comprimido, casi todo Three entero; las versiones nuevas permiten descartar lo que no se usa). Cambia luz y color: hacerlo con la paridad visual como red y renovar referencias solo si Àlex aprueba el resultado
 
@@ -48,7 +48,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 ## Pendiente y riesgos
 
 - Nombre de la web (lo decide Àlex)
-- Horarios: `data/trains.json` llega hasta el 9 de octubre de 2026; regenerar antes de grabar
+- Horarios: se actualizan solos cada día desde el 28-09 (`.github/workflows/horarios.yml`). Si falla, llega un email de GitHub y la web conserva los de ayer
 - Condiciones de uso de los datos abiertos de Renfe por verificar (probablemente exigen citar la fuente)
 - Fase 2 (no empezar sin decisión): actualización diaria automática, precios del AVE, subdominio gratuito, contador de visitas
 

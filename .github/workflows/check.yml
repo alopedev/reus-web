@@ -21,6 +21,7 @@ jobs:
       - run: npm ci
       - run: pip install playwright pillow && python -m playwright install --with-deps chromium
       - run: npm run build
+      - run: npm run build:paridad
       - run: python scripts/check.py
       # the screenshots, and any reference frame written in this run, to review or commit
       - if: always()

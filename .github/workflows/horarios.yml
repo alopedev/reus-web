@@ -1,0 +1,54 @@
+# every morning: download Renfe's timetables and, only if they changed and every check passes, commit them to main
+# (Vercel publishes that commit like any other push). If anything fails, nothing is published: the site keeps
+# yesterday's timetable and GitHub emails the failure
+name: horarios
+on:
+  schedule:
+    - cron: '0 4 * * *'   # 04:00 UTC: 06:00 in Madrid in summer, 05:00 in winter
+  workflow_dispatch:       # run it by hand from the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: horarios
+  cancel-in-progress: false
+
+jobs:
+  horarios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/extract_trains.py
+      - name: did the timetable change?
+        id: diff
+        run: git diff --quiet data/trains.json && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
+      - if: steps.diff.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.diff.outputs.changed == 'true'
+        run: npm ci
+      - if: steps.diff.outputs.changed == 'true'
+        run: pip install playwright pillow && python -m playwright install --with-deps chromium
+      - if: steps.diff.outputs.changed == 'true'
+        run: npm run build && npm run build:paridad && python scripts/check.py
+      # authored as the repo's owner: Vercel's Hobby plan only deploys a private repo's commits from its owner
+      - if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name "Àlex Olivé"
+          git config user.email "136198470+alopedev@users.noreply.github.com"
+          git add data/trains.json
+          git commit -m "chore: refresh the timetable" -m "Automatic: .github/workflows/horarios.yml"
+          git push
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas-horarios
+          path: screenshots/
+          if-no-files-found: ignore

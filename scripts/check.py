@@ -28,7 +28,8 @@ Rules checked:
      the hinge and climbs the wall as the wall turns away, the texts on the wall dim with it, and
      nothing lingers once you scroll back to the top.
   10. The site looks the same as the reference frames in scripts/baseline/<system>/ (a still frame with reduced
-     motion and the clock fixed at 10:00 in Madrid): the guard for refactors that must change nothing.
+     motion, the clock fixed at 10:00 in Madrid and the frozen timetable scripts/baseline/trains.json, built into
+     dist-paridad/ by npm run build:paridad): the guard for refactors that must change nothing.
      A missing reference is written from the current build; delete one to renew it.
   11. Fase 3, the letters' journey: scrolling from the hero to the table, the letters of h1.brand peel off the
      wall as paper cut-outs and land forming h2#qe, paired by position (reus.letras.pair) — with "Nombre" the
@@ -49,7 +50,7 @@ Rules checked:
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
-Usage: npm run build && python3 scripts/check.py [paridad|letras]   (or: npm run check)
+Usage: npm run build && npm run build:paridad && python3 scripts/check.py [paridad|letras]   (or: npm run check)
        (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute)
 """
 import asyncio, functools, http.server, io, os, pathlib, sys, threading
@@ -60,9 +61,13 @@ root = pathlib.Path(__file__).resolve().parent.parent
 # served over HTTP, as the real site will be: ES modules do not load from file://
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args): pass
-server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=str(root / "dist")))
-threading.Thread(target=server.serve_forever, daemon=True).start()
-page_url = f"http://127.0.0.1:{server.server_address[1]}/"
+def serve(folder):
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=str(root / folder)))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return f"http://127.0.0.1:{server.server_address[1]}/"
+page_url = serve("dist")
+# the parity build carries a frozen timetable (npm run build:paridad): the daily refresh never moves its reference frames
+parity_url = serve("dist-paridad")
 shots = root / "screenshots"; shots.mkdir(exist_ok=True)
 VIEWPORTS = {"desktop": (1440, 860), "mobile": (390, 820)}
 
@@ -632,7 +637,7 @@ async def check_parity(browser):
     for name, (w, h, table) in PARITY.items():
         page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce")
         await page.clock.set_fixed_time("2026-09-28T08:00:00Z")   # 10:00 in Madrid, a day inside the timetable
-        await page.goto(page_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(2500)
+        await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(2500)
         if table:
             await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})")
             try: await page.wait_for_function("document.getElementById('lienzo')?.dataset.pintada === '1'", timeout=12000)
