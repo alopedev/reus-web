@@ -59,8 +59,10 @@ Rules checked:
      three trips, two regionals and the next AVE from Camp de Tarragona (Reus is in the Baix Camp), in order of
      departure: «R15 10:03 en 3 min → 11:33», «en X min» only on the train shown (the first regional while live), no
      headings and no «Luego»/«Anterior»; the other trips are buttons, and choosing one, AVE included, makes it the
-     train shown. With no trains left today it shows tomorrow's first ones under «Hoy ya no quedan · mañana». Modo
-     rápido: `python3 scripts/check.py hero`.
+     train shown. With no trains left today it shows tomorrow's first ones under «Hoy ya no quedan · mañana». The ruler of the day has one
+     mark: every train is a tick, the AVE with its own mark; the knob always stands on the train shown; «ahora» is a
+     thin line with its word, with no «Son las HH:MM» heading; «Volver a ahora» never covers that word; the arrow
+     keys step through every train, AVE included. Modo rápido: `python3 scripts/check.py hero`.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
@@ -762,7 +764,17 @@ async def check_hero(browser):
     if got["sub"] != SUBTITLE: errs.append(f"the subtitle is «{got['sub']}», expected «{SUBTITLE}»")
     errs += await check_hero_ticket(page)
     errs += await check_hero_board(page)
+    errs += await check_hero_ruler(page)
     await page.close()
+    # late in the evening «ahora» sits on the right of the ruler, where «Volver a ahora» used to be
+    for w, h in ((390, 844), (1440, 900)):
+        page = await hero_page(browser, w, h, at="2026-09-28T21:10:00Z")
+        await page.focus("#t"); await page.keyboard.press("Home"); await page.wait_for_timeout(300)
+        hit = await page.evaluate("""(() => { const a = document.getElementById('nowBtn'), b = document.querySelector('.nowline span');
+          if(!a || !b || a.hidden) return 'missing'; const r = a.getBoundingClientRect(), s = b.getBoundingClientRect();
+          return r.right > s.left && s.right > r.left && r.bottom > s.top && s.bottom > r.top; })()""")
+        if hit: errs.append(f"{w}x{h} at 23:10: «Volver a ahora» covers the word «ahora» ({hit})")
+        await page.close()
     # at 23:30 no train is left today: tomorrow's first ones, and the board says so
     page = await hero_page(browser, at="2026-09-28T21:30:00Z")
     b = await page.evaluate(BOARD)
@@ -776,6 +788,32 @@ BOARD = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), rows = [...do
   return {rows: rows.map(r => n(r.textContent)), buttons: rows.map(r => r.matches('button.tt')), dep: document.getElementById('dep')?.textContent,
           soon: document.querySelector('.soon')?.textContent.trim(), info: n(document.getElementById('info').textContent),
           aviso: document.getElementById('aviso').textContent}; })()"""
+
+RULER = """(() => { const t = document.getElementById('t'), line = document.querySelector('.nowline');
+  return {ticks: document.querySelectorAll('#ticks i').length, ave: document.querySelectorAll('#ticks i.ave').length, knob: +t.value,
+          text: t.getAttribute('aria-valuetext'), now: line ? line.textContent.trim() : null, nowAt: line ? parseFloat(line.style.left) : null,
+          head: document.querySelector('.rulerHead').innerText, dep: document.getElementById('dep').textContent}; })()"""
+
+async def check_hero_ruler(page):
+    """At 10:00, Sants → Reus on the frozen timetable: 20 regionals and 14 AVE on the ruler."""
+    errs = []
+    r = await page.evaluate(RULER)
+    if (r["ticks"], r["ave"]) != (34, 14): errs.append(f"the ruler has {r['ticks']} ticks, {r['ave']} of them AVE; expected 34 and 14")
+    if r["knob"] != 603: errs.append(f"the knob stands at minute {r['knob']}, expected 603 (the train shown, 10:03)")
+    if r["now"] != "ahora": errs.append(f"the ruler's now mark reads «{r['now']}», expected a thin line with «ahora»")
+    elif abs(r["nowAt"] - (600 - 300) / (1439 - 300) * 100) > .1: errs.append(f"«ahora» stands at {r['nowAt']}%, not at 10:00")
+    import re
+    if re.search(r"\d\d:\d\d|Son las|Ahora", r["head"]): errs.append(f"the ruler still has a heading with the time: «{r['head']}»")
+    await page.focus("#t")
+    steps = [("End", "22:03", "tren de las 22:03"), ("ArrowLeft", "21:33", "tren de las 21:33"), ("Home", "05:50", "AVE de las 05:50"),
+             ("ArrowRight", "06:33", "tren de las 06:33"), ("ArrowLeft", "05:50", "AVE de las 05:50")]
+    for key, dep, text in steps:
+        await page.keyboard.press(key); await page.wait_for_timeout(250)
+        r = await page.evaluate(RULER)
+        if r["dep"] != dep or r["text"] != text: errs.append(f"{key} on the ruler shows {r['dep']} («{r['text']}»), expected {dep} («{text}»)")
+    if r["knob"] != 350: errs.append(f"with the 05:50 AVE shown the knob stands at minute {r['knob']}, expected 350")
+    await page.click("#nowBtn"); await page.wait_for_timeout(300)
+    return errs
 
 async def check_hero_board(page):
     """Three trips at 10:00 on the frozen timetable (Sants → Reus: R15 10:03, R15 11:03, AVE 12:00; Reus → Sants:
