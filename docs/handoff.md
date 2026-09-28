@@ -1,31 +1,26 @@
-# Handoff · 27 de septiembre de 2026 (tarde)
+# Handoff · 28 de septiembre de 2026 (noche)
 
-Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md` (registro estético). Producto: `docs/PRD.md`.
+Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md` (registro estético). Producto: `docs/PRD.md` v0.2.
 
 ## Estado
 
 **Web publicada:** https://reus-web.vercel.app (se despliega en cada push a `main`; ver «Publicación» en `CLAUDE.md`).
 
-**Código:** Vite + TypeScript estricto en módulos (`src/`, mapa en `CLAUDE.md`), Three.js 0.128 y GSAP 3.15 desde npm. Migración completa en `docs/migracion.md`. GitHub Actions pasa tipos, compilación y `check.py` en cada push; `check.py paridad` compara con fotogramas de referencia por sistema (`scripts/baseline/darwin|linux/`).
+**Código:** Vite + TypeScript estricto en módulos (`src/`, mapa en `CLAUDE.md`), Three.js 0.128 y GSAP 3.15 desde npm. GitHub Actions pasa tipos, compilación y `check.py` en cada push; `check.py paridad` compara con fotogramas de referencia por sistema (`scripts/baseline/darwin|linux/`).
 
-**Hero:** cerrado a falta del nombre de la web («Nombre» es provisional).
+**Datos:** la web lee `data/red.json` (regionales R11, R13–R17 y AVE/Avlo Sants ↔ Camp de Tarragona, 14 días; contrato en `docs/referencias/datos-red-contrato.md`), regenerado cada día por `.github/workflows/horarios.yml`. `src/time.ts`: `direct(fecha, desde, hasta)`; `dayData` da Sants ↔ Reus (`r`/`b`) y, para Baix Camp y Tarragonès, el AVE (`ar`/`ab`).
 
-**Transición hero → mesa («La repisa»):** implementada en `src/shelf.ts` (y el lavado en `src/world.ts` + `src/shaders/watercolor.frag`).
-- Cambio de plano «cámara que baja» (`pitch()`): pared y mesa comparten la bisagra, que sigue el scroll 1:1. La pared se adelanta, la mesa llega después y rebota un poco hacia arriba al posarse. La pared se oscurece según su ángulo y lleva un margen de sobreescala del 15 %
-- Mesa pintada en acuarela al llegar (`src/table.ts` + `src/shaders/table.frag`) + capas vivas (luz de la ventanilla, sombras de árboles, café, boli, gafas, billete de Rodalies, vibración)
-- Papeles (`land()`): caen acelerando y con aleteo; la sombra (`--alto`) se separa y aclara con la altura; se asientan con un giro de 1–2°. La tapa del cuaderno (`openLeaf()`) se abre y rebota al quedar plana
-- Pantallas apaisadas ≥ 1000 × 780: mesa fija con timeline scrubbeado. Menores: cada papel cae al entrar (triggers por offsets de layout)
-- Tarea 3 (referencias para subir la calidad): `docs/referencias/scroll-calidad-transicion.md`. Aplicadas la 1 (ritmo), la 2 (caída con peso) y la 3 (lavado de pigmento en la pared, ver abajo)
-- **Referencia 3 · lavado de pigmento:** la sombra de la pared se pinta en su shader (`post`, uniforms `foldY`/`shade`, `world.setWash()`): nace en la bisagra y trepa por toda la pared, ventanilla incluida, según el ángulo; los textos se oscurecen con `--lavado`. `setWash()` repinta solo el pase de pintura, como mucho una vez por frame, para que se vea aunque el bucle del paisaje esté parado. `#sombra` es el fallback sin WebGL
-- Prototipos: lienzo Design https://claude.ai/artifact/AQpTBQebv8LaAfEkjYPuiw (páginas «Transición», «Mesa», «Tarea 3 · calidad», «Referencia 3 · lavado» con 3 variantes comparables)
+**Hero (paso 3.2, hecho):** «Capacasa» · «El tren a casa, y de vuelta a Barcelona». Un único billete «Billete · Sants ⇄ Reus» (⇄ cambia el sentido; los extremos son texto hasta 3.3/3.5). Tablero de 3 trayectos: 2 regionales + el próximo AVE, «R15 10:03 en 3 min → 11:33», todos pulsables; elegido, el AVE pasa a ser el tren grande. Regla con una marca: la bolita sobre el tren grande, «ahora» es una rayita naranja; el AVE en la regla con la misma raya que los regionales. De Reus por la noche, sin regionales pero con AVE, ese AVE va primero y detrás los regionales de mañana. Check 15 de `check.py` (`python3 scripts/check.py hero`).
+
+**Transición hero → mesa y viaje de letras:** hechos (`src/shelf.ts`, `src/letters.ts`). Con «Capacasa», tres letras se funden en el hueco de «Qué es».
 
 ## Siguiente paso
 
-1. Comprobar la web publicada en un móvil real (fluidez, toque en la regla). Revisada ya en Safari del simulador de iOS (28-09): ventanilla panorámica, paisaje ×2 y bisagra con la barra encogida. Pendientes de esa revisión: la barra flotante de Safari tapa el pie del hero, la mesa acaba antes que la página y la repisa pintada bajo la ventanilla se corta en los dos bordes
-2. Fase 3 · viaje de letras: **hecho** (`src/letters.ts` + capa `#letras`, ya en `main`). Fase 4 · tren de papel sobre una vía en la mesa: **aparcada** (28-09, decisión de Àlex: el diseño ya es suficientemente espectacular). Para retomarla: prototipo aprobado en la página «Transición»; reutilizar el patrón de `land()` (estado dibujado por un proxy, reversible con scrub) y la sombra según la altura
-3. **Nueva prioridad (28-09): producto antes que diseño.** En este orden: (a) generalizar la web a más trayectos: regionales de Renfe en Catalunya (sin R1–R8) y AVE/Avlo de Renfe Barcelona ↔ Camp de Tarragona (investigación: `docs/referencias/datos-horarios.md`); el origen se elige pulsando un billete y el destino pulsando el otro; (b) el nombre; (c) el copy
+1. **3.3 · selector de pueblo:** lista por corredor (4 grupos: R11 · R13 · R14+R15 · R16+R17) y tira de estaciones de la línea con el ramal al final. Pulsar el pueblo del billete lo abre. Referencia visual: rama desechable `prototipo/selector-pueblo` (`?variant=B&regla=1&sub=2`; nunca a `main`, reescribir sin copiar)
+2. 3.4 · recordar el trayecto + URL · 3.5 · estación de Barcelona (Sants, Passeig de Gràcia, El Clot, França) desde el billete
+3. Generalizar la mesa: folleto «Cómo leerla» (aún habla de dos billetes), cuaderno «Barcelona ↔ Reus», billete de Rodalies, «Qué es»
 4. Grabar el vídeo para X y LinkedIn
-5. Pendiente técnico: subir Three.js desde r128 (hoy ~186 KB comprimido, casi todo Three entero; las versiones nuevas permiten descartar lo que no se usa). Cambia luz y color: hacerlo con la paridad visual como red y renovar referencias solo si Àlex aprueba el resultado
+5. Pendiente técnico: subir Three.js desde r128, con la paridad visual como red
 
 ## Lecciones técnicas
 
@@ -44,14 +39,20 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 - Bajo software rendering, mezclar `rotateY` (el volteo) con `rotateZ`/`scale` en la ÚNICA matriz de un elemento confunde el backface culling: la cara frontal se ve espejada en vez de ocultarse. El volteo debe vivir en su propio hijo (`.flip`) con solo `rotateY`, dejando `rotateZ`/`scale`/`perspective` en el padre — así la sombra tampoco hereda el giro y su offset nunca sale espejado a media vuelta. Además, una ficha cuya cara trasera queda vacía (una letra que se funde en el hueco) mejor que nunca voltee: si no hay letra que enseñar, no hay volteo — la cara frontal simplemente se desvanece con `gone`, evitando el caso límite de una cara trasera sin contenido
 - Un rectángulo o mancha rara junto a una ficha durante el scroll puede no ser un bug de la ficha: compruébalo poniendo `#letras{display:none}` a mano en devtools/Playwright antes de asumir que es tuyo — si sigue ahí, es un objeto ya existente de la mesa que coincide en pantalla por casualidad
 - `innerWidth` incluye el ancho de una scrollbar clásica (no overlay); `document.documentElement.clientWidth` no. Un `position:fixed;inset:0` (como `#hero`) se mide con `innerWidth` (su containing block es el viewport completo, scrollbar incluida); un bloque en flujo normal sin ancho explícito (como `#repisa`) se mide con `clientWidth` (su containing block es el `body`, ya recortado) — el mismo motivo por el que `table.ts` ya usa `esc.clientWidth` y no `innerWidth`
+- `git pull`/`push` dan «Repository not found» salvo con la cuenta `alopedev`: usa el procedimiento de `CLAUDE.md` › Publicación también para `pull`, y vuelve a `alex-olive_raona`
+- Antes de cada commit, `git status`: un `git rm` ya preparado se cuela en el commit siguiente
+- Capturas con Playwright: `reduced_motion="reduce"` + `page.clock.set_fixed_time(...)` (`clock.install` bloquea `screenshot`); fuerza `.top,.info{opacity:1;transition:none}` para no capturar antes de la entrada
+- Verifica los datos contando, no solo leyendo: la revisión por subagente no vio un tren duplicado entre feeds ni pueblos descartados en silencio
+- Python no descarga de Renfe en esta máquina (SSL); `curl` sí. `extract_red.py --fomento/--avld RUTA --desde AAAA-MM-DD` regenera en local
+
 
 ## Pendiente y riesgos
 
-- Nombre de la web (lo decide Àlex)
-- Horarios: se actualizan solos cada día desde el 28-09 (`.github/workflows/horarios.yml`). Si falla, llega un email de GitHub y la web conserva los de ayer
-- Condiciones de uso de los datos abiertos de Renfe por verificar (probablemente exigen citar la fuente)
-- Fase 2 (no empezar sin decisión): actualización diaria automática, precios del AVE, subdominio gratuito, contador de visitas
+- Robot diario: si `red.json` falla su check, tampoco se publica `trains.json`. Claude recomendó dejarlo así; Àlex no ha respondido
+- Accesibilidad visible sin propuesta: la barra de Safari tapa el pie del hero (`safe-area-inset` no llega a `#hero` fijo) y el contraste de las etiquetas pequeñas de la regla (~4,2:1)
+- En el tablero, pulsar un trayecto de mañana muestra el de hoy a esa hora (heredado del hero anterior); con la vista de mañana la bolita se queda en «ahora»
+- En móvil, «Camp de Tarragona, en 47 min» ocupa tres líneas en la fila grande del AVE nocturno
 
 ## Cómo verificar
 
-`python3 scripts/build.py && python3 scripts/check.py` (varios minutos) y revisar las capturas de `screenshots/`.
+`npm run check` (varios minutos) y revisar las capturas de `screenshots/`. Modos rápidos: `python3 scripts/check.py hero|a11y|letras|red|paridad`.
