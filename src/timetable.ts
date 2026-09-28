@@ -24,15 +24,18 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     today = [...(ida ? d.r : d.b).map(t => ({t, ave:false})), ...(ida ? d.ar : d.ab).map(t => ({t, ave:true}))].sort((x, y) => x.t[0]-y.t[0]);
     const after = (list: Train[]) => list.filter(([dep]) => dep >= start + (state.useNow?2:0));
     let regs = after(ida ? d.r : d.b), aves = after(ida ? d.ar : d.ab), tomorrow = false;
-    if(!regs.length){ ({d, exact} = dayData(addDays(now.date,1))); regs = ida ? d.r : d.b; aves = ida ? d.ar : d.ab; tomorrow = true; }
-    // the train shown: the one chosen, or the next regional; the board adds the next ones and the next AVE
-    const ave = aves[0], isAve = !state.useNow && !tomorrow && state.ave && ave?.[0] === start;
+    // no regional left today: tomorrow's first ones, after the AVE still to come today, if there is one
+    const lastAve = regs.length ? undefined : aves[0];
+    if(!regs.length){ ({d, exact} = dayData(addDays(now.date,1))); regs = ida ? d.r : d.b; aves = ida ? d.ar : d.ab; tomorrow = !lastAve; }
+    // the train shown: the one chosen, or the next regional (today's last AVE when none is left); the board adds
+    // the next ones and the next AVE
+    const ave = lastAve ?? aves[0], isAve = lastAve ? true : !state.useNow && !tomorrow && state.ave && ave?.[0] === start;
     const a = isAve ? ave : regs[0];
     const live = state.useNow && !tomorrow;
-    byId('lbl').textContent = tomorrow ? 'Hoy ya no quedan · mañana' : '';
-    // the ruler has one mark: the knob always stands on the train shown (every tick is a train, the AVE its own
-    // mark); now is a thin line with its word
-    byId('ticks').innerHTML = today.map(({t, ave:v})=>`<i class="${v ? 'ave' : ''}${!tomorrow && v===isAve && t[0]===a[0] ? ' on' : ''}" style="left:${pos(t[0])}"></i>`).join('')
+    byId('lbl').textContent = lastAve ? 'Hoy ya no quedan regionales' : tomorrow ? 'Hoy ya no quedan · mañana' : '';
+    // the ruler has one mark: the knob always stands on the train shown (every tick is a train, the AVE like the
+    // rest); now is a thin line with its word
+    byId('ticks').innerHTML = today.map(({t, ave:v})=>`<i class="${!tomorrow && v===isAve && t[0]===a[0] ? 'on' : ''}" style="left:${pos(t[0])}"></i>`).join('')
       + `<b class="nowline" style="left:${pos(now.min)}"><span>ahora</span></b>`;
     tIn.value = String(tomorrow ? Math.min(R1, Math.max(R0, now.min)) : a[0]);
     // «Volver a ahora» stands on the side of the ruler away from «ahora», so it never covers the word
@@ -41,8 +44,8 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     nowBtn.hidden = state.useNow;
     if(world) world.setTime(tomorrow ? a[0] : start);
     table.setTime(tomorrow ? a[0] : start);
-    const trips = [...regs.slice(0, ave ? 2 : 3), ...(ave ? [ave] : [])].sort((x, y) => x[0]-y[0]);
-    const html = trips.map(t => trip(t, t === a, t === ave, live ? dur(t[0]-now.min) : '')).join('');
+    const trips = lastAve ? [lastAve, ...regs.slice(0, 2)] : [...regs.slice(0, ave ? 2 : 3), ...(ave ? [ave] : [])].sort((x, y) => x[0]-y[0]);
+    const html = trips.map(t => trip(t, t === a, t === ave, live ? dur(t[0]-now.min) : '', !!lastAve && t !== lastAve)).join('');
     const turn = shown !== null && shown !== a[0] + state.dir + isAve;
     if(html !== drawn || turn){ byId('board').innerHTML = drawn = html; if(turn && !reduce) byId('dep').classList.add('swap'); }
     if(shown !== a[0] + state.dir + isAve){ say(tomorrow, isAve ? (ida ? 'Sants' : 'Camp de Tarragona') : from, isAve ? (ida ? 'Camp de Tarragona' : 'Barcelona Sants') : to, a, isAve); shown = a[0] + state.dir + isAve; }
@@ -50,10 +53,11 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     byId('note').textContent = exact ? '' : 'Horario aproximado: aún no hay horario oficial de este día.';
     if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
   }
-  // one trip of the board: line, departure, where (the countdown, or Camp de Tarragona for the AVE), arrival.
-  // The train shown is big; the others are buttons that show them
-  function trip(t: Train, big: boolean, isAve: boolean, until: string){
-    const where = isAve ? 'Camp de Tarragona' : big ? `<span class="soon">${until && 'en ' + until}</span>` : '';
+  // one trip of the board: line, departure, where (the countdown, Camp de Tarragona for the AVE, «mañana» after
+  // today's last AVE), arrival. The train shown is big; the others are buttons that show them
+  function trip(t: Train, big: boolean, isAve: boolean, until: string, morrow: boolean){
+    const soon = big ? `<span class="soon">${until && 'en ' + until}</span>` : '';
+    const where = isAve ? (big && until ? `Camp de Tarragona, ${soon}` : 'Camp de Tarragona') : morrow ? 'mañana' : soon;
     // spaces between the cells: the grid ignores them, but the text (and a screen reader) keeps its words apart
     const cells = `<span class="pill" style="--c:${LINE[t[3]] ?? 'var(--shadow)'}">${t[3]}</span> <span class="t"${big ? ' id="dep"' : ''}>${hhmm(t[0])}</span> `
       + `<span class="w">${where}</span> <span class="t arr">→ ${hhmm(t[1])}</span>`;
