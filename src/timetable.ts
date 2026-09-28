@@ -10,17 +10,18 @@ import type { Scenery } from './scenery';
 
 // the hero's timetable: the next train, the ticket for the direction, the ruler of the day
 export function setupTimetable({ world, table, scenery }: { world: World | null, table: Table, scenery: Scenery }): { render(): void } {
-  const tIn = byId<HTMLInputElement>('t'), tOut = byId<HTMLOutputElement>('tOut'), nowBtn = byId<HTMLButtonElement>('nowBtn');
+  const tIn = byId<HTMLInputElement>('t'), nowBtn = byId<HTMLButtonElement>('nowBtn');
   const R0 = 300, R1 = 1439, pos = (m: number) => ((Math.min(R1,Math.max(R0,m))-R0)/(R1-R0)*100).toFixed(2)+'%';
   byId('hours').innerHTML = [6,9,12,15,18,21].map(x=>`<span style="left:${pos(x*60)}">${x} h</span>`).join('');
-  let todayTrains: Train[] = [], shown: string | null = null, drawn = '';
+  // today's trains on the ruler, regionals and AVE together in order of departure
+  let today: {t: Train, ave: boolean}[] = [], shown: string | null = null, drawn = '';
   function render(){
     const now = madridNow();
     const start = state.useNow ? now.min : state.minute ?? now.min;
     const ida = state.dir==='reus';
     const from = ida ? 'Sants' : 'Reus', to = ida ? 'Reus' : 'Barcelona Sants';
     let {d, exact} = dayData(now.date);
-    todayTrains = ida ? d.r : d.b;
+    today = [...(ida ? d.r : d.b).map(t => ({t, ave:false})), ...(ida ? d.ar : d.ab).map(t => ({t, ave:true}))].sort((x, y) => x.t[0]-y.t[0]);
     const after = (list: Train[]) => list.filter(([dep]) => dep >= start + (state.useNow?2:0));
     let regs = after(ida ? d.r : d.b), aves = after(ida ? d.ar : d.ab), tomorrow = false;
     if(!regs.length){ ({d, exact} = dayData(addDays(now.date,1))); regs = ida ? d.r : d.b; aves = ida ? d.ar : d.ab; tomorrow = true; }
@@ -29,11 +30,13 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     const a = isAve ? ave : regs[0];
     const live = state.useNow && !tomorrow;
     byId('lbl').textContent = tomorrow ? 'Hoy ya no quedan · mañana' : '';
-    // the ruler: every tick is a train, the chosen one stands taller
-    byId('ticks').innerHTML = todayTrains.map(([dep])=>`<i class="${!tomorrow && !isAve && dep===a[0]?'on':''}" style="left:${pos(dep)}"></i>`).join('');
-    tIn.value = String(state.useNow ? Math.min(R1, Math.max(R0, now.min)) : start);
-    byId('tLbl').textContent = state.useNow ? 'Son las' : 'Tren de las';
-    tOut.textContent = hhmm(state.useNow ? now.min : a[0]);
+    // the ruler has one mark: the knob always stands on the train shown (every tick is a train, the AVE its own
+    // mark); now is a thin line with its word
+    byId('ticks').innerHTML = today.map(({t, ave:v})=>`<i class="${v ? 'ave' : ''}${!tomorrow && v===isAve && t[0]===a[0] ? ' on' : ''}" style="left:${pos(t[0])}"></i>`).join('')
+      + `<b class="nowline" style="left:${pos(now.min)}"><span>ahora</span></b>`;
+    tIn.value = String(tomorrow ? Math.min(R1, Math.max(R0, now.min)) : a[0]);
+    // «Volver a ahora» stands on the side of the ruler away from «ahora», so it never covers the word
+    nowBtn.parentElement!.classList.toggle('left', now.min > (R0+R1)/2);
     tIn.setAttribute('aria-valuetext', tomorrow ? 'no quedan trenes hoy' : `${isAve ? 'AVE' : 'tren'} de las ${hhmm(a[0])}`);
     nowBtn.hidden = state.useNow;
     if(world) world.setTime(tomorrow ? a[0] : start);
@@ -69,23 +72,22 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
   // dragging or tapping the ruler lands on the nearest train, never between two
   let rq = 0;
   function snap(){
-    const v = +tIn.value; if(!todayTrains.length) return;
-    const near = todayTrains.reduce((b,[x]) => Math.abs(x-v) < Math.abs(b-v) ? x : b, todayTrains[0][0]);
-    state.useNow = false; state.minute = near; state.ave = false;
+    const v = +tIn.value; if(!today.length) return;
+    const near = today.reduce((b, x) => Math.abs(x.t[0]-v) < Math.abs(b.t[0]-v) ? x : b, today[0]);
+    state.useNow = false; state.minute = near.t[0]; state.ave = near.ave;
     if(!rq) rq = requestAnimationFrame(()=>{ rq=0; render(); });
   }
   tIn.addEventListener('input', snap); tIn.addEventListener('change', snap); tIn.addEventListener('pointerup', ()=> setTimeout(snap, 0));
-  // keys step from train to train
+  // keys step from train to train, AVE included
   tIn.addEventListener('keydown', e=>{
-    const shownDep = byId('dep').textContent ?? '';
-    const cur = +shownDep.slice(0,2)*60 + +shownDep.slice(3,5);
-    const deps = todayTrains.map(([x])=>x); let m: number | undefined;
-    if(e.key==='ArrowRight' || e.key==='ArrowUp') m = deps.find(x => x > cur);
-    else if(e.key==='ArrowLeft' || e.key==='ArrowDown') m = [...deps].reverse().find(x => x < cur);
-    else if(e.key==='Home') m = deps[0];
-    else if(e.key==='End') m = deps[deps.length-1];
+    const cur = +tIn.value, i = today.findIndex(x => x.t[0] === cur && x.ave === state.ave && !state.useNow);
+    let next: {t: Train, ave: boolean} | undefined;
+    if(e.key==='ArrowRight' || e.key==='ArrowUp') next = i >= 0 ? today[i+1] : today.find(x => x.t[0] > cur);
+    else if(e.key==='ArrowLeft' || e.key==='ArrowDown') next = i >= 0 ? today[i-1] : [...today].reverse().find(x => x.t[0] < cur);
+    else if(e.key==='Home') next = today[0];
+    else if(e.key==='End') next = today[today.length-1];
     else return;
-    e.preventDefault(); if(m != null) pick(m);
+    e.preventDefault(); if(next) pick(next.t[0], next.ave);
   });
   // a ragged scissor cut, different for every ticket, with the two punch notches of the stub
   function cut(seed: number){
