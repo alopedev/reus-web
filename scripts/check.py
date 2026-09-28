@@ -51,11 +51,14 @@ Rules checked:
      train shown changes (never on the 30 s refresh) and names its time; the other ticket's label reads «Cambiar a
      Barcelona», not «Cambiar a A Barcelona»; the recording shortcuts (R, P) work only with ?grabar in the URL; the
      «horario aproximado» note speaks impersonally. Modo rápido: `python3 scripts/check.py a11y`.
+  14. The site reads the network timetable (data/red.json; the parity build, its frozen copy
+     scripts/baseline/red.json): the back of the ticket credits «Origen de los datos: Renfe Operadora» with the
+     date the data was updated, as Renfe's licence asks. Modo rápido: `python3 scripts/check.py red`.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
-Usage: npm run build && npm run build:paridad && python3 scripts/check.py [paridad|letras|a11y]   (or: npm run check)
-       (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute; a11y: only check 13)
+Usage: npm run build && npm run build:paridad && python3 scripts/check.py [paridad|letras|a11y|red]   (or: npm run check)
+       (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute; a11y: only check 13; red: only check 14)
 """
 import asyncio, functools, http.server, io, os, pathlib, sys, threading
 from PIL import Image, ImageChops, ImageStat
@@ -711,6 +714,24 @@ async def check_a11y(browser):
     await page.close()
     return errs
 
+MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+
+async def check_red(browser):
+    """14. The site reads data/red.json: the attribution Renfe's licence asks for, with the data's update date."""
+    import json
+    red = json.loads((root / "scripts/baseline/red.json").read_text()) if (root / "scripts/baseline/red.json").exists() else None
+    if not red: return ["no frozen network timetable at scripts/baseline/red.json for the parity build"]
+    y, m, d = map(int, red["actualizado"].split("-"))
+    page = await open_page(browser, viewport={"width": 1440, "height": 900}, reduced_motion="reduce")
+    await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
+    await page.goto(parity_url); await page.wait_for_timeout(1500)
+    text = " ".join((await page.evaluate("document.getElementById('reverso').textContent")).split())
+    await page.close()
+    errs = []
+    if red["fuente"] not in text: errs.append(f"the back of the ticket does not credit «{red['fuente']}» (it reads «{text[-90:]}»)")
+    if f"{d} de {MONTHS[m - 1]} de {y}" not in text: errs.append(f"the back of the ticket does not give the data's update date, {d} de {MONTHS[m - 1]} de {y}")
+    return errs
+
 async def main():
     failures = []
     async with async_playwright() as p:
@@ -719,6 +740,9 @@ async def main():
         if sys.argv[1:] == ["letras"]:
             failures += await check_letters_suite(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · letras"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["red"]:
+            failures += await check_red(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · red"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["a11y"]:
             failures += await check_a11y(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · a11y"); sys.exit(1 if failures else 0)
@@ -765,6 +789,7 @@ async def main():
             await page.close()
         failures += await check_sizes(browser)
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
+        failures += [f"red: {e}" for e in await check_red(browser)]
         failures += [f"reduced: {e}" for e in await check_still_window(browser)]
         # reduced motion: a still frame and every paper already in place
         page = await open_page(browser, viewport={"width": 1440, "height": 860}, reduced_motion="reduce")
