@@ -777,6 +777,14 @@ async def check_hero(browser):
     if b["soon"] != "en 47 min": errs.append(f"at 21:30 from Reus .soon reads «{b['soon']}», expected «en 47 min»")
     if "Hoy ya no quedan regionales" not in b["info"]: errs.append("at 21:30 from Reus the board does not say «Hoy ya no quedan regionales»")
     await page.close()
+    # «ahora» at both ends of the day (00:30 is clamped to the ruler's start, 23:59 is its end) never leaves the screen
+    for at, when in (("2026-09-28T22:30:00Z", "00:30"), ("2026-09-28T21:59:00Z", "23:59")):
+        for w, h in ((390, 844), (1440, 900)):
+            page = await hero_page(browser, w, h, at=at)
+            out = await page.evaluate("""(() => { const b = document.querySelector('.nowline span')?.getBoundingClientRect();
+              return b ? b.left < -1 || b.right > innerWidth + 1 : 'missing'; })()""")
+            if out: errs.append(f"{w}x{h} at {when}: the word «ahora» leaves the screen ({out})")
+            await page.close()
     # late in the evening «ahora» sits on the right of the ruler, where «Volver a ahora» used to be
     for w, h in ((390, 844), (1440, 900)):
         page = await hero_page(browser, w, h, at="2026-09-28T21:10:00Z")
