@@ -60,9 +60,10 @@ Rules checked:
      departure: «R15 10:03 en 3 min → 11:33», «en X min» only on the train shown (the first regional while live), no
      headings and no «Luego»/«Anterior»; the other trips are buttons, and choosing one, AVE included, makes it the
      train shown. With no trains left today it shows tomorrow's first ones under «Hoy ya no quedan · mañana». The ruler of the day has one
-     mark: every train is a tick, the AVE with its own mark; the knob always stands on the train shown; «ahora» is a
+     mark: every train is a tick, the AVE like the rest; the knob always stands on the train shown; «ahora» is a
      thin line with its word, with no «Son las HH:MM» heading; «Volver a ahora» never covers that word; the arrow
-     keys step through every train, AVE included. Modo rápido: `python3 scripts/check.py hero`.
+     keys step through every train, AVE included. From Reus in the evening, when no regional is left but an AVE
+     from Camp de Tarragona is, that AVE is the train shown and tomorrow's first regionals follow it, marked «mañana». Modo rápido: `python3 scripts/check.py hero`.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
@@ -766,6 +767,16 @@ async def check_hero(browser):
     errs += await check_hero_board(page)
     errs += await check_hero_ruler(page)
     await page.close()
+    # 21:30, from Reus: no regional left today, but two AVE from Camp de Tarragona (22:17, 22:39)
+    page = await hero_page(browser, at="2026-09-28T19:30:00Z")
+    await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    b = await page.evaluate(BOARD); r = await page.evaluate(RULER)
+    want = ["AVE 22:17 Camp de Tarragona, en 47 min → 22:59", "R15 05:36 mañana → 07:07", "R15 06:06 mañana → 07:37"]
+    if b["rows"] != want: errs.append(f"at 21:30 from Reus the board reads {b['rows']}, expected today's AVE and tomorrow's first regionals {want}")
+    if b["dep"] != "22:17" or r["knob"] != 1337: errs.append(f"at 21:30 from Reus the train shown is {b['dep']} with the knob at {r['knob']}, expected the 22:17 AVE (1337)")
+    if b["soon"] != "en 47 min": errs.append(f"at 21:30 from Reus .soon reads «{b['soon']}», expected «en 47 min»")
+    if "Hoy ya no quedan regionales" not in b["info"]: errs.append("at 21:30 from Reus the board does not say «Hoy ya no quedan regionales»")
+    await page.close()
     # late in the evening «ahora» sits on the right of the ruler, where «Volver a ahora» used to be
     for w, h in ((390, 844), (1440, 900)):
         page = await hero_page(browser, w, h, at="2026-09-28T21:10:00Z")
@@ -790,7 +801,8 @@ BOARD = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), rows = [...do
           aviso: document.getElementById('aviso').textContent}; })()"""
 
 RULER = """(() => { const t = document.getElementById('t'), line = document.querySelector('.nowline');
-  return {ticks: document.querySelectorAll('#ticks i').length, ave: document.querySelectorAll('#ticks i.ave').length, knob: +t.value,
+  const look = i => { const c = getComputedStyle(i); return [c.width, c.height, c.borderRadius, c.backgroundColor, c.opacity].join(); };
+  return {ticks: document.querySelectorAll('#ticks i').length, looks: new Set([...document.querySelectorAll('#ticks i:not(.on)')].map(look)).size, knob: +t.value,
           text: t.getAttribute('aria-valuetext'), now: line ? line.textContent.trim() : null, nowAt: line ? parseFloat(line.style.left) : null,
           head: document.querySelector('.rulerHead').innerText, dep: document.getElementById('dep').textContent}; })()"""
 
@@ -798,7 +810,8 @@ async def check_hero_ruler(page):
     """At 10:00, Sants → Reus on the frozen timetable: 20 regionals and 14 AVE on the ruler."""
     errs = []
     r = await page.evaluate(RULER)
-    if (r["ticks"], r["ave"]) != (34, 14): errs.append(f"the ruler has {r['ticks']} ticks, {r['ave']} of them AVE; expected 34 and 14")
+    if r["ticks"] != 34: errs.append(f"the ruler has {r['ticks']} ticks, expected 34 (20 regionals and 14 AVE)")
+    if r["looks"] != 1: errs.append(f"the ruler's ticks look {r['looks']} different ways, expected one (the AVE like the rest)")
     if r["knob"] != 603: errs.append(f"the knob stands at minute {r['knob']}, expected 603 (the train shown, 10:03)")
     if r["now"] != "ahora": errs.append(f"the ruler's now mark reads «{r['now']}», expected a thin line with «ahora»")
     elif abs(r["nowAt"] - (600 - 300) / (1439 - 300) * 100) > .1: errs.append(f"«ahora» stands at {r['nowAt']}%, not at 10:00")
