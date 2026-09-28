@@ -55,8 +55,12 @@ Rules checked:
      date the data was updated, as Renfe's licence asks. Modo rápido: `python3 scripts/check.py red`.
   15. The hero B (docs/plan.md, 28-09): the site is called «Capacasa» (title and h1) with the subtitle «El tren a
      casa, y de vuelta a Barcelona». One ticket, «Billete · Sants ⇄ Reus»: ⇄ turns the trip around (the
-     route reads «Reus ⇄ Sants», the live region names the new train, the focus stays on ⇄). Modo rápido:
-     `python3 scripts/check.py hero`.
+     route reads «Reus ⇄ Sants», the live region names the new train, the focus stays on ⇄). A board of
+     three trips, two regionals and the next AVE from Camp de Tarragona (Reus is in the Baix Camp), in order of
+     departure: «R15 10:03 en 3 min → 11:33», «en X min» only on the train shown (the first regional while live), no
+     headings and no «Luego»/«Anterior»; the other trips are buttons, and choosing one, AVE included, makes it the
+     train shown. With no trains left today it shows tomorrow's first ones under «Hoy ya no quedan · mañana». Modo
+     rápido: `python3 scripts/check.py hero`.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
@@ -693,7 +697,7 @@ async def check_a11y(browser):
     after = await page.evaluate(LIVE)
     talk = await page.evaluate("window.__talk")
     if after["dep"] == live["dep"] and talk: errs.append(f"the live region speaks {talk} times in a minute with the same train ({live['dep']})")
-    pick = await page.evaluate("(() => { const b = document.querySelector('.tt'); if(!b) return null; b.click(); return b.textContent; })()")
+    pick = await page.evaluate("(() => { const b = document.querySelector('.tt'); if(!b) return null; b.click(); return b.querySelector('.t').textContent; })()")
     await page.wait_for_timeout(300)
     said = (await page.evaluate(LIVE))["text"]
     if pick and pick not in said: errs.append(f"choosing the {pick} train is not announced (live region: «{said[:80]}»)")
@@ -757,7 +761,49 @@ async def check_hero(browser):
     if got["name"] != NAME: errs.append(f"the name on the wall is «{got['name']}», expected «{NAME}»")
     if got["sub"] != SUBTITLE: errs.append(f"the subtitle is «{got['sub']}», expected «{SUBTITLE}»")
     errs += await check_hero_ticket(page)
+    errs += await check_hero_board(page)
     await page.close()
+    # at 23:30 no train is left today: tomorrow's first ones, and the board says so
+    page = await hero_page(browser, at="2026-09-28T21:30:00Z")
+    b = await page.evaluate(BOARD)
+    want = ["AVE 05:50 Camp de Tarragona → 06:22", "R15 06:33 → 08:03", "R15 07:03 → 08:33"]
+    if b["rows"] != want: errs.append(f"at 23:30 the board reads {b['rows']}, expected tomorrow's first trips {want}")
+    if "Hoy ya no quedan" not in b["info"]: errs.append("at 23:30 the board does not say «Hoy ya no quedan · mañana»")
+    await page.close()
+    return errs
+
+BOARD = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), rows = [...document.querySelectorAll('#board .trip')];
+  return {rows: rows.map(r => n(r.textContent)), buttons: rows.map(r => r.matches('button.tt')), dep: document.getElementById('dep')?.textContent,
+          soon: document.querySelector('.soon')?.textContent.trim(), info: n(document.getElementById('info').textContent),
+          aviso: document.getElementById('aviso').textContent}; })()"""
+
+async def check_hero_board(page):
+    """Three trips at 10:00 on the frozen timetable (Sants → Reus: R15 10:03, R15 11:03, AVE 12:00; Reus → Sants:
+    AVE 10:30, R15 10:36, R15 11:36); choosing a trip, AVE included, makes it the train shown."""
+    errs = []
+    async def expect(when, rows, dep, soon):
+        b = await page.evaluate(BOARD)
+        if b["rows"] != rows: errs.append(f"{when}: the board reads {b['rows']}, expected {rows}"); return b
+        if b["dep"] != dep: errs.append(f"{when}: the train shown (#dep) is {b['dep']}, expected {dep}")
+        if b["soon"] != soon: errs.append(f"{when}: .soon reads «{b['soon']}», expected «{soon}»")
+        big = [r.split()[1] for r, btn in zip(b["rows"], b["buttons"]) if not btn]
+        if big != [dep]: errs.append(f"{when}: the trips that are not buttons are {big}, expected only the train shown, {dep}")
+        return b
+    b = await expect("at 10:00", ["R15 10:03 en 3 min → 11:33", "R15 11:03 → 12:33", "AVE 12:00 Camp de Tarragona → 12:31"], "10:03", "en 3 min")
+    for word in ("Próximo", "Luego", "Anterior", "Tren elegido"):
+        if word in b["info"]: errs.append(f"the board still says «{word}»")
+    await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    await expect("at 10:00, Reus → Sants", ["AVE 10:30 Camp de Tarragona → 11:11", "R15 10:36 en 36 min → 12:07", "R15 11:36 → 13:07"], "10:36", "en 36 min")
+    await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    async def choose(time):
+        ok = await page.evaluate(f"(() => {{ const b = [...document.querySelectorAll('#board button.tt')].find(b => b.querySelector('.t').textContent === '{time}'); if(b) b.click(); return !!b; }})()")
+        await page.wait_for_timeout(300); return ok
+    if not await choose("12:00"): return errs + ["the AVE at 12:00 is not a button"]
+    b = await expect("after choosing the AVE", ["AVE 12:00 Camp de Tarragona → 12:31", "R14 12:03 → 13:33", "R15 13:03 → 14:35"], "12:00", "")
+    if "AVE" not in b["aviso"] or "Camp de Tarragona" not in b["aviso"]: errs.append(f"choosing the AVE, the live region does not say it is an AVE to Camp de Tarragona («{b['aviso']}»)")
+    if not await choose("12:03"): return errs + ["the R14 at 12:03 is not a button"]
+    await expect("after choosing the 12:03", ["R14 12:03 → 13:33", "AVE 12:50 Camp de Tarragona → 13:22", "R15 13:03 → 14:35"], "12:03", "")
+    await page.click("#nowBtn"); await page.wait_for_timeout(300)
     return errs
 
 TICKET = """(() => { const t = [...document.querySelectorAll('#tickets .tk')], sw = document.querySelector('.tk .swap');
