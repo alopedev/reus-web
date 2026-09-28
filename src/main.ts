@@ -15,7 +15,9 @@ const table = createTable();
 const scenery = createScenery(world);
 const { render } = setupTimetable({ world, table, scenery });
 render();
-document.fonts && document.fonts.ready.then(()=> world && world.resize());
+// the window's size depends on the tickets and the fonts: measure it again once they are in, and repaint the still
+// frame too (reduced motion, or paused), which otherwise keeps the window where it was first painted
+document.fonts && document.fonts.ready.then(()=> { if(!world) return; world.resize(); if(!scenery.isPlaying()) world.frame(0, 0, 1); });
 scenery.repaint();
 setupShelf(world);
 
