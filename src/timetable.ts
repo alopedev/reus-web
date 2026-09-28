@@ -35,13 +35,17 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     byId('soon').innerHTML = tomorrow ? 'Hoy ya no quedan trenes. El primero de mañana' :
       live ? `Sale de ${from} en <strong>${dur(a[0]-now.min)}</strong>` : `Sale de ${from}`;
     const dep = byId('dep');
-    if(shown !== a[0] + state.dir){ dep.textContent = hhmm(a[0]); if(shown !== null){ dep.classList.remove('swap'); void dep.offsetWidth; dep.classList.add('swap'); } shown = a[0] + state.dir; }
+    if(shown !== a[0] + state.dir){ dep.textContent = hhmm(a[0]); say(tomorrow, from, to, a); if(shown !== null){ dep.classList.remove('swap'); void dep.offsetWidth; dep.classList.add('swap'); } shown = a[0] + state.dir; }
     drawTickets(from, to, a);
     byId('then').innerHTML = rest.length ? `Luego ${rest.map(r=>`<button type="button" class="tt" data-m="${r[0]}" aria-label="Ver el tren de las ${hhmm(r[0])}">${hhmm(r[0])}</button>`).join(' y ')}` : '';
     const prev = !tomorrow && !live ? [...todayTrains].reverse().find(([x]) => x < a[0]) : null;
     byId('prev').innerHTML = prev ? `Anterior <button type="button" class="tt" data-m="${prev[0]}" aria-label="Ver el tren anterior, de las ${hhmm(prev[0])}">${hhmm(prev[0])}</button>` : '';
-    byId('note').textContent = exact ? '' : 'Horario aproximado: aún no tengo el oficial de este día.';
+    byId('note').textContent = exact ? '' : 'Horario aproximado: aún no hay horario oficial de este día.';
     if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
+  }
+  // what a screen reader hears: the train, only when it changes (never the countdown's refresh)
+  function say(tomorrow: boolean, from: string, to: string, a: Train){
+    byId('aviso').textContent = `${tomorrow ? 'Hoy ya no quedan trenes. El primero de mañana' : byId('lbl').textContent}: ${hhmm(a[0])}, de ${from} a ${to}; llega a las ${hhmm(a[1])}.`;
   }
   function pick(m: number){ state.useNow = false; state.minute = m; render(); }
   nowBtn.addEventListener('click', ()=>{ state.useNow = true; render(); tIn.focus({preventScroll:true}); });
@@ -78,7 +82,7 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     return `polygon(${pts.join(',')})`;
   }
   function drawTickets(from: string, to: string, a: Train){
-    const other: {d: Direction, route: string, title: string} = state.dir==='reus' ? {d:'bcn', route:'Reus → Sants', title:'A Barcelona'} : {d:'reus', route:'Sants → Reus', title:'A Reus'};
+    const other: {d: Direction, route: string, title: string, to: string} = state.dir==='reus' ? {d:'bcn', route:'Reus → Sants', title:'A Barcelona', to:'Barcelona'} : {d:'reus', route:'Sants → Reus', title:'A Reus', to:'Reus'};
     const mins = a[1]-a[0];
     byId('tickets').innerHTML = `
       <button type="button" class="tk on" aria-pressed="true" style="--cut:${cut(7)}">
@@ -86,7 +90,7 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
         <span class="route">${from} → ${to==='Barcelona Sants'?'Sants':to}</span>
         <span class="row">Llega a las <b>${hhmm(a[1])}</b> · ${dur(mins)}</span></span><span class="stub" aria-hidden="true"></span>
       </button>
-      <button type="button" class="tk off" data-d="${other.d}" aria-pressed="false" style="--cut:${cut(23)}" aria-label="Cambiar a ${other.title}">
+      <button type="button" class="tk off" data-d="${other.d}" aria-pressed="false" style="--cut:${cut(23)}" aria-label="Cambiar a ${other.to}">
         <span class="pp"><span class="k">${other.route}</span><span class="route">${other.title}</span></span><span class="stub" aria-hidden="true"></span>
       </button>`;
   }

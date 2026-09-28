@@ -5,7 +5,8 @@ import type { World } from './world';
 export interface Scenery { repaint(): void; kick(): void; isPlaying(): boolean }
 
 // the landscape's loop: it paints itself in, then the train sets off; it rests when the hero is out of view
-// or the tab is hidden. R repaints and P pauses, for recording only
+// or the tab is hidden. R repaints and P pauses, for recording only: with ?grabar in the URL (one-key shortcuts
+// would fire by accident for the public, WCAG 2.1.4)
 export function createScenery(world: World | null): Scenery {
   const PAINT = 4.6, SPEED = 22;
   let t0 = performance.now(), lastT = t0, rafId = 0, acc = 0, v = 0, playing = !reduce;
@@ -30,7 +31,7 @@ export function createScenery(world: World | null): Scenery {
   function kick(){ if(!rafId && world){ lastT = performance.now(); rafId = requestAnimationFrame(loop); } }
   document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && playing) kick(); });
   addEventListener('resize', ()=>{ if(!playing && world) world.frame(0,0,1); });
-  addEventListener('keydown', e=>{
+  if(new URLSearchParams(location.search).has('grabar')) addEventListener('keydown', e=>{
     if((e.target as Element).closest?.('input,button')) return;
     if(e.key==='r' || e.key==='R') repaint();
     if(e.key==='p' || e.key==='P'){ playing=!playing; if(playing) kick(); }   // space is left to scroll the page

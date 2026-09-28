@@ -22,5 +22,5 @@ scenery.repaint();
 setupShelf(world);
 
 // what check.py reads from the page (modules keep everything else private)
-declare global { interface Window { reus: { hingeAt: typeof hingeAt, dropped: typeof dropped, ScrollTrigger: typeof ScrollTrigger, paisaje: () => number | null, letras: { pair: typeof pair, state: typeof state } } } }
-window.reus = { hingeAt, dropped, ScrollTrigger, paisaje: () => world ? world.grain() : null, letras: { pair, state } };
+declare global { interface Window { reus: { hingeAt: typeof hingeAt, dropped: typeof dropped, ScrollTrigger: typeof ScrollTrigger, paisaje: () => number | null, playing: () => boolean, letras: { pair: typeof pair, state: typeof state } } } }
+window.reus = { hingeAt, dropped, ScrollTrigger, paisaje: () => world ? world.grain() : null, playing: scenery.isPlaying, letras: { pair, state } };
