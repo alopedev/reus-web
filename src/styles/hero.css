@@ -24,28 +24,27 @@
 .winCell{ display:grid; place-items:center; min-height:0; container-type:size; }
 #win{ width:min(60vw, 100cqw, 100cqh * 1.62); aspect-ratio:1.62; border-radius:2.7rem; }
 
-/* the departure, on the lower panel of the carriage */
-.info{ display:grid; grid-template-columns:auto 1fr; align-items:end; column-gap:2.7rem; row-gap:.6rem; }
-.dep{ font-family:var(--serif); font-weight:400; margin:0; line-height:.85; letter-spacing:-.02em;
-  font-size:8.4rem; text-shadow:.05em .05em 0 var(--shadow); }
-.lines{ padding-bottom:.35rem; text-shadow:0 1px 2px rgba(0,0,0,.35); }
-.lines p{ margin:0; }
-.soon{ font-size:1.12rem; color:var(--soft); }
-.soon strong{ color:var(--paper); }
-.arr{ font-family:var(--serif); font-size:1.8rem; margin-top:.15rem!important; }
-.then{ margin-top:.3rem!important; color:var(--soft); font-size:1.1rem; }
-.then b{ font-family:var(--serif); font-weight:400; font-size:1.22em; color:var(--paper); margin:0 .12em; }
-/* the following trains are doors to the next option */
-.tt{ font:inherit; font-family:var(--serif); font-weight:400; font-size:1.22em; color:var(--paper); background:none; border:0; padding:.05em .1em; margin:0 .06em; cursor:pointer;
-  text-decoration:underline dotted; text-decoration-thickness:1.5px; text-underline-offset:.22em; text-shadow:inherit; }
-.tt:hover{ text-decoration-style:solid; }
+/* the departures, on the lower panel of the carriage: a painted board, one row per trip, the train shown big */
+.info{ display:grid; grid-template-columns:minmax(0,1fr); align-items:end; row-gap:.6rem; }
+.label:empty{ display:none; }
+.board{ display:grid; grid-template-columns:auto auto minmax(0,1fr) auto; align-items:baseline; column-gap:1.1rem; row-gap:.25rem;
+  color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.35); }
+.trip{ display:grid; grid-column:1 / -1; grid-template-columns:subgrid; align-items:baseline; }
+.pill{ display:inline-block; font:700 .93rem/1 var(--sans); color:#fff; background:var(--c); padding:.28em .45em; border-radius:.3em;
+  letter-spacing:.02em; text-shadow:none; }
+.trip .t{ font-family:var(--serif); font-weight:400; font-size:1.5rem; }
+.trip .w{ font-size:1rem; line-height:1.15; color:var(--soft); }
+.trip .arr{ color:var(--soft); font-size:1.3rem; white-space:nowrap; }
+#dep{ font-size:4.6rem; line-height:.9; letter-spacing:-.02em; text-shadow:.05em .05em 0 var(--shadow); }
+.big .arr{ color:var(--paper); font-size:1.8rem; }
+/* the other trips are doors to them: the whole row presses, its time carries the dotted underline */
+.tt{ font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; text-align:left; cursor:pointer; text-shadow:inherit; }
+.tt .t:not(.arr){ text-decoration:underline dotted; text-decoration-thickness:1.5px; text-underline-offset:.22em; }
+.tt:hover .t:not(.arr){ text-decoration-style:solid; }
 .tt:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
-.prev{ margin-top:.2rem!important; color:var(--soft); font-size:1.02rem; }
-.prev:empty{ display:none; }
-.dep.swap{ animation:swap .45s ease; }
+#dep.swap{ animation:swap .45s ease; }
 @keyframes swap{ from{ opacity:.2; transform:translateY(8px); } to{ opacity:1; transform:none; } }
-@media (prefers-reduced-motion: reduce){ .dep.swap{ animation:none; } }
-.note{ font-size:.93rem; color:var(--soft); margin-top:.3rem!important; }
+.note{ font-size:.93rem; color:var(--soft); margin:0; text-shadow:0 1px 2px rgba(0,0,0,.35); }
 .note:empty{ display:none; }
 
 /* the day as a ruler: each tick is a train */
@@ -86,9 +85,9 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
      (.022 of the screen's height around #win, watercolor.frag) needs room above and below, or it touches the tickets */
   #win{ width:calc(100cqw - 2.2rem); height:min(100cqh - 4.4vh - 1rem, (100cqw - 2.2rem) / 1.05); aspect-ratio:auto; border-radius:1.75rem; }
   /* a compact departure leaves the height to the window */
-  .info{ grid-template-columns:minmax(0,1fr); row-gap:.3rem; }
-  .dep{ font-size:4.4rem; }
-  .then{ margin-top:.1rem!important; }
+  .info{ row-gap:.3rem; }
+  .board{ column-gap:.6rem; }
+  #dep{ font-size:3.2rem; } .trip .t{ font-size:1.2rem; } .trip .w{ font-size:.85rem; }
   .ruler{ margin-top:.4rem; }
 }
 .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }

@@ -1,5 +1,8 @@
 import { reduce, state } from './state';
 import { madridNow, addDays, hhmm, dur, dayData, lastDay, source, type Train } from './time';
+
+// each line's colour, as Renfe paints it; the AVE in the carriage's dark ink
+const LINE: Record<string, string> = { R11:'#0064A7', R13:'#E52782', R14:'#6A2C91', R15:'#9B7B5A', R16:'#B8114E', R17:'#F39700' };
 import { byId } from './dom';
 import type { World } from './world';
 import type { Table } from './table';
@@ -10,52 +13,65 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
   const tIn = byId<HTMLInputElement>('t'), tOut = byId<HTMLOutputElement>('tOut'), nowBtn = byId<HTMLButtonElement>('nowBtn');
   const R0 = 300, R1 = 1439, pos = (m: number) => ((Math.min(R1,Math.max(R0,m))-R0)/(R1-R0)*100).toFixed(2)+'%';
   byId('hours').innerHTML = [6,9,12,15,18,21].map(x=>`<span style="left:${pos(x*60)}">${x} h</span>`).join('');
-  let todayTrains: Train[] = [], shown: string | null = null;
+  let todayTrains: Train[] = [], shown: string | null = null, drawn = '';
   function render(){
     const now = madridNow();
     const start = state.useNow ? now.min : state.minute ?? now.min;
-    const key = state.dir==='reus' ? 'r' : 'b';
-    const from = state.dir==='reus' ? 'Sants' : 'Reus', to = state.dir==='reus' ? 'Reus' : 'Barcelona Sants';
-    let iso = now.date, {d, exact} = dayData(iso);
-    todayTrains = d[key];
-    let list = d[key].filter(([dep]) => dep >= start + (state.useNow?2:0)).slice(0,3), tomorrow = false;
-    if(!list.length){ iso = addDays(now.date,1); ({d, exact} = dayData(iso)); list = d[key].slice(0,3); tomorrow = true; }
-    const [a, ...rest] = list;
+    const ida = state.dir==='reus';
+    const from = ida ? 'Sants' : 'Reus', to = ida ? 'Reus' : 'Barcelona Sants';
+    let {d, exact} = dayData(now.date);
+    todayTrains = ida ? d.r : d.b;
+    const after = (list: Train[]) => list.filter(([dep]) => dep >= start + (state.useNow?2:0));
+    let regs = after(ida ? d.r : d.b), aves = after(ida ? d.ar : d.ab), tomorrow = false;
+    if(!regs.length){ ({d, exact} = dayData(addDays(now.date,1))); regs = ida ? d.r : d.b; aves = ida ? d.ar : d.ab; tomorrow = true; }
+    // the train shown: the one chosen, or the next regional; the board adds the next ones and the next AVE
+    const ave = aves[0], isAve = !state.useNow && !tomorrow && state.ave && ave?.[0] === start;
+    const a = isAve ? ave : regs[0];
     const live = state.useNow && !tomorrow;
-    byId('lbl').textContent = state.useNow || tomorrow ? 'Próximo tren' : 'Tren elegido';
+    byId('lbl').textContent = tomorrow ? 'Hoy ya no quedan · mañana' : '';
     // the ruler: every tick is a train, the chosen one stands taller
-    byId('ticks').innerHTML = todayTrains.map(([dep])=>`<i class="${!tomorrow && dep===a[0]?'on':''}" style="left:${pos(dep)}"></i>`).join('');
+    byId('ticks').innerHTML = todayTrains.map(([dep])=>`<i class="${!tomorrow && !isAve && dep===a[0]?'on':''}" style="left:${pos(dep)}"></i>`).join('');
     tIn.value = String(state.useNow ? Math.min(R1, Math.max(R0, now.min)) : start);
     byId('tLbl').textContent = state.useNow ? 'Son las' : 'Tren de las';
     tOut.textContent = hhmm(state.useNow ? now.min : a[0]);
-    tIn.setAttribute('aria-valuetext', tomorrow ? 'no quedan trenes hoy' : `tren de las ${hhmm(a[0])}`);
+    tIn.setAttribute('aria-valuetext', tomorrow ? 'no quedan trenes hoy' : `${isAve ? 'AVE' : 'tren'} de las ${hhmm(a[0])}`);
     nowBtn.hidden = state.useNow;
     if(world) world.setTime(tomorrow ? a[0] : start);
     table.setTime(tomorrow ? a[0] : start);
-    byId('soon').innerHTML = tomorrow ? 'Hoy ya no quedan trenes. El primero de mañana' :
-      live ? `Sale de ${from} en <strong>${dur(a[0]-now.min)}</strong>` : `Sale de ${from}`;
-    const dep = byId('dep');
-    if(shown !== a[0] + state.dir){ dep.textContent = hhmm(a[0]); say(tomorrow, from, to, a); if(shown !== null){ dep.classList.remove('swap'); void dep.offsetWidth; dep.classList.add('swap'); } shown = a[0] + state.dir; }
-    ends[0].textContent = from; ends[1].textContent = state.dir==='reus' ? 'Reus' : 'Sants';
-    byId('then').innerHTML = rest.length ? `Luego ${rest.map(r=>`<button type="button" class="tt" data-m="${r[0]}" aria-label="Ver el tren de las ${hhmm(r[0])}">${hhmm(r[0])}</button>`).join(' y ')}` : '';
-    const prev = !tomorrow && !live ? [...todayTrains].reverse().find(([x]) => x < a[0]) : null;
-    byId('prev').innerHTML = prev ? `Anterior <button type="button" class="tt" data-m="${prev[0]}" aria-label="Ver el tren anterior, de las ${hhmm(prev[0])}">${hhmm(prev[0])}</button>` : '';
+    const trips = [...regs.slice(0, ave ? 2 : 3), ...(ave ? [ave] : [])].sort((x, y) => x[0]-y[0]);
+    const html = trips.map(t => trip(t, t === a, t === ave, live ? dur(t[0]-now.min) : '')).join('');
+    const turn = shown !== null && shown !== a[0] + state.dir + isAve;
+    if(html !== drawn || turn){ byId('board').innerHTML = drawn = html; if(turn && !reduce) byId('dep').classList.add('swap'); }
+    if(shown !== a[0] + state.dir + isAve){ say(tomorrow, isAve ? (ida ? 'Sants' : 'Camp de Tarragona') : from, isAve ? (ida ? 'Camp de Tarragona' : 'Barcelona Sants') : to, a, isAve); shown = a[0] + state.dir + isAve; }
+    ends[0].textContent = from; ends[1].textContent = ida ? 'Reus' : 'Sants';
     byId('note').textContent = exact ? '' : 'Horario aproximado: aún no hay horario oficial de este día.';
     if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
   }
-  // what a screen reader hears: the train, only when it changes (never the countdown's refresh)
-  function say(tomorrow: boolean, from: string, to: string, a: Train){
-    byId('aviso').textContent = `${tomorrow ? 'Hoy ya no quedan trenes. El primero de mañana' : byId('lbl').textContent}: ${hhmm(a[0])}, de ${from} a ${to}; llega a las ${hhmm(a[1])}.`;
+  // one trip of the board: line, departure, where (the countdown, or Camp de Tarragona for the AVE), arrival.
+  // The train shown is big; the others are buttons that show them
+  function trip(t: Train, big: boolean, isAve: boolean, until: string){
+    const where = isAve ? 'Camp de Tarragona' : big ? `<span class="soon">${until && 'en ' + until}</span>` : '';
+    // spaces between the cells: the grid ignores them, but the text (and a screen reader) keeps its words apart
+    const cells = `<span class="pill" style="--c:${LINE[t[3]] ?? 'var(--shadow)'}">${t[3]}</span> <span class="t"${big ? ' id="dep"' : ''}>${hhmm(t[0])}</span> `
+      + `<span class="w">${where}</span> <span class="t arr">→ ${hhmm(t[1])}</span>`;
+    if(big) return `<div class="trip big">${cells}</div>`;
+    const label = `${isAve ? 'AVE' : t[3]} de las ${hhmm(t[0])}${isAve ? (state.dir==='reus' ? ' a' : ' desde') + ' Camp de Tarragona' : ''}, llega a las ${hhmm(t[1])}`;
+    return `<button type="button" class="trip tt" data-m="${t[0]}"${isAve ? ' data-ave' : ''} aria-label="${label}">${cells}</button>`;
   }
-  function pick(m: number){ state.useNow = false; state.minute = m; render(); }
+  // what a screen reader hears: the train, only when it changes (never the countdown's refresh)
+  function say(tomorrow: boolean, from: string, to: string, a: Train, isAve: boolean){
+    byId('aviso').textContent = `${tomorrow ? 'Hoy ya no quedan trenes. El primero de mañana' : state.useNow ? 'Próximo tren' : 'Tren elegido'}: ${hhmm(a[0])}, ${isAve ? 'AVE ' : ''}de ${from} a ${to}; llega a las ${hhmm(a[1])}.`;
+  }
+  function pick(m: number, ave = false){ state.useNow = false; state.minute = m; state.ave = ave; render(); }
   nowBtn.addEventListener('click', ()=>{ state.useNow = true; render(); tIn.focus({preventScroll:true}); });
-  byId('info').addEventListener('click', e=>{ const b = (e.target as Element).closest<HTMLElement>('.tt'); if(b) pick(+b.dataset.m!); });
+  // the chosen trip becomes the big one: the focus moves to the ruler, which now stands on it
+  byId('board').addEventListener('click', e=>{ const b = (e.target as Element).closest<HTMLElement>('.tt'); if(b){ pick(+b.dataset.m!, 'ave' in b.dataset); tIn.focus({preventScroll:true}); } });
   // dragging or tapping the ruler lands on the nearest train, never between two
   let rq = 0;
   function snap(){
     const v = +tIn.value; if(!todayTrains.length) return;
     const near = todayTrains.reduce((b,[x]) => Math.abs(x-v) < Math.abs(b-v) ? x : b, todayTrains[0][0]);
-    state.useNow = false; state.minute = near;
+    state.useNow = false; state.minute = near; state.ave = false;
     if(!rq) rq = requestAnimationFrame(()=>{ rq=0; render(); });
   }
   tIn.addEventListener('input', snap); tIn.addEventListener('change', snap); tIn.addEventListener('pointerup', ()=> setTimeout(snap, 0));

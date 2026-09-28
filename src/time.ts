@@ -9,21 +9,25 @@ interface Network {
   dias: Record<string, number[]>;
 }
 const NET = red as unknown as Network;
-export const SANTS = '71801', REUS = '71400';
+export const SANTS = '71801', REUS = '71400', CAMP = '04104';
+// towns for which the AVE from Camp de Tarragona is a real alternative to the regional (about 35 min instead of 1 h 40 min)
+const AVE_COMARCAS = new Set(['Baix Camp', 'Tarragonès']);
+const hasAve = (town: string): boolean => AVE_COMARCAS.has(NET.estaciones[town]?.comarca ?? '');
 // who the data comes from and when it was updated: Renfe's licence asks for both
 export const source = { fuente: NET.fuente, actualizado: NET.actualizado };
 
-// a train: departure and arrival in minutes after midnight, and its number
-export type Train = [dep: number, arr: number, id: string];
-// one day's timetable: r Sants → Reus, b Reus → Sants
-export interface DayTimetable { r: Train[]; b: Train[] }
+// a train: departure and arrival in minutes after midnight, its number and its line (R11…R17, AVE, AVLO)
+export type Train = [dep: number, arr: number, id: string, line: string];
+// one day's timetable: r Sants → Reus, b Reus → Sants; ar/ab the AVE Sants → Camp de Tarragona and back (only for
+// the towns it serves)
+export interface DayTimetable { r: Train[]; b: Train[]; ar: Train[]; ab: Train[] }
 
 // the direct trains of a day from one station to another: the same train stops at `from` and later at `to`
 export function direct(iso: string, from: string, to: string): Train[] {
   const out: Train[] = [];
   for(const i of NET.dias[iso] ?? []){
     const t = NET.trenes[i], a = t.s.findIndex(x => x[0]===from), b = t.s.findIndex(x => x[0]===to);
-    if(a >= 0 && b > a) out.push([t.s[a][2], t.s[b][1], t.n]);
+    if(a >= 0 && b > a) out.push([t.s[a][2], t.s[b][1], t.n, t.p]);
   }
   return out.sort((x, y) => x[0]-y[0]);
 }
@@ -43,7 +47,8 @@ export const dur = (m: number): string => { if(m<1) return 'ahora'; const h=Math
 export function dayData(iso: string): {d: DayTimetable, exact: boolean} {
   const kind = (x: string) => { const w = weekday(x); return w===6 ? 6 : w===0 ? 0 : 1; };
   const exact = iso in NET.dias, day = exact ? iso : Object.keys(NET.dias).sort().reverse().find(x => kind(x)===kind(iso))!;
-  return {d:{r:direct(day, SANTS, REUS), b:direct(day, REUS, SANTS)}, exact};
+  const ave = hasAve(REUS);
+  return {d:{r:direct(day, SANTS, REUS), b:direct(day, REUS, SANTS), ar:ave ? direct(day, SANTS, CAMP) : [], ab:ave ? direct(day, CAMP, SANTS) : []}, exact};
 }
 // the last day the timetable covers
 export const lastDay = (): string => Object.keys(NET.dias).sort().pop()!;

@@ -799,7 +799,7 @@ async def check_hero_board(page):
         ok = await page.evaluate(f"(() => {{ const b = [...document.querySelectorAll('#board button.tt')].find(b => b.querySelector('.t').textContent === '{time}'); if(b) b.click(); return !!b; }})()")
         await page.wait_for_timeout(300); return ok
     if not await choose("12:00"): return errs + ["the AVE at 12:00 is not a button"]
-    b = await expect("after choosing the AVE", ["AVE 12:00 Camp de Tarragona → 12:31", "R14 12:03 → 13:33", "R15 13:03 → 14:35"], "12:00", "")
+    b = await expect("after choosing the AVE", ["AVE 12:00 Camp de Tarragona → 12:31", "R14 12:03 → 13:33", "R15 13:03 → 14:35"], "12:00", None)
     if "AVE" not in b["aviso"] or "Camp de Tarragona" not in b["aviso"]: errs.append(f"choosing the AVE, the live region does not say it is an AVE to Camp de Tarragona («{b['aviso']}»)")
     if not await choose("12:03"): return errs + ["the R14 at 12:03 is not a button"]
     await expect("after choosing the 12:03", ["R14 12:03 → 13:33", "AVE 12:50 Camp de Tarragona → 13:22", "R15 13:03 → 14:35"], "12:03", "")
