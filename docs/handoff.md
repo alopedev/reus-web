@@ -21,7 +21,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 ## Siguiente paso
 
-1. Comprobar la web publicada en un móvil real (fluidez, toque en la regla). Revisada ya en Safari del simulador de iOS (28-09): ventanilla panorámica, paisaje ×2 y bisagra con la barra encogida. Pendientes de esa revisión: la barra flotante de Safari tapa el pie del hero, los tachados de «Cómo se hizo» saltan de línea solos, la mesa acaba antes que la página y la repisa pintada bajo la ventanilla se corta en los dos bordes
+1. Comprobar la web publicada en un móvil real (fluidez, toque en la regla). Revisada ya en Safari del simulador de iOS (28-09): ventanilla panorámica, paisaje ×2 y bisagra con la barra encogida. Pendientes de esa revisión: la barra flotante de Safari tapa el pie del hero, la mesa acaba antes que la página y la repisa pintada bajo la ventanilla se corta en los dos bordes
 2. Fase 3 · viaje de letras: **hecho** (`src/letters.ts` + capa `#letras`, ya en `main`). Fase 4 · tren de papel sobre una vía en la mesa (prototipo aprobado en la página «Transición»). Reutilizar el patrón de `land()` (estado dibujado por un proxy, reversible con scrub) y la sombra según la altura
 3. Grabar el vídeo para X y LinkedIn
 4. Pendiente técnico: subir Three.js desde r128 (hoy ~186 KB comprimido, casi todo Three entero; las versiones nuevas permiten descartar lo que no se usa). Cambia luz y color: hacerlo con la paridad visual como red y renovar referencias solo si Àlex aprueba el resultado

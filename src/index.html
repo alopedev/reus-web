@@ -93,25 +93,15 @@
     </article>
 
     <article class="cuaderno vib b" id="cuaderno" aria-labelledby="h-hizo">
-      <div class="hoja izq"><div class="papel cara">
-        <span class="kicker">Cuaderno · decisiones</span>
-        <h2 id="h-hizo">Cómo se hizo</h2>
-        <ul>
-          <li>Paisaje generado en directo · <span class="tachado">vídeo</span></li>
-          <li>Acuarela que se pinta sola · <span class="tachado">hecho a mano</span></li>
-          <li>Billetes de papel para el sentido · <span class="tachado">pestañas</span></li>
-          <li>Sin pausa ni repintar para el público · <span class="tachado">controles</span></li>
-        </ul>
-        <p class="lema">Àlex decide; Claude construye.</p>
-      </div><div class="tapa" aria-hidden="true"><b>Cuaderno<br>de viaje</b><span>Barcelona ↔ Reus</span></div></div>
+      <div class="hoja izq"><div class="papel cara guarda" aria-hidden="true"><b>Cuaderno de viaje</b><span>Barcelona ↔ Reus</span></div><div class="tapa" aria-hidden="true"><b>Cuaderno<br>de viaje</b><span>Barcelona ↔ Reus</span></div></div>
       <div class="papel hoja der">
         <span class="kicker">Cuaderno · técnica</span>
-        <h2>Por dentro</h2>
+        <h2 id="h-hizo">Cómo se hizo</h2>
         <ul>
-          <li>Escena 3D con Three.js</li>
-          <li>Shader de acuarela: Kuwahara y modelo de pigmento</li>
-          <li>Un único HTML, sin servidor</li>
-          <li>Horarios del GTFS abierto de Renfe</li>
+          <li>Paisaje en 3D, no un vídeo <span class="tec">Three.js: escena 3D generada por código</span></li>
+          <li>Cada fotograma, en acuarela <span class="tec">Shader WebGL: filtro Kuwahara y pigmento</span></li>
+          <li>Elige el sentido con un billete <span class="tec">HTML y CSS: papel recortado con clip-path</span></li>
+          <li>La mirada baja a la mesa <span class="tec">CSS 3D y GSAP ScrollTrigger</span></li>
         </ul>
       </div>
     </article>

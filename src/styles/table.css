@@ -52,7 +52,10 @@
 .papel ol, .papel ul{ margin:0; padding:0; list-style:none; }
 .papel b{ font-weight:700; }
 .kicker{ display:block; font-size:.76rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; opacity:.72; }
-.tachado{ text-decoration:line-through; text-decoration-thickness:1.5px; opacity:.55; }
+/* under each concept, the technology behind it; each pair apart from the next */
+.tec{ display:block; font-size:.93rem; line-height:1.35; opacity:.68; }
+.cuaderno li{ line-height:1.35; }
+.cuaderno li + li{ margin-top:.6rem; }
 .folleto{ grid-area:folleto; transform:rotate(-2.5deg); }
 .mini{ position:relative; height:7.4rem; margin:.25rem 0 1rem; background:#8B6F55; }
 .mini .w{ position:absolute; left:28%; top:12%; width:44%; height:56%; border:.3rem solid #4A3A2C; border-radius:.75rem; background:linear-gradient(#EAD9BF 55%, #4E7189 55% 64%, #CDB57E 64%); }
@@ -66,7 +69,10 @@
   box-shadow:calc(-.375rem * var(--lejos)) calc(.375rem * var(--caida)) 0 var(--tinta); transform:rotateY(180deg); backface-visibility:hidden; -webkit-backface-visibility:hidden; }
 .tapa b{ font-family:var(--serif); font-weight:400; font-size:2rem; line-height:1; }
 .tapa span{ margin-top:.62rem; font-size:.9rem; opacity:.8; }
-.cuaderno .lema{ margin-top:1.1rem; font-family:var(--serif); font-size:1.05rem; color:#7A4B3A; }
+/* the inside of the cover, with the notebook's name written on it */
+.cuaderno .guarda{ display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; }
+.guarda b{ font-family:var(--serif); font-weight:400; font-size:1.6rem; color:#7A4B3A; transform:rotate(-2deg); }
+.guarda span{ margin-top:.4rem; font-size:.95rem; opacity:.7; }
 .reverso{ grid-area:reverso; max-width:38.75rem; transform:rotate(-1.2deg); filter:drop-shadow(calc(.3rem * var(--lejos)) calc(.3rem * var(--caida)) 0 var(--tinta)); }
 .reverso .papel{ box-shadow:none; padding:1.25rem 2.1rem; clip-path:polygon(0 0,100% 0,100% 40%,98.4% 50%,100% 60%,100% 100%,0 100%,0 60%,1.6% 50%,0 40%); }
 .reverso .fuente{ margin-top:.5rem; font-size:.93rem; opacity:.8; }
@@ -84,7 +90,8 @@
 }
 /* the notebook stacks its pages rather than turning them into strips */
 @container (max-width:34rem){
-  .cuaderno{ grid-template-columns:minmax(0,1fr); }
+  /* both pages as tall as each other: closed, the cover (on the back of the first) covers the second whole */
+  .cuaderno{ grid-template-columns:minmax(0,1fr); grid-auto-rows:1fr; }
   .cuaderno .izq{ transform-origin:50% 100%; }
   .cuaderno .cara{ border-right:0; border-bottom:1.5px dashed rgba(45,36,28,.4); }
   .tapa{ transform:rotateX(180deg); box-shadow:calc(.375rem * var(--lejos)) calc(-.375rem * var(--caida)) 0 var(--tinta); }
