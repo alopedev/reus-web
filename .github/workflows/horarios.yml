@@ -24,9 +24,11 @@ jobs:
         with:
           python-version: '3.12'
       - run: python scripts/extract_trains.py
+      - run: python scripts/extract_red.py
+      - run: python scripts/check_datos.py
       - name: did the timetable change?
         id: diff
-        run: git diff --quiet data/trains.json && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
+        run: git diff --quiet data/trains.json data/red.json && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
       - if: steps.diff.outputs.changed == 'true'
         uses: actions/setup-node@v4
         with:
@@ -43,7 +45,7 @@ jobs:
         run: |
           git config user.name "Àlex Olivé"
           git config user.email "136198470+alopedev@users.noreply.github.com"
-          git add data/trains.json
+          git add data/trains.json data/red.json
           git commit -m "chore: refresh the timetable" -m "Automatic: .github/workflows/horarios.yml"
           git push
       - if: always()

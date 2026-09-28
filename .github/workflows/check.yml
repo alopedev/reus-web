@@ -18,6 +18,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - run: python scripts/check_datos.py   # the network timetable (data/red.json), in seconds
       - run: npm ci
       - run: pip install playwright pillow && python -m playwright install --with-deps chromium
       - run: npm run build
