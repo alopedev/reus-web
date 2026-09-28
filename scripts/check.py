@@ -47,11 +47,15 @@ Rules checked:
      simulated) the wall's hinge still sits on the table's real edge and the chips still land on their glyphs.
   12. The landscape is painted twice as fine on the stacked hero as on the wide one (reus.paisaje(): px of the
      landscape per px of the window), so its brush strokes don't read as pixels in a small window.
+  13. Accessibility without visible changes: no live region holds a control; the live region speaks only when the
+     train shown changes (never on the 30 s refresh) and names its time; the other ticket's label reads «Cambiar a
+     Barcelona», not «Cambiar a A Barcelona»; the recording shortcuts (R, P) work only with ?grabar in the URL; the
+     «horario aproximado» note speaks impersonally. Modo rápido: `python3 scripts/check.py a11y`.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
-Usage: npm run build && npm run build:paridad && python3 scripts/check.py [paridad|letras]   (or: npm run check)
-       (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute)
+Usage: npm run build && npm run build:paridad && python3 scripts/check.py [paridad|letras|a11y]   (or: npm run check)
+       (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute; a11y: only check 13)
 """
 import asyncio, functools, http.server, io, os, pathlib, sys, threading
 from PIL import Image, ImageChops, ImageStat
@@ -658,6 +662,55 @@ async def check_parity(browser):
         if mean > 2 or spots > .005: errs.append(f"{name} no longer looks like its reference (mean {mean:.1f}, changed {spots:.1%})"); shot.save(shots / f"{name}-distinto.png")
     return errs
 
+# a train in Madrid's morning, on the frozen timetable (the same day the parity frames use)
+LIVE = """(() => { const live = [...document.querySelectorAll('[aria-live]')];
+  return {n: live.length, holding: live.filter(l => l.querySelector('input,button,a,select')).map(l => l.id || l.className),
+          text: live.map(l => l.textContent.trim()).join(' | '), dep: document.getElementById('dep').textContent}; })()"""
+
+async def check_a11y(browser):
+    """13. Screen readers hear the train, not the clock; one-key shortcuts stay off for the public; the labels read right."""
+    errs = []
+    page = await open_page(browser, viewport={"width": 390, "height": 844})
+    await page.clock.install(time="2026-09-28T08:00:00Z")   # 10:00 in Madrid
+    await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1500)
+    live = await page.evaluate(LIVE)
+    if not live["n"]: errs.append("no live region: changing train is never announced")
+    if live["holding"]: errs.append(f"a live region holds controls ({', '.join(live['holding'])}): every re-render is read out")
+    # the 30 s refresh rewrites the countdown; the live region must stay quiet while the train shown is the same
+    await page.evaluate("""window.__talk = 0; document.querySelectorAll('[aria-live]').forEach(l =>
+      new MutationObserver(m => { window.__talk += m.length; }).observe(l, {childList: true, subtree: true, characterData: true}))""")
+    await page.clock.run_for(61000); await page.wait_for_timeout(300)
+    after = await page.evaluate(LIVE)
+    talk = await page.evaluate("window.__talk")
+    if after["dep"] == live["dep"] and talk: errs.append(f"the live region speaks {talk} times in a minute with the same train ({live['dep']})")
+    pick = await page.evaluate("(() => { const b = document.querySelector('.tt'); if(!b) return null; b.click(); return b.textContent; })()")
+    await page.wait_for_timeout(300)
+    said = (await page.evaluate(LIVE))["text"]
+    if pick and pick not in said: errs.append(f"choosing the {pick} train is not announced (live region: «{said[:80]}»)")
+    label = await page.evaluate("document.querySelector('.tk.off')?.getAttribute('aria-label') || ''")
+    if not label or " a A " in f" {label} ": errs.append(f"the other ticket's label reads «{label}»")
+    # R and P are for recording the video only: without ?grabar a stray key must not pause the landscape
+    PLAYING = "window.reus.playing ? reus.playing() : null"
+    await page.keyboard.press("p"); await page.wait_for_timeout(200)
+    playing = await page.evaluate(PLAYING)
+    if playing is None: errs.append("reus.playing() is missing (whether the landscape is running)")
+    elif not playing: errs.append("P pauses the landscape without ?grabar in the URL")
+    await page.close()
+    page = await open_page(browser, viewport={"width": 390, "height": 844})
+    await page.goto(parity_url + "?grabar"); await page.wait_for_timeout(1500)
+    await page.keyboard.press("p"); await page.wait_for_timeout(200)
+    if await page.evaluate(PLAYING) is not False: errs.append("P does not pause the landscape with ?grabar")
+    await page.close()
+    # a day beyond the timetable: the note speaks impersonally
+    page = await open_page(browser, viewport={"width": 390, "height": 844})
+    await page.clock.install(time="2027-03-10T09:00:00Z")
+    await page.goto(parity_url); await page.wait_for_timeout(1500)
+    note = await page.evaluate("document.getElementById('note').textContent")
+    if not note: errs.append("a day beyond the timetable shows no «horario aproximado» note")
+    elif any(w in note.lower().split() for w in ("tengo", "tenemos", "yo")): errs.append(f"the note speaks in the first person: «{note}»")
+    await page.close()
+    return errs
+
 async def main():
     failures = []
     async with async_playwright() as p:
@@ -666,6 +719,9 @@ async def main():
         if sys.argv[1:] == ["letras"]:
             failures += await check_letters_suite(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · letras"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["a11y"]:
+            failures += await check_a11y(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · a11y"); sys.exit(1 if failures else 0)
         failures += await check_parity(browser)
         if sys.argv[1:] == ["paridad"]:
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · paridad"); sys.exit(1 if failures else 0)
@@ -708,6 +764,7 @@ async def main():
             failures += [f"{name}: {e}" for e in await check_letters(page, name)]
             await page.close()
         failures += await check_sizes(browser)
+        failures += [f"a11y: {e}" for e in await check_a11y(browser)]
         failures += [f"reduced: {e}" for e in await check_still_window(browser)]
         # reduced motion: a still frame and every paper already in place
         page = await open_page(browser, viewport={"width": 1440, "height": 860}, reduced_motion="reduce")
