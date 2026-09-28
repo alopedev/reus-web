@@ -21,7 +21,8 @@ Rules checked:
      as wide as their text, no text is under 13 px, the notebook's pages never become strips,
      the pinned table fits the screen and, on landscape screens, the hero scales like a poster. On the stacked
      hero (phones, portrait tablets) the window is panoramic, as wide as the stage, and no ticket touches its frame.
-     With reduced motion nothing moves and everything is already in place.
+     With reduced motion nothing moves and everything is already in place, and the still frame's window is painted
+     where #win is once the page is laid out.
   9. The wall darkens as a pigment wash painted in its own shader, not a flat DOM veil: it starts at
      the hinge and climbs the wall as the wall turns away, the texts on the wall dim with it, and
      nothing lingers once you scroll back to the top.
@@ -582,6 +583,23 @@ FIT = """(() => {
   return errs;
 })()"""
 
+async def check_still_window(browser):
+    """With reduced motion the still frame is painted where #win is once the page is laid out (tickets and fonts in):
+    at 10:00, the sky just inside the top of #win and the wall just above its painted frame look clearly different. A
+    frame painted from an earlier layout (before the tickets or the fonts) shows the same glass at both."""
+    errs = []
+    for name, (w, h) in {"390x844": (390, 844), "1440x900": (1440, 900)}.items():
+        page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce")
+        await page.clock.set_fixed_time("2026-09-28T08:00:00Z")   # 10:00 in Madrid: a blue sky against a brown wall
+        await page.goto(page_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(2500)
+        a, b = await page.evaluate("""(() => { const r = document.getElementById('win').getBoundingClientRect(), x = r.left + r.width / 2;
+          return [[x, r.top - .022 * innerHeight - 14], [x, r.top + 12]]; })()""")
+        img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB"); await page.close()
+        pa, pb = [[sum(img.getpixel((int(x) + i, int(y) + j))[c] for i in range(-2, 3) for j in range(-2, 3)) / 25 for c in range(3)] for x, y in (a, b)]
+        d = sum((u - v) ** 2 for u, v in zip(pa, pb)) ** .5
+        if d < 60: errs.append(f"{name}: the still frame's window is not where #win is (wall above it and sky inside differ by only {d:.0f})")
+    return errs
+
 async def check_sizes(browser):
     """Layout at every size: read straight from the page, no waiting for the painting."""
     failures = []
@@ -677,6 +695,7 @@ async def main():
             failures += [f"{name}: {e}" for e in await check_letters(page, name)]
             await page.close()
         failures += await check_sizes(browser)
+        failures += [f"reduced: {e}" for e in await check_still_window(browser)]
         # reduced motion: a still frame and every paper already in place
         page = await open_page(browser, viewport={"width": 1440, "height": 860}, reduced_motion="reduce")
         await page.goto(page_url); await page.wait_for_timeout(3000)
