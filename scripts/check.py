@@ -19,7 +19,8 @@ Rules checked:
      (coffee, pen, Rodalies ticket); the page never scrolls sideways.
   8. Across 11 screen sizes (360 px to 2560 px): nothing leaves the screen sideways, tickets are
      as wide as their text, no text is under 13 px, the notebook's pages never become strips,
-     the pinned table fits the screen and, on landscape screens, the hero scales like a poster.
+     the pinned table fits the screen and, on landscape screens, the hero scales like a poster. On the stacked
+     hero (phones, portrait tablets) the window is panoramic, as wide as the stage, and no ticket touches its frame.
      With reduced motion nothing moves and everything is already in place.
   9. The wall darkens as a pigment wash painted in its own shader, not a flat DOM veil: it starts at
      the hinge and climbs the wall as the wall turns away, the texts on the wall dim with it, and
@@ -39,7 +40,10 @@ Rules checked:
      en escritorio y móvil (como "paridad"); la suite completa también los incluye. Antes de tocar el scroll,
      ambos modos esperan (`hero_settled`) a que `.top`/`.info` hayan terminado su propia transición de entrada
      (independiente del scroll, añadida por scenery.ts al acabar el pintado del paisaje) -- nunca con un tiempo
-     fijo, la regla de siempre.
+     fijo, la regla de siempre. With iOS Safari's toolbar shrunk (innerHeight taller than the table's 100svh rest,
+     simulated) the wall's hinge still sits on the table's real edge and the chips still land on their glyphs.
+  12. The landscape is painted twice as fine on the stacked hero as on the wide one (reus.paisaje(): px of the
+     landscape per px of the window), so its brush strokes don't read as pixels in a small window.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
@@ -447,6 +451,35 @@ async def check_letters_reduced(page):
         if st["h2Opacity"] < .95: errs.append(f"h2#qe is not shown at p={p} with reduced motion")
     return errs
 
+async def check_toolbar(page):
+    """iOS Safari: when its toolbar shrinks, innerHeight grows but the table still rests at 100svh (its layout top).
+    The hinge must follow the table's real edge, not innerHeight: simulated here by lifting the table's rest 40 px
+    above the bottom of the screen, as the shrunk toolbar does. The wall's hinge sits on the table's edge at every
+    point, and the chips still land on their glyphs of h2#qe."""
+    errs = []
+    await page.evaluate("""(() => { const s = document.createElement('style'); s.id = 'barra';
+      s.textContent = '#repisa{ margin-top:calc(100svh - 40px) !important; }'; document.head.appendChild(s);
+      dispatchEvent(new Event('resize')); })()""")
+    await page.wait_for_timeout(300)
+    async def at(p):
+        await page.evaluate(f"scrollTo({{top: document.getElementById('repisa').offsetTop * {p}, behavior: 'instant'}})")
+        await page.wait_for_timeout(200); await hinge_caught_up(page)
+    for f in (.3, .6, .9):
+        await at(f)
+        d = await page.evaluate("""parseFloat(document.getElementById('hero').style.transformOrigin.split(' ')[1])
+          - document.getElementById('repisa').getBoundingClientRect().top""")
+        if abs(d) > 1.5: errs.append(f"with the toolbar shrunk, the wall's hinge is {d:.0f} px off the table's edge at {f:.0%}")
+    await at(.97)
+    for i, di in enumerate(QE_TARGET):
+        chip = await page.evaluate(f"({CHIP_RECT})({i})")
+        glyph = await page.evaluate(f"({GLYPH_RECT})('#qe', {di})")
+        if not chip or not glyph: errs.append(f"chip {i} or its h2 glyph {di} not measurable at p=0.97 with the toolbar shrunk"); continue
+        d = ((chip["x"] - glyph["x"]) ** 2 + (chip["y"] - glyph["y"]) ** 2) ** .5
+        if d > 3: errs.append(f"with the toolbar shrunk, chip {i} lands {d:.1f}px from its h2 glyph")
+    await page.evaluate("document.getElementById('barra').remove(); dispatchEvent(new Event('resize')); scrollTo({top: 0, behavior: 'instant'})")
+    await page.wait_for_timeout(300); await hinge_caught_up(page)
+    return errs
+
 async def shoot_letters(page, name):
     """Screenshots of the journey at a handful of points, for a visual review."""
     for f in (.1, .25, .4, .6, .9):
@@ -463,6 +496,7 @@ async def check_letters(page, name):
     errs += [f"positions: {e}" for e in await check_letters_positions(page)]
     errs += [f"landed: {e}" for e in await check_letters_landed(page)]
     errs += [f"reversible: {e}" for e in await check_letters_reversible(page)]
+    errs += [f"toolbar: {e}" for e in await check_toolbar(page)]
     await shoot_letters(page, name)
     return errs
 
@@ -523,6 +557,16 @@ FIT = """(() => {
   const small = [...document.querySelectorAll('#stage p, #stage span, #stage button, #repisa p, #repisa li, #repisa h2')]
     .filter(el => el.offsetParent && el.textContent.trim() && parseFloat(getComputedStyle(el).fontSize) < 13).slice(0, 3).map(el => el.textContent.trim().slice(0, 20));
   if(small.length) errs.push('text under 13 px: ' + small.join(' | '));
+  // stacked hero (phones, portrait tablets): the window is panoramic, as wide as the stage, and no ticket touches
+  // its painted wooden frame (.022 of the screen's height around #win, see watercolor.frag)
+  if(matchMedia('(max-width:700px), (max-aspect-ratio:4/5)').matches){
+    const st = q('#stage'), cs = getComputedStyle(st), inner = st.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const win = q('#win').getBoundingClientRect(), rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    // the glass leaves 1.1rem on each side for its frame
+    if(win.width < inner - 2.2 * rem - 1) errs.push(`window only ${Math.round(win.width)} of ${Math.round(inner - 2.2 * rem)} px wide on the stacked hero`);
+    const low = Math.max(...[...document.querySelectorAll('.tk')].map(t => t.getBoundingClientRect().bottom));
+    if(low > win.top - .022 * innerHeight - 4) errs.push(`a ticket touches the window's frame (${Math.round(low)} vs frame at ${Math.round(win.top - .022 * innerHeight)})`);
+  }
   const pages = [...document.querySelectorAll('.cuaderno .hoja')].map(h => h.offsetWidth); if(Math.min(...pages) < 240) errs.push(`notebook page only ${Math.min(...pages)} px wide`);
   const esc = q('.escena'), mesa = q('.mesa');
   if(getComputedStyle(esc).position === 'sticky' && mesa.offsetTop + mesa.offsetHeight > esc.clientHeight - 40)
@@ -607,6 +651,14 @@ async def main():
             if not box["winBottom"] < box["info"]: failures.append(f"{name}: departure block overlaps window")
             if box["sans"] != "Karla": failures.append(f"{name}: small text font is {box['sans']}")
             if box["serif"] != "Young Serif": failures.append(f"{name}: time font is {box['serif']}")
+            # the landscape's brush strokes are sized in the render target's pixels: a small window (phones) is
+            # painted twice as fine as the desktop one, or each stroke covers too much of it and reads as pixels
+            grain = await page.evaluate("""(() => { const g = window.reus.paisaje ? reus.paisaje() : null;
+              return g == null ? null : {g, s: Math.min(devicePixelRatio || 1, 1.25),
+                stacked: matchMedia('(max-width:700px), (max-aspect-ratio:4/5)').matches}; })()""")
+            if not grain: failures.append(f"{name}: reus.paisaje() is missing (the landscape's px per window px)")
+            elif grain["stacked"] and grain["g"] < 1.5 * grain["s"]: failures.append(f"{name}: landscape painted at {grain['g']:.2f} px per window px, expected ≥ {1.5 * grain['s']:.2f} on a stacked hero")
+            elif not grain["stacked"] and grain["g"] > grain["s"]: failures.append(f"{name}: landscape painted at {grain['g']:.2f} px per window px on a wide hero (cost), expected ≤ {grain['s']:.2f}")
             failures += [f"{name}: JS error: {e}" for e in errors]
             await page.screenshot(path=str(shots / f"{name}.png"))
             print(f"{name}: name→{box['name']:.0f}px, window {box['winTop']:.0f}–{box['winBottom']:.0f}px, info→{box['info']:.0f}px")
