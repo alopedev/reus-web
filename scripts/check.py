@@ -48,14 +48,15 @@ Rules checked:
   12. The landscape is painted twice as fine on the stacked hero as on the wide one (reus.paisaje(): px of the
      landscape per px of the window), so its brush strokes don't read as pixels in a small window.
   13. Accessibility without visible changes: no live region holds a control; the live region speaks only when the
-     train shown changes (never on the 30 s refresh) and names its time; the other ticket's label reads «Cambiar a
-     Barcelona», not «Cambiar a A Barcelona»; the recording shortcuts (R, P) work only with ?grabar in the URL; the
+     train shown changes (never on the 30 s refresh) and names its time; the ticket's ⇄ reads «Cambiar el sentido»; the recording shortcuts (R, P) work only with ?grabar in the URL; the
      «horario aproximado» note speaks impersonally. Modo rápido: `python3 scripts/check.py a11y`.
   14. The site reads the network timetable (data/red.json; the parity build, its frozen copy
      scripts/baseline/red.json): the back of the ticket credits «Origen de los datos: Renfe Operadora» with the
      date the data was updated, as Renfe's licence asks. Modo rápido: `python3 scripts/check.py red`.
   15. The hero B (docs/plan.md, 28-09): the site is called «Capacasa» (title and h1) with the subtitle «El tren a
-     casa, y de vuelta a Barcelona». Modo rápido: `python3 scripts/check.py hero`.
+     casa, y de vuelta a Barcelona». One ticket, «Billete · Sants ⇄ Reus»: ⇄ turns the trip around (the
+     route reads «Reus ⇄ Sants», the live region names the new train, the focus stays on ⇄). Modo rápido:
+     `python3 scripts/check.py hero`.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
@@ -696,8 +697,8 @@ async def check_a11y(browser):
     await page.wait_for_timeout(300)
     said = (await page.evaluate(LIVE))["text"]
     if pick and pick not in said: errs.append(f"choosing the {pick} train is not announced (live region: «{said[:80]}»)")
-    label = await page.evaluate("document.querySelector('.tk.off')?.getAttribute('aria-label') || ''")
-    if not label or " a A " in f" {label} ": errs.append(f"the other ticket's label reads «{label}»")
+    label = await page.evaluate("document.querySelector('.tk .swap')?.getAttribute('aria-label') || ''")
+    if not label.startswith("Cambiar el sentido"): errs.append(f"the ticket's ⇄ reads «{label}», expected «Cambiar el sentido…»")
     # R and P are for recording the video only: without ?grabar a stray key must not pause the landscape
     PLAYING = "window.reus.playing ? reus.playing() : null"
     await page.keyboard.press("p"); await page.wait_for_timeout(200)
@@ -755,7 +756,30 @@ async def check_hero(browser):
     if got["title"] != NAME: errs.append(f"the page's title is «{got['title']}», expected «{NAME}»")
     if got["name"] != NAME: errs.append(f"the name on the wall is «{got['name']}», expected «{NAME}»")
     if got["sub"] != SUBTITLE: errs.append(f"the subtitle is «{got['sub']}», expected «{SUBTITLE}»")
+    errs += await check_hero_ticket(page)
     await page.close()
+    return errs
+
+TICKET = """(() => { const t = [...document.querySelectorAll('#tickets .tk')], sw = document.querySelector('.tk .swap');
+  return {n: t.length, text: t[0] ? t[0].textContent.replace(/\\s+/g, ' ').trim() : '', route: t[0]?.querySelector('.route')?.textContent.replace(/\\s+/g, ' ').trim(),
+          swap: sw ? sw.textContent.trim() : null, focus: document.activeElement === sw, aviso: document.getElementById('aviso').textContent}; })()"""
+
+async def check_hero_ticket(page):
+    """One ticket with both ends; ⇄ turns the trip around and keeps the focus."""
+    errs = []
+    t = await page.evaluate(TICKET)
+    if t["n"] != 1: return [f"{t['n']} tickets in the hero, expected one"]
+    if not t["text"].startswith("Billete"): errs.append(f"the ticket reads «{t['text']}», expected «Billete …»")
+    if t["route"] != "Sants ⇄ Reus": errs.append(f"the ticket's route reads «{t['route']}», expected «Sants ⇄ Reus»")
+    if t["swap"] != "⇄": return errs + ["the ticket has no ⇄ button (.tk .swap)"]
+    await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    t = await page.evaluate(TICKET)
+    if t["route"] != "Reus ⇄ Sants": errs.append(f"after ⇄ the route reads «{t['route']}», expected «Reus ⇄ Sants»")
+    if not t["focus"]: errs.append("after ⇄ the focus is not on ⇄ any more")
+    if "de Reus a" not in t["aviso"]: errs.append(f"after ⇄ the live region does not name the new trip («{t['aviso'][:80]}»)")
+    await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    t = await page.evaluate(TICKET)
+    if t["route"] != "Sants ⇄ Reus": errs.append(f"⇄ twice does not bring the trip back («{t['route']}»)")
     return errs
 
 async def main():
