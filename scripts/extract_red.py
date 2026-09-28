@@ -552,6 +552,29 @@ def main():
             trenes[idx]["n"] = numero
         dias[date.isoformat()].add(idx)
 
+    # -- ultima red: el mismo tren fisico dos veces en un dia (los feeds difieren a veces
+    # en un minuto en una estacion, p. ej. Passeig de Gracia, o Renfe da dos numeros al
+    # mismo tren, uno de ellos alargado hasta Ulldecona). Mismo criterio que la regla 6
+    # de check_datos.py: dos o mas estaciones comunes, en el mismo orden, saliendo con
+    # un minuto de diferencia como mucho. Se queda el de mas paradas; si empatan, el que
+    # tiene numero de tren real (los de fom sin pareja llevan su trip_id). --
+    def same_train(x, y):
+        sx = {sid: e for sid, _a, e in x["s"]}; sy = {sid: e for sid, _a, e in y["s"]}
+        shared = [sid for sid, _a, _e in x["s"] if sid in sy]
+        return (len(shared) >= 2 and shared == [sid for sid, _a, _e in y["s"] if sid in sx]
+                and all(abs(sx[k] - sy[k]) <= 1 for k in shared))
+    rank = lambda i: (len(trenes[i]["s"]), trenes[i]["n"].isdigit())
+    for date, idxs in dias.items():
+        kept = []
+        for i in sorted(idxs, key=rank, reverse=True):
+            if not any(same_train(trenes[i], trenes[k]) for k in kept):
+                kept.append(i)
+        dias[date] = set(kept)
+    used = sorted({i for idxs in dias.values() for i in idxs})
+    remap = {old: new for new, old in enumerate(used)}
+    trenes = [trenes[i] for i in used]
+    dias = {d: {remap[i] for i in idxs} for d, idxs in dias.items()}
+
     if not trenes:
         raise SystemExit("No se ha generado ningun tren: revisa los feeds/rango de fechas. data/red.json no se ha tocado.")
 
