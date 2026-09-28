@@ -36,7 +36,7 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     // the ruler has one mark: the knob always stands on the train shown (every tick is a train, the AVE like the
     // rest); now is a thin line with its word
     byId('ticks').innerHTML = today.map(({t, ave:v})=>`<i class="${!tomorrow && v===isAve && t[0]===a[0] ? 'on' : ''}" style="left:${pos(t[0])}"></i>`).join('')
-      + `<b class="nowline" style="left:${pos(now.min)}"><span>ahora</span></b>`;
+      + `<b class="nowline${now.min < R0 + 60 ? ' start' : now.min > R1 - 60 ? ' end' : ''}" style="left:${pos(now.min)}"><span>ahora</span></b>`;
     tIn.value = String(tomorrow ? Math.min(R1, Math.max(R0, now.min)) : a[0]);
     // «Volver a ahora» stands on the side of the ruler away from «ahora», so it never covers the word
     nowBtn.parentElement!.classList.toggle('left', now.min > (R0+R1)/2);
