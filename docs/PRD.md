@@ -1,8 +1,8 @@
-# PRD · El próximo tren entre Barcelona y tu pueblo
+# PRD · Capacasa: el tren a casa, y de vuelta a Barcelona
 
 | | |
 |---|---|
-| **Producto** | Web de horarios de tren entre Barcelona y los pueblos de las líneas regionales (nombre definitivo pendiente) |
+| **Producto** | Web de horarios de tren entre Barcelona y los pueblos de las líneas regionales · **Capacasa** (*cap a casa*, «hacia casa») |
 | **Responsable de producto** | Àlex Olivé Pérez |
 | **Construcción** | Claude (Anthropic), dirigido por Àlex |
 | **Estado** | Borrador · Fase 2 en curso (hero y mesa terminados con Sants ↔ Reus; generalizar trayectos) |
@@ -91,12 +91,12 @@ Ordenadas por prioridad.
 | P0-5 | Volver al presente | Cuando he elegido otro tren, aparece «Volver a ahora»; al pulsarlo, vuelvo al próximo tren | Hecho |
 | P0-6 | Sin trenes hoy | Dado que ya no quedan trenes, veo «Hoy ya no quedan trenes» y el primero de mañana | Hecho |
 | P0-7 | Aviso de horario aproximado | Si el día no está en los datos, se usa el último día del mismo tipo y se muestra un aviso visible | Hecho |
-| P0-8 | Contexto en el hero | Nombre y una frase que explica la web visibles sin scroll; el texto del hero se rediseña junto al selector (P0-14) | Pendiente de rediseño |
+| P0-8 | Contexto en el hero | «Capacasa» y el subtítulo «El tren a casa, y de vuelta a Barcelona» visibles sin scroll; hero según el prototipo B revisado (ver `docs/plan.md`) | Decidido, pendiente de construir |
 | P0-9 | Identidad visual aprobada | Vagón y paisaje en acuarela; el paisaje se pinta al abrir y después el tren arranca; la luz sigue la hora elegida | Hecho |
 | P0-10 | Reglas de diseño | Dos fuentes como máximo; sin bloques blancos; el nombre nunca pisa la ventanilla (verificado por `scripts/check.py`) | Hecho |
 | P0-11 | Accesibilidad AA | Controles accesibles con teclado y foco visible; `prefers-reduced-motion` da un fotograma fijo; el lector de pantalla solo oye el cambio de tren; sin atajos de una tecla para el público | Hecho en parte; pendientes: barra de Safari sobre el pie del hero, contraste de las etiquetas de la regla, `<title>`, landmark del hero, reflow a 320 px |
 | P0-12 | Secciones con scroll | Debajo del hero: qué es, cómo leerla, cómo se hizo, datos y límites | Hecho (La repisa); textos por generalizar |
-| P0-13 | Nombre definitivo | Nombre elegido por Àlex, aplicado en título, cabecera y publicaciones; no atado a Reus | Pendiente |
+| P0-13 | Nombre definitivo | «Capacasa», aplicado en título, cabecera y publicaciones; recalibrar el viaje de letras (hoy diseñado con «Nombre») | Decidido, pendiente de aplicar |
 | P0-14 | Elegir tu pueblo | En la primera visita se elige el pueblo sin teclado, en tres toques como máximo, entre las estaciones con tren directo a Barcelona; el selector vive en los billetes | Pendiente (3 propuestas de diseño) |
 | P0-15 | Estación de Barcelona | Sants por defecto; se puede cambiar a Passeig de Gràcia, Clot o França. Si no hay tren directo entre esa estación y el pueblo, la web lo dice | Pendiente |
 | P0-16 | Recordar el trayecto | La web abre con el último pueblo, estación y sentido elegidos; la URL los refleja y se puede compartir. La primera visita abre en Sants → Reus | Pendiente |
@@ -163,7 +163,6 @@ Al generalizar: el paisaje es el mismo para todos los trayectos; el billete de R
 
 | Pregunta | Responde | ¿Bloquea? |
 |---|---|---|
-| ¿Nombre definitivo de la web? | Àlex | Sí, para publicar |
 | ¿Cómo se elige el pueblo con los billetes (orden, agrupación por línea o comarca)? | Claude propone, Àlex decide | Sí, para P0-14 |
 | ¿Qué líneas llegan de verdad a Barcelona con tren directo? | Claude (datos) | Sí, para P0-14 |
 | ¿Cómo se muestra el AVE sin cargar el hero? | Claude propone, Àlex decide | Sí, para P0-17 |
@@ -172,7 +171,7 @@ Al generalizar: el paisaje es el mismo para todos los trayectos; el billete de R
 ## 12. Calendario y fases
 
 - **Fase 1 · Momento «guau» (hecha):** hero, «La repisa» y viaje de letras con Sants ↔ Reus.
-- **Fase 2 · Producto (ahora), en este orden:** trayectos (P0-14 a P0-19), nombre (P0-13), copy (P0-8, textos de la mesa).
+- **Fase 2 · Producto (ahora), en este orden:** trayectos (P0-14 a P0-19), nombre (P0-13, decidido: Capacasa), copy (P0-8, textos de la mesa).
 - **Fase 3 · Lanzamiento:** vídeo para X y LinkedIn y publicación en el portfolio.
 
 ## Historial de cambios

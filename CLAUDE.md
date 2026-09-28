@@ -1,6 +1,6 @@
-# Web de horarios Barcelona ↔ Reus (nombre pendiente)
+# Capacasa
 
-Web de una sola pantalla con los próximos trenes regionales directos entre Barcelona-Sants y Reus.
+Web de una sola pantalla con los próximos trenes directos entre Barcelona y tu pueblo (hoy solo Sants ↔ Reus; generalización en curso, ver `docs/PRD.md`). *Cap a casa*: hacia casa.
 El hero es el interior de un vagón pintado en acuarela con el paisaje en movimiento en la ventanilla.
 Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Claude) y además una herramienta real.
 
@@ -33,7 +33,7 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 - El nombre de la web nunca pisa la ventanilla (lo verifica `check.py`)
 - Texto grande en formato cartel: color papel `#F1EADC` con sombra desplazada `#2D241C`
 - Subrayado punteado = «esto se puede pulsar». Úsalo igual en todos los textos interactivos
-- Sentido del viaje: dos billetes de tren recortados en papel; el activo muestra el viaje, el otro se levanta para invitar a pulsar
+- Sentido del viaje: dos billetes de tren recortados en papel; el activo muestra el viaje, el otro se levanta para invitar a pulsar. **Cambia con el selector (28-09):** un único billete «Billete · Sants ⇄ Reus»; cada extremo se pulsa (Barcelona abre sus estaciones, el pueblo abre la lista) y ⇄ cambia el sentido. Se aplica al construir el selector
 - Sin controles de pausa ni «volver a pintar» para el público. Atajos solo para grabar, activos con `?grabar` en la URL: R repinta, P pausa (el espacio queda para hacer scroll)
 - La luz del paisaje y del vagón sigue la hora elegida (amanecer, día, atardecer, noche)
 - La estética manda sobre la rapidez, pero la animación no puede ir a tirones
