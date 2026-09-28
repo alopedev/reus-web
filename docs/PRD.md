@@ -88,7 +88,7 @@ Ordenadas por prioridad.
 | P0-2 | Llegada y duración | El billete activo muestra trayecto, hora de llegada y duración del tren mostrado | Hecho |
 | P0-3 | Cambio de sentido | Dos billetes: «a Barcelona» y «a tu pueblo»; al pulsar el otro, se muestran los trenes en ese sentido | Hecho (Sants ↔ Reus) |
 | P0-4 | Navegar entre trenes | Al pulsar una hora de «Luego» o «Anterior», ese tren pasa a ser el principal; la regla del día salta siempre a un tren; las flechas del teclado pasan al anterior o al siguiente | Hecho |
-| P0-5 | Volver al presente | Cuando he elegido otro tren, aparece «Volver al próximo tren»; al pulsarlo, vuelvo al próximo tren | Hecho |
+| P0-5 | Volver al presente | Cuando he elegido otro tren, aparece «Volver a ahora»; al pulsarlo, vuelvo al próximo tren | Hecho |
 | P0-6 | Sin trenes hoy | Dado que ya no quedan trenes, veo «Hoy ya no quedan trenes» y el primero de mañana | Hecho |
 | P0-7 | Aviso de horario aproximado | Si el día no está en los datos, se usa el último día del mismo tipo y se muestra un aviso visible | Hecho |
 | P0-8 | Contexto en el hero | Nombre y una frase que explica la web visibles sin scroll; el texto del hero se rediseña junto al selector (P0-14) | Pendiente de rediseño |
