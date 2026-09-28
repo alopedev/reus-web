@@ -6,7 +6,8 @@ Rules checked:
   3. No JavaScript errors on load.
   4. Small text uses Karla; times use Young Serif.
   5. The hero shows a scroll hint; below it, the shelf holds its three paper objects,
-     uses the same two fonts and nothing sticks out sideways.
+     uses the same two fonts and nothing sticks out sideways. The notebook opens onto a single page
+     («Cómo se hizo»): four concepts, each with the technology behind it.
   6. Scrolling tilts the wall away; at the end the papers have landed and the notebook is open.
      While the gaze drops, the painting always fills the screen: nothing behind it ever shows,
      not even right after a sudden jump of the scroll.
@@ -90,10 +91,17 @@ async def check_shelf(page, name):
       const wide = [...document.querySelectorAll('#repisa *')].filter(el => { if(el.closest('.deco')) return false; const r = el.getBoundingClientRect(); return r.width && (r.right > innerWidth + 1 || r.left < -1); })
         .slice(0, 3).map(el => el.id || el.className || el.tagName);
       const sideways = document.scrollingElement.scrollWidth > innerWidth + 1;
-      return {missing, wide, sideways, heading: q('#qe') ? f(q('#qe')) : null, body: q('#repisa p') ? f(q('#repisa p')) : null};
+      // the notebook opens onto one page: each concept with the technology behind it, nothing crossed out, no motto
+      const items = [...document.querySelectorAll('#cuaderno .der li')];
+      const notebook = {items: items.length, bare: items.filter(li => !li.querySelector('.tec')).length,
+        extra: [...document.querySelectorAll('#cuaderno .tachado, #cuaderno .lema, #cuaderno .izq h2, #cuaderno .izq li')].length};
+      return {missing, wide, sideways, notebook, heading: q('#qe') ? f(q('#qe')) : null, body: q('#repisa p') ? f(q('#repisa p')) : null};
     })()""")
     if shelf["missing"]: errs.append(f"shelf is missing {', '.join(shelf['missing'])}")
     if shelf["sideways"]: errs.append("the page scrolls sideways")
+    nb = shelf["notebook"]
+    if nb["items"] != 4 or nb["bare"]: errs.append(f"the notebook's page should list 4 concepts, each with its technology ({nb['items']} listed, {nb['bare']} without one)")
+    if nb["extra"]: errs.append("the notebook still has crossed-out words, the motto or a second page of content")
     try:
         await page.wait_for_function("document.getElementById('lienzo')?.dataset.pintada === '1'", timeout=12000)
         px = await page.evaluate("""(() => { const c = document.getElementById('lienzo'), g = c.getContext('webgl'), p = new Uint8Array(4);
