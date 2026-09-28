@@ -17,6 +17,7 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 - `check.py` sirve `dist/` y `dist-paridad/` por HTTP: ejecuta siempre `npm run check` (compila ambos y comprueba). `python3 scripts/check.py paridad` solo compara con los fotogramas de referencia de `scripts/baseline/<sistema>/` (un minuto; macOS y Linux tienen los suyos); borra uno para renovarlo cuando un cambio visible esté aprobado. La paridad usa un horario congelado (`scripts/baseline/trains.json`, compilado con `npm run build:paridad` vía la variable `TRAINS` de `vite.config.js`) para que la actualización diaria de horarios no mueva sus referencias
 - `check.py` necesita Playwright + Chromium (`pip install playwright && playwright install chromium`); usa WebGL por software y espera 9 s por viewport
 - `python3 scripts/check.py a11y`: solo el check de accesibilidad (región viva, atajos, etiquetas), en un minuto
+- `python3 scripts/check_datos.py` (o `npm run check:datos`): comprueba `data/red.json` contra su contrato (`docs/referencias/datos-red-contrato.md`) — forma, cobertura de pueblos, paridad con `data/trains.json`, tamaño. Sin dependencias, en segundos; acepta una ruta alternativa como argumento
 - No hay tests unitarios ni linter; las verificaciones son los tipos (`tsc`) y `check.py`
 
 ## Cómo trabajamos
