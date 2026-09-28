@@ -19,7 +19,7 @@ Rules checked:
      differ by a minute at one station, e.g. Passeig de Gràcia).
   7. Stations: the Barcelona ones carry barcelona: true; every town carries a non-empty
      comarca and lineas; Camp de Tarragona (04104) carries lineas == ["AVE"] or including AVE.
-  8. Coverage: at least the 59 towns with a direct train to Barcelona (by stops.txt name)
+  8. Coverage: at least the 74 towns with a direct train to Barcelona (by stops.txt name)
      are present, and Reus (71400) is in Baix Camp.
   9. Parity with the current site: for every date present in both data/trains.json and
      red.json, the direct Sants->Reus trains derived from red.json (a train stopping at
@@ -61,6 +61,10 @@ PUEBLOS_59 = sorted([
     "Sant Miquel de Fluvià", "Sant Vicenç de Calders", "Sils", "Tarragona",
     "Torredembarra", "Tortosa", "Valls", "Vila-seca", "Vilabella", "Vilajuïga",
     "Vilamalla", "Vilanova i la Geltrú",
+    # only whole trains in Fichero_AV_LD bring these to Barcelona (Lleida by Valls and La Riba, Ribera d'Ebre, Ulldecona)
+    "Lleida-Pirineus", "Puigverd de Lleida-Artesa de Lleida", "Les Borges Blanques", "L'Espluga de Francolí",
+    "Montblanc", "Ulldecona-Alcanar-La Sénia", "Flix", "Riba-roja d'Ebre", "Faió-La Pobla de Massaluca",
+    "Juneda", "Vinaixa", "La Riba", "Vilaverd", "Vimbodí i Poblet", "La Floresta",
 ])
 
 

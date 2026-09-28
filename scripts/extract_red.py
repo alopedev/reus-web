@@ -77,6 +77,15 @@ FOMENTO_URL = "https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transi
 AVLD_URL = "https://ssl.renfe.com/gtransit/Fichero_AV_LD/google_transit.zip"
 
 SANTS, PDG, CLOT, FRANCA = "71801", "71802", "79009", "79400"
+# paradas que se descartan a sabiendas: fuera de Catalunya (Arago, Pais Valencia) y las estaciones de Barcelona
+# que no usamos (solo Sants, Passeig de Gracia, El Clot y Franca). Cualquier otra parada sin comarca hace fallar el script
+FUERA = {
+    "Caspe", "Fabara", "Nonaspe", "La Puebla de Híjar", "La Zaida-Sástago", "Quinto", "Samper",
+    "Zaragoza Delicias", "Zaragoza-Goya", "Zaragoza-Miraflores", "Zaragoza-Portillo",
+    "Alcalá de Chivert", "Benicarló-Peñíscola", "Benicàssim", "Castelló de la Plana", "Nules la Villavella", "Orpesa",
+    "Sagunt", "Torreblanca", "València-Cabanyal", "València-Estació del Nord", "Vila-Real", "Vinaròs",
+    "Barcelona Sant Andreu",
+}
 BARCELONA = {
     SANTS: "Barcelona-Sants", PDG: "Barcelona-Passeig de Gracia",
     CLOT: "Barcelona El Clot", FRANCA: "Barcelona Estacio de Franca",
@@ -124,6 +133,10 @@ COMARCA = {
     "Tortosa": "Baix Ebre", "Salou-Port Aventura": "Tarragonès",
     # Ampliaciones sobre el prototipo:
     "Ulldecona-Alcanar-La Sénia": "Montsià",
+    # paradas de trenes directos a Barcelona que solo trae av (Lleida por Valls y La Riba, Ribera d'Ebre)
+    "Flix": "Ribera d'Ebre", "Riba-roja d'Ebre": "Ribera d'Ebre", "Faió-La Pobla de Massaluca": "Terra Alta",
+    "Juneda": "Garrigues", "Vinaixa": "Garrigues", "La Riba": "Alt Camp",
+    "Vilaverd": "Conca de Barberà", "Vimbodí i Poblet": "Conca de Barberà", "La Floresta": "Vallès Occidental",
     "Lleida-Pirineus": "Segrià",
     "Puigverd de Lleida-Artesa de Lleida": "Segrià",
     "Les Borges Blanques": "Garrigues",
@@ -315,24 +328,21 @@ def load_av_trips(gtfs, route_product):
 
 # ---------- filtro Catalunya + comarca ----------
 
-def catalunya_stop_name(stop_id, stop_names, used_without_comarca):
-    """None si la parada debe descartarse (fuera de Catalunya); si no, su nombre.
-    Lanza SystemExit si el nombre es catalan conocido... en realidad la
-    comprobacion de comarca se hace al construir `estaciones`, no aqui."""
-    name = stop_names.get(stop_id)
-    if stop_id in BARCELONA or stop_id == CAMP_TARRAGONA:
-        return name
-    if name in COMARCA:
-        return name
-    return None  # fuera de Catalunya (o estacion desconocida): se descarta
-
-
-def filter_catalunya(stops, stop_names):
-    """Quita las paradas fuera de Catalunya, conservando el orden."""
+def filter_catalunya(stops, stop_names, dropped):
+    """Quita las paradas fuera de Catalunya, conservando el orden: se queda con Barcelona, Camp de
+    Tarragona y las estaciones con comarca en COMARCA, y descarta las de FUERA. Una parada que no
+    este en ninguna de las dos listas (Renfe ha anadido una estacion) hace fallar el script: nunca
+    se descarta en silencio un pueblo catalan."""
     kept = []
     for seq, stop_id, arr, dep in stops:
-        if catalunya_stop_name(stop_id, stop_names, None) is not None:
+        name = stop_names.get(stop_id, stop_id)
+        if stop_id in BARCELONA or stop_id == CAMP_TARRAGONA or name in COMARCA:
             kept.append((seq, stop_id, arr, dep))
+        elif name in FUERA:
+            dropped.add(name)
+        else:
+            raise SystemExit(f"Parada {stop_id} ({name!r}) desconocida: anadela a COMARCA (si es catalana) o a FUERA "
+                             f"en scripts/extract_red.py. data/red.json no se ha tocado.")
     return kept
 
 
@@ -369,6 +379,7 @@ def main():
     print("Leyendo fom (Fichero_CER_FOMENTO)...", file=sys.stderr)
     fom_gtfs = load_gtfs(args.fomento, FOMENTO_URL)
     fom_trains, line_stops = load_fom(fom_gtfs, day_range)
+    dropped = set()   # paradas de av fuera de Catalunya (o nuevas sin comarca): se listan al final
 
     stop_names = {}
     for r in fom_gtfs.rows("stops.txt"):
@@ -484,7 +495,7 @@ def main():
         if not (stop_ids & red_stations):
             continue  # no toca ninguna parada ya presente en la red (mas alla de Barcelona)
 
-        kept = filter_catalunya(stops, stop_names)
+        kept = filter_catalunya(stops, stop_names, dropped)
         if len(kept) < 2:
             continue
         seq = tuple((sid, a, e) for _sq, sid, a, e in kept)
@@ -529,7 +540,7 @@ def main():
         for t in trains:
             if t["trip_id"] in absorbed_fom_trip_ids:
                 continue
-            kept = filter_catalunya(t["stops"], stop_names)
+            kept = filter_catalunya(t["stops"], stop_names, dropped)
             if len(kept) < 2:
                 continue
             seq = tuple((sid, a, e) for _sq, sid, a, e in kept)
@@ -624,6 +635,7 @@ def main():
         f"-> {out} ({size_gzip / 1024:.1f} KB gzip)",
         file=sys.stderr,
     )
+    print(f"Paradas descartadas (FUERA): {', '.join(sorted(dropped)) or 'ninguna'}", file=sys.stderr)
 
 
 if __name__ == "__main__":
