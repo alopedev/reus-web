@@ -1,11 +1,11 @@
-import { reduce, state, type Direction } from './state';
+import { reduce, state } from './state';
 import { madridNow, addDays, hhmm, dur, dayData, lastDay, source, type Train } from './time';
-import { byId, find } from './dom';
+import { byId } from './dom';
 import type { World } from './world';
 import type { Table } from './table';
 import type { Scenery } from './scenery';
 
-// the hero's timetable: the next train, the tickets for the direction, the ruler of the day
+// the hero's timetable: the next train, the ticket for the direction, the ruler of the day
 export function setupTimetable({ world, table, scenery }: { world: World | null, table: Table, scenery: Scenery }): { render(): void } {
   const tIn = byId<HTMLInputElement>('t'), tOut = byId<HTMLOutputElement>('tOut'), nowBtn = byId<HTMLButtonElement>('nowBtn');
   const R0 = 300, R1 = 1439, pos = (m: number) => ((Math.min(R1,Math.max(R0,m))-R0)/(R1-R0)*100).toFixed(2)+'%';
@@ -36,7 +36,7 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
       live ? `Sale de ${from} en <strong>${dur(a[0]-now.min)}</strong>` : `Sale de ${from}`;
     const dep = byId('dep');
     if(shown !== a[0] + state.dir){ dep.textContent = hhmm(a[0]); say(tomorrow, from, to, a); if(shown !== null){ dep.classList.remove('swap'); void dep.offsetWidth; dep.classList.add('swap'); } shown = a[0] + state.dir; }
-    drawTickets(from, to, a);
+    ends[0].textContent = from; ends[1].textContent = state.dir==='reus' ? 'Reus' : 'Sants';
     byId('then').innerHTML = rest.length ? `Luego ${rest.map(r=>`<button type="button" class="tt" data-m="${r[0]}" aria-label="Ver el tren de las ${hhmm(r[0])}">${hhmm(r[0])}</button>`).join(' y ')}` : '';
     const prev = !tomorrow && !live ? [...todayTrains].reverse().find(([x]) => x < a[0]) : null;
     byId('prev').innerHTML = prev ? `Anterior <button type="button" class="tt" data-m="${prev[0]}" aria-label="Ver el tren anterior, de las ${hhmm(prev[0])}">${hhmm(prev[0])}</button>` : '';
@@ -81,23 +81,16 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     for(let i=4;i>=1;i--){ const y = i*20; pts.push(`${j()}% ${y}%`); }
     return `polygon(${pts.join(',')})`;
   }
-  function drawTickets(from: string, to: string, a: Train){
-    const other: {d: Direction, route: string, title: string, to: string} = state.dir==='reus' ? {d:'bcn', route:'Reus → Sants', title:'A Barcelona', to:'Barcelona'} : {d:'reus', route:'Sants → Reus', title:'A Reus', to:'Reus'};
-    const mins = a[1]-a[0];
-    byId('tickets').innerHTML = `
-      <button type="button" class="tk on" aria-pressed="true" style="--cut:${cut(7)}">
-        <span class="pp"><span class="k">Billete sencillo, tren directo</span>
-        <span class="route">${from} → ${to==='Barcelona Sants'?'Sants':to}</span>
-        <span class="row">Llega a las <b>${hhmm(a[1])}</b> · ${dur(mins)}</span></span><span class="stub" aria-hidden="true"></span>
-      </button>
-      <button type="button" class="tk off" data-d="${other.d}" aria-pressed="false" style="--cut:${cut(23)}" aria-label="Cambiar a ${other.to}">
-        <span class="pp"><span class="k">${other.route}</span><span class="route">${other.title}</span></span><span class="stub" aria-hidden="true"></span>
-      </button>`;
-  }
-  byId('tickets').addEventListener('click', e=>{
-    const b = (e.target as Element).closest<HTMLElement>('.tk.off'); if(!b) return;
-    state.dir = b.dataset.d as Direction; render();
-    requestAnimationFrame(()=> find('.tk.off')?.focus({preventScroll:true}));
+  // one ticket with both ends of the trip; ⇄ turns it around. The ends will open their lists (the town, Barcelona's
+  // stations): until then they are plain text, never a button that does nothing
+  byId('tickets').innerHTML = `
+    <div class="tk" style="--cut:${cut(7)}">
+      <span class="pp"><span class="k">Billete</span>
+      <span class="route"><span class="end"></span> <button type="button" class="swap" aria-label="Cambiar el sentido">⇄</button> <span class="end"></span></span></span><span class="stub" aria-hidden="true"></span>
+    </div>`;
+  const ends = byId('tickets').querySelectorAll<HTMLElement>('.end');
+  byId('tickets').querySelector('.swap')!.addEventListener('click', ()=>{
+    state.dir = state.dir==='reus' ? 'bcn' : 'reus'; render();
     if(world) world.resize();
   });
   setInterval(()=>{ if(state.useNow) render(); }, 30000);

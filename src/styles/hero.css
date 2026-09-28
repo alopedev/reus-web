@@ -5,24 +5,19 @@
 .sub{ margin:.55rem 0 0; font-size:1.15rem; color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.35); }
 .brandBox{ min-width:0; }
 
-/* two train tickets, cut out of paper: the printed one is the trip you're looking at */
-.tickets{ position:relative; display:flex; align-items:flex-start; gap:.6rem; }
-.tk{ all:unset; box-sizing:border-box; cursor:pointer; position:relative; display:block; color:var(--shadow);
-  flex:none; filter:drop-shadow(.25rem .25rem 0 var(--shadow)); transition:transform .25s ease, filter .25s ease; }
+/* one train ticket, cut out of paper: both ends of the trip, and ⇄ to turn it around */
+.tickets{ position:relative; display:flex; align-items:flex-start; }
+.tk{ box-sizing:border-box; position:relative; display:block; color:var(--shadow); transform:rotate(-1.5deg);
+  flex:none; filter:drop-shadow(.25rem .25rem 0 var(--shadow)); }
 .tk .pp{ display:block; background:#EFE6D2 var(--grain); padding:.75rem 2.75rem .75rem 1rem; clip-path:var(--cut); }
 .tk .stub{ position:absolute; top:.5rem; bottom:.5rem; right:1.9rem; border-left:1.5px dashed rgba(45,36,28,.45); }
 .tk .k{ display:block; font-size:.93rem; opacity:.75; }
 .tk .route{ display:block; font-family:var(--serif); font-size:1.8rem; line-height:1.15; margin-top:.12rem; }
-.tk .row{ display:block; font-size:.95rem; margin-top:.25rem; white-space:nowrap; }
 .tk .route{ white-space:nowrap; }
-.tk .row b{ font-family:var(--serif); font-weight:400; font-size:1.12em; }
-.tk.on{ transform:rotate(-1.5deg); cursor:default; }
-.tk.off{ transform:rotate(2.5deg) translateY(.6rem); filter:drop-shadow(.3rem .3rem 0 var(--shadow)); }
-.tk.off .pp{ background-color:#E4D8BE; padding:.62rem 2.5rem .62rem .9rem; }
-.tk.off:hover{ transform:rotate(1deg) translate(-.12rem,.4rem); filter:drop-shadow(.45rem .45rem 0 var(--shadow)); }
-.tk.off:active{ transform:rotate(1deg) translate(.2rem,.8rem); filter:drop-shadow(1px 1px 0 var(--shadow)); }
-.tk.off .route{ font-size:1.25rem; }
-.tk:focus-visible{ outline:2px solid var(--paper); outline-offset:6px; }
+.tk .swap{ font:inherit; color:inherit; background:none; border:0; padding:0 .15em; margin:0 .05em; cursor:pointer;
+  text-decoration:underline dotted; text-decoration-thickness:1.5px; text-underline-offset:.2em; }
+.tk .swap:hover{ text-decoration-style:solid; }
+.tk .swap:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; border-radius:3px; }
 .label{ margin:0 0 .2rem; font-family:var(--sans); font-weight:700; font-size:1.05rem; color:var(--soft); text-shadow:0 1px 2px rgba(0,0,0,.35); grid-column:1 / -1; }
 
 /* the window: an empty frame; the painting shows through from the canvas behind */
@@ -80,14 +75,13 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 @media (prefers-reduced-motion: reduce){ .top, .info{ transition:none; opacity:1; transform:none; } }
 
 @media (max-width:700px), (max-aspect-ratio:4/5){
-  /* stacked: the tickets sit in a row under the name, each as wide as its text */
+  /* stacked: the ticket sits under the name, as wide as its text */
   .stage{ padding:1rem 1.15rem; }
   .top{ flex-direction:column; align-items:flex-start; gap:.6rem; }
   .brand{ font-size:3.4rem; } .sub{ font-size:1rem; }
   .tickets{ justify-content:flex-start; flex-wrap:wrap; row-gap:.5rem; }
   .tk .pp{ padding:.6rem 2.2rem .6rem .75rem; }
-  .tk .route{ font-size:1.25rem; } .tk.off .route{ font-size:1.05rem; }
-  .tk.off .k{ display:none; }
+  .tk .route{ font-size:1.25rem; }
   /* panoramic: as wide as the stage and as tall as what is left, never taller than wide. The painted frame
      (.022 of the screen's height around #win, watercolor.frag) needs room above and below, or it touches the tickets */
   #win{ width:calc(100cqw - 2.2rem); height:min(100cqh - 4.4vh - 1rem, (100cqw - 2.2rem) / 1.05); aspect-ratio:auto; border-radius:1.75rem; }
