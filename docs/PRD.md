@@ -101,8 +101,8 @@ Ordenadas por prioridad.
 | P0-15 | Estación de Barcelona | Sants por defecto; se puede cambiar a Passeig de Gràcia, Clot o França. Si no hay tren directo entre esa estación y el pueblo, la web lo dice | Pendiente |
 | P0-16 | Recordar el trayecto | La web abre con el último pueblo, estación y sentido elegidos; la URL los refleja y se puede compartir. La primera visita abre en Sants → Reus | Pendiente |
 | P0-17 | Alternativa AVE (Baix Camp y Tarragonès) | Si el pueblo es del Baix Camp o del Tarragonès, junto al regional se ve el próximo AVE/Avlo desde o hasta Camp de Tarragona (salida y llegada), sin quitar protagonismo al regional | Pendiente (diseño) |
-| P0-18 | Datos de la red | Regionales de `fomento_transit.zip` y AVE/Avlo de `Fichero_AV_LD` (solo Camp de Tarragona), sin duplicados, un modelo por tren con su lista de paradas, ≤ ~150 KB comprimido | Pendiente |
-| P0-19 | Atribución | «Origen de los datos: Renfe Operadora» y la fecha de actualización visibles | Pendiente (hoy: «Fuente: Renfe, datos abiertos») |
+| P0-18 | Datos de la red | Regionales de `fomento_transit.zip` y AVE/Avlo de `Fichero_AV_LD` (solo Camp de Tarragona), sin duplicados, un modelo por tren con su lista de paradas, ≤ ~150 KB comprimido | Hecho (`data/red.json`, 14 KB gzip; la web ya lee Sants ↔ Reus de ahí) |
+| P0-19 | Atribución | «Origen de los datos: Renfe Operadora» y la fecha de actualización visibles | Hecho (reverso del billete) |
 
 ### P1 · Muy deseables
 

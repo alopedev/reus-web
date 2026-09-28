@@ -28,7 +28,7 @@ Rules checked:
      the hinge and climbs the wall as the wall turns away, the texts on the wall dim with it, and
      nothing lingers once you scroll back to the top.
   10. The site looks the same as the reference frames in scripts/baseline/<system>/ (a still frame with reduced
-     motion, the clock fixed at 10:00 in Madrid and the frozen timetable scripts/baseline/trains.json, built into
+     motion, the clock fixed at 10:00 in Madrid and the frozen timetable scripts/baseline/red.json, built into
      dist-paridad/ by npm run build:paridad): the guard for refactors that must change nothing.
      A missing reference is written from the current build; delete one to renew it.
   11. Fase 3, the letters' journey: scrolling from the hero to the table, the letters of h1.brand peel off the

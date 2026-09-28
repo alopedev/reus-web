@@ -8,7 +8,7 @@
     "build": "tsc -p . && vite build",
     "preview": "vite preview",
     "check": "npm run build && npm run build:paridad && python3 scripts/check.py",
-    "build:paridad": "TRAINS=./scripts/baseline/trains.json OUT_DIR=../dist-paridad vite build",
+    "build:paridad": "RED=./scripts/baseline/red.json OUT_DIR=../dist-paridad vite build",
     "check:datos": "python3 scripts/check_datos.py"
   },
   "dependencies": {

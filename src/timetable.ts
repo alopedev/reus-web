@@ -1,5 +1,5 @@
 import { reduce, state, type Direction } from './state';
-import { madridNow, addDays, hhmm, dur, dayData, lastDay, type Train } from './time';
+import { madridNow, addDays, hhmm, dur, dayData, lastDay, source, type Train } from './time';
 import { byId, find } from './dom';
 import type { World } from './world';
 import type { Table } from './table';
@@ -101,7 +101,8 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     if(world) world.resize();
   });
   setInterval(()=>{ if(state.useNow) render(); }, 30000);
-  { const last = lastDay();
-    byId('hasta').textContent = `Horarios cargados hasta el ${new Date(last+'T12:00:00Z').toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'})}; los días siguientes se aproximan.`; }
+  { const day = (iso: string) => new Date(iso+'T12:00:00Z').toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
+    byId('hasta').textContent = `Horarios cargados hasta el ${day(lastDay())}; los días siguientes se aproximan.`;
+    byId('fuente').textContent = `${source.fuente}, ${day(source.actualizado)}.`; }
   return { render };
 }

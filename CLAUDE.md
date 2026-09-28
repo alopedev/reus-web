@@ -11,11 +11,11 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 ## Comandos
 
 - `npm install` la primera vez; `npm run dev` abre la web en local con recarga al guardar
-- `npm run build`: comprueba tipos (TypeScript estricto) y genera `dist/` con Vite (`src/index.html` + `src/main.ts` + `data/trains.json`); `npm run typecheck` solo comprueba tipos
+- `npm run build`: comprueba tipos (TypeScript estricto) y genera `dist/` con Vite (`src/index.html` + `src/main.ts` + `data/red.json`); `npm run typecheck` solo comprueba tipos
 - `python3 scripts/check.py`: comprueba reglas de diseño en escritorio y móvil y guarda capturas en `screenshots/`. Ejecútalo después de cada cambio visual y revisa las capturas antes de dar nada por terminado
-- `python3 scripts/extract_trains.py`: descarga el GTFS abierto de Renfe y regenera `data/trains.json` (14 días desde hoy)
+- `python3 scripts/extract_trains.py`: descarga el GTFS abierto de Renfe y regenera `data/trains.json` (14 días desde hoy, solo Sants ↔ Reus). La web ya no lo lee: queda como red de seguridad de `check_datos.py` (paridad Sants ↔ Reus) hasta que el selector cubra toda la red
 - `python3 scripts/extract_red.py`: descarga los GTFS `Fichero_CER_FOMENTO` y `Fichero_AV_LD` de Renfe y regenera `data/red.json` (regionales R11/R13-R17 + AVE/Avlo Sants↔Camp de Tarragona, 14 días desde hoy); acepta `--fomento`/`--avld RUTA` (zip o carpeta ya descomprimida) y `--desde AAAA-MM-DD` para pruebas sin descargar
-- `check.py` sirve `dist/` y `dist-paridad/` por HTTP: ejecuta siempre `npm run check` (compila ambos y comprueba). `python3 scripts/check.py paridad` solo compara con los fotogramas de referencia de `scripts/baseline/<sistema>/` (un minuto; macOS y Linux tienen los suyos); borra uno para renovarlo cuando un cambio visible esté aprobado. La paridad usa un horario congelado (`scripts/baseline/trains.json`, compilado con `npm run build:paridad` vía la variable `TRAINS` de `vite.config.js`) para que la actualización diaria de horarios no mueva sus referencias
+- `check.py` sirve `dist/` y `dist-paridad/` por HTTP: ejecuta siempre `npm run check` (compila ambos y comprueba). `python3 scripts/check.py paridad` solo compara con los fotogramas de referencia de `scripts/baseline/<sistema>/` (un minuto; macOS y Linux tienen los suyos); borra uno para renovarlo cuando un cambio visible esté aprobado. La paridad usa un horario congelado (`scripts/baseline/red.json`, compilado con `npm run build:paridad` vía la variable `RED` de `vite.config.js`) para que la actualización diaria de horarios no mueva sus referencias
 - `check.py` necesita Playwright + Chromium (`pip install playwright && playwright install chromium`); usa WebGL por software y espera 9 s por viewport
 - `python3 scripts/check.py a11y`: solo el check de accesibilidad (región viva, atajos, etiquetas), en un minuto
 - `python3 scripts/check_datos.py` (o `npm run check:datos`): comprueba `data/red.json` contra su contrato (`docs/referencias/datos-red-contrato.md`) — forma, cobertura de pueblos, paridad con `data/trains.json`, tamaño. Sin dependencias, en segundos; acepta una ruta alternativa como argumento
@@ -45,7 +45,7 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 
 - Migración a Vite + TypeScript en curso (`docs/migracion.md`). Three.js 0.128 y GSAP 3.15 (núcleo + ScrollTrigger) como dependencias npm con versión fija; fuentes desde Google Fonts. Nada más externo
 - Paisaje: escena 3D → render target → shader de acuarela (Kuwahara + modelo de pigmento). El vagón se pinta en el mismo shader fuera de la ventanilla (`sdRR` con el rectángulo de `#win`)
-- Horarios en minutos desde medianoche; claves `r` (Sants→Reus), `b` (Reus→Sants), `a` (AVE, sin uso aún)
+- Horarios en minutos desde medianoche. La web lee `data/red.json` (`src/time.ts`: `direct(fecha, desde, hasta)` saca los trenes directos entre dos estaciones; `dayData` da Sants ↔ Reus como `r`/`b` a `timetable.ts`)
 - IDs de parada GTFS: Barcelona-Sants 71801, Reus 71400
 - Días sin dato usan el último día conocido del mismo tipo y la web avisa de «horario aproximado»
 - Los horarios se regeneran solos cada día (`.github/workflows/horarios.yml`, 04:00 UTC): si cambian y pasan todas las pruebas, un commit a `main` los publica; si algo falla, no se publica nada y GitHub avisa por email. Se puede lanzar a mano desde la pestaña Actions
@@ -53,13 +53,13 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 - La maquetación de la mesa decide por el espacio real (container queries sobre `.escena`), no por el tamaño de pantalla. La mesa fija (sticky) exige pantalla apaisada de ≥ 1000 × 780: misma media query en CSS y en `PINNED` del script
 - `check.py` recorre 11 tamaños de pantalla (360 a 2560 px); si cambias tamaños, revisa también esas capturas
 - Módulos TypeScript en `src/`: `main.ts` (arranque, en este orden: mundo, mesa, paisaje, horarios, transición), `state.ts` (`state`, `reduce`), `time.ts` (hora de Madrid y horarios, tipos `Train`/`DayTimetable`), `light.ts` (`daylight`), `world.ts` (escena 3D + acuarela, interfaz `World`), `table.ts` (mesa pintada y capas vivas), `scenery.ts` (bucle del paisaje, atajos R/P), `timetable.ts` (hora grande, billetes, regla), `shelf.ts` (transición: `pose` —ángulos/bisagra/escala de pared y mesa, compartida con `letters.ts`—, `pitch`, caída de papeles, tapa; llama a `letters.measure`/`letters.render` desde su propio listener de scroll/resize), `letters.ts` (fase 3: viaje de letras `h1.brand` → `h2#qe` como recortes de papel; `pair`/`state` puros, `measure`/`render`/`reset` con medidas cacheadas), `dom.ts` (`byId`/`find` para elementos que siempre existen en `index.html`). Shaders en `src/shaders/*.frag` (importados con `?raw`); estilos en `src/styles/` (incluye `letters.css`, capa `#letras`)
-- Edita `src/`; `dist/` se regenera. Los horarios se importan de `data/trains.json`. `check.py` lee el estado de la página por `window.reus` (`hingeAt`, `dropped`, `ScrollTrigger`, `playing`, `letras.pair`/`letras.state`): si renombras algo, actualízalo ahí
+- Edita `src/`; `dist/` se regenera. Los horarios se importan de `data/red.json`. `check.py` lee el estado de la página por `window.reus` (`hingeAt`, `dropped`, `ScrollTrigger`, `playing`, `letras.pair`/`letras.state`): si renombras algo, actualízalo ahí
 - `check.py` depende de los selectores `.brand`, `#win`, `#info`, `.soon` y `#dep`: si los renombras, actualiza el script
 - Flujo en runtime: `build3D()` devuelve `world` (`setTime`, `frame(dx, time, reveal)`) o `null` sin WebGL (la página debe seguir funcionando). `loop()` limita el render a 30 fps y para el `requestAnimationFrame` en pausa o con la pestaña oculta
 - `daylight(min)` es la única fuente de luz: define a la vez el cielo del paisaje y los colores de pared, madera y asientos del vagón
 - La hora «actual» siempre es la de Europe/Madrid (`madridNow()`), no la del navegador
 - Estado de la UI en `state` {dir, useNow, minute}; `render()` lo recalcula todo. El lector de pantalla solo oye `#aviso` (región viva dentro de `#hero`, fuera de los controles), y solo cuando cambia el tren mostrado. Si hoy no quedan trenes, muestra los primeros de mañana
-- `extract_trains.py` conserva la clave `a` del fichero anterior y no escribe nada si el feed no devuelve trenes
+- `extract_trains.py` no escribe nada si el feed no devuelve trenes. `extract_red.py` falla con un mensaje claro si una estación de la red regional no tiene comarca en `COMARCA`, y lista al final las paradas de AV_LD que descarta por estar fuera de Catalunya (si sale una catalana, añádela a `COMARCA`)
 
 ## Publicación
 

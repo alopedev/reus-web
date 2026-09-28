@@ -1,10 +1,32 @@
-import trains from '../data/trains.json';
+import red from '../data/red.json';
+
+// the network timetable (scripts/extract_red.py, contract in docs/referencias/datos-red-contrato.md): every train
+// once, with its stops as [stop_id, arrival, departure], and the trains that run each day
+interface Network {
+  fuente: string; actualizado: string;
+  estaciones: Record<string, { nombre: string; comarca?: string; lineas?: string[]; barcelona?: boolean }>;
+  trenes: { n: string; p: string; s: [string, number, number][] }[];
+  dias: Record<string, number[]>;
+}
+const NET = red as unknown as Network;
+export const SANTS = '71801', REUS = '71400';
+// who the data comes from and when it was updated: Renfe's licence asks for both
+export const source = { fuente: NET.fuente, actualizado: NET.actualizado };
 
 // a train: departure and arrival in minutes after midnight, and its number
 export type Train = [dep: number, arr: number, id: string];
-// one day's timetable: r Sants → Reus, b Reus → Sants, a the high-speed trains (not used yet)
-export interface DayTimetable { r: Train[]; b: Train[]; a: (string | number)[][] }
-const DATA = trains as unknown as Record<string, DayTimetable>;
+// one day's timetable: r Sants → Reus, b Reus → Sants
+export interface DayTimetable { r: Train[]; b: Train[] }
+
+// the direct trains of a day from one station to another: the same train stops at `from` and later at `to`
+export function direct(iso: string, from: string, to: string): Train[] {
+  const out: Train[] = [];
+  for(const i of NET.dias[iso] ?? []){
+    const t = NET.trenes[i], a = t.s.findIndex(x => x[0]===from), b = t.s.findIndex(x => x[0]===to);
+    if(a >= 0 && b > a) out.push([t.s[a][2], t.s[b][1], t.n]);
+  }
+  return out.sort((x, y) => x[0]-y[0]);
+}
 
 // times are minutes after midnight, always in Madrid
 export function madridNow(): {date: string, min: number} {
@@ -19,10 +41,9 @@ export const dur = (m: number): string => { if(m<1) return 'ahora'; const h=Math
 
 // days missing from the data borrow the latest known day of the same kind (weekday, Saturday or Sunday)
 export function dayData(iso: string): {d: DayTimetable, exact: boolean} {
-  if(DATA[iso]) return {d:DATA[iso], exact:true};
   const kind = (x: string) => { const w = weekday(x); return w===6 ? 6 : w===0 ? 0 : 1; };
-  const ref = Object.keys(DATA).sort().reverse().find(x => kind(x)===kind(iso))!;
-  return {d:DATA[ref], exact:false};
+  const exact = iso in NET.dias, day = exact ? iso : Object.keys(NET.dias).sort().reverse().find(x => kind(x)===kind(iso))!;
+  return {d:{r:direct(day, SANTS, REUS), b:direct(day, REUS, SANTS)}, exact};
 }
 // the last day the timetable covers
-export const lastDay = (): string => Object.keys(DATA).sort().pop()!;
+export const lastDay = (): string => Object.keys(NET.dias).sort().pop()!;
