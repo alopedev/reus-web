@@ -32,8 +32,8 @@ Rules checked:
      dist-paridad/ by npm run build:paridad): the guard for refactors that must change nothing.
      A missing reference is written from the current build; delete one to renew it.
   11. Fase 3, the letters' journey: scrolling from the hero to the table, the letters of h1.brand peel off the
-     wall as paper cut-outs and land forming h2#qe, paired by position (reus.letras.pair) — with "Nombre" the
-     pairing must match the approved prototype exactly: N→Q, o→u, m→é, b→e, r→gap (fuses), e→s. Before the
+     wall as paper cut-outs and land forming h2#qe, paired by position (reus.letras.pair) — with "Capacasa" the
+     pairing must be exactly: C→Q, a→u, p→é, a→e, c→gap (fuses), a→s, s→gap, a→gap. Before the
      journey starts there are no chips and h1 shows normally; midway there are as many chips as source letters
      and the real h1/h2 are hidden only visually (never visibility:hidden/display:none, their text stays
      accessible); each chip starts glued to its glyph on the wall and ends glued to its glyph on the table
@@ -54,11 +54,14 @@ Rules checked:
   14. The site reads the network timetable (data/red.json; the parity build, its frozen copy
      scripts/baseline/red.json): the back of the ticket credits «Origen de los datos: Renfe Operadora» with the
      date the data was updated, as Renfe's licence asks. Modo rápido: `python3 scripts/check.py red`.
+  15. The hero B (docs/plan.md, 28-09): the site is called «Capacasa» (title and h1) with the subtitle «El tren a
+     casa, y de vuelta a Barcelona». Modo rápido: `python3 scripts/check.py hero`.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
-Usage: npm run build && npm run build:paridad && python3 scripts/check.py [paridad|letras|a11y|red]   (or: npm run check)
-       (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute; a11y: only check 13; red: only check 14)
+Usage: npm run build && npm run build:paridad && python3 scripts/check.py [paridad|letras|a11y|red|hero]   (or: npm run check)
+       (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute; a11y: only check 13; red: only check 14;
+        hero: only check 15)
 """
 import asyncio, functools, http.server, io, os, pathlib, sys, threading
 from PIL import Image, ImageChops, ImageStat
@@ -305,10 +308,11 @@ async def check_wash(page, name):
     return errs
 
 # --- Fase 3 · el viaje de letras (h1.brand -> h2#qe) --------------------------------------------------------
-# The pairing Àlex approved for the current placeholder name: chip i is the i-th letter of "Nombre" (source
-# order is preserved on the wall side); QE_TARGET[i] is which character of "Qué es" it lands on (index 3 is the
-# space, where the 'r' chip has no letter to become and fuses instead). See docs/referencias/viaje-letras.md.
-QE_TARGET = [0, 1, 2, 4, 3, 5]
+# The pairing for the site's name: chip i is the i-th letter of NAME (source order is preserved on the wall side);
+# QE_TARGET[i] is which character of "Qué es" it lands on (index 3 is the space, where the three chips with no
+# letter to become fuse instead). See docs/referencias/viaje-letras.md.
+NAME = "Capacasa"
+QE_TARGET = [0, 1, 2, 4, 3, 5, 3, 3]
 # the journey's stagger, from the approved prototype (docs/referencias/viaje-letras.md, "Movimiento"): letter i
 # lifts off at roughly this progress
 def letters_start(i): return .06 + i * .035
@@ -339,17 +343,19 @@ async def letters_at(page, p):
 async def check_letters_pair(page):
     """reus.letras.pair(nombre, destino) empareja letra a letra por posición (no por identidad semántica).
     Letras sobrantes del origen aterrizan en el hueco del destino (su espacio) y se funden; letras de destino
-    sin pareja (nombre más corto) aparecen solas con un fundido corto. Con 'Nombre' -> 'Qué es' debe dar
-    exactamente el emparejado del prototipo aprobado: N->Q, o->u, m->é, b->e, r->hueco (se funde), e->s.
+    sin pareja (nombre más corto) aparecen solas con un fundido corto. Con 'Capacasa' -> 'Qué es' debe dar
+    exactamente: C->Q, a->u, p->é, a->e, c->hueco (se funde), a->s, s->hueco, a->hueco.
     reus.letras.state(p) debe existir también: es la función pura que usan el resto de los checks."""
     ok = await page.evaluate("""() => !!(window.reus && window.reus.letras
       && typeof window.reus.letras.pair === 'function' && typeof window.reus.letras.state === 'function')""")
     if not ok: return ["reus.letras.pair/state is missing"]
     errs = []
-    proto = await page.evaluate("() => window.reus.letras.pair('Nombre', 'Qué es')")
+    proto = await page.evaluate("() => window.reus.letras.pair('Capacasa', 'Qué es')")
     got = [[it.get("from"), it.get("to")] for it in proto] if isinstance(proto, list) and all(isinstance(it, dict) for it in proto) else None
-    expected = [["N", "Q"], ["o", "u"], ["m", "é"], ["b", "e"], ["r", None], ["e", "s"]]
-    if got != expected: errs.append(f"pair('Nombre','Qué es') = {got}, expected {expected} (the approved prototype pairing)")
+    expected = [["C", "Q"], ["a", "u"], ["p", "é"], ["a", "e"], ["c", None], ["a", "s"], ["s", None], ["a", None]]
+    if got != expected: errs.append(f"pair('Capacasa','Qué es') = {got}, expected {expected}")
+    name = await page.evaluate("document.querySelector('.brand').textContent")
+    if name != NAME: errs.append(f"h1.brand reads «{name}», expected «{NAME}»")
 
     async def rule(name, dest):
         res = await page.evaluate("([n, d]) => window.reus.letras.pair(n, d)", [name, dest])
@@ -412,7 +418,7 @@ async def check_letters_midway(page):
     await letters_at(page, .3)
     st = await page.evaluate(LETTERS_STATE)
     errs = []
-    if st["count"] != 6: errs.append(f"{st['count']} chips at p=0.3, expected 6 (as many as letters in 'Nombre')")
+    if st["count"] != len(NAME): errs.append(f"{st['count']} chips at p=0.3, expected {len(NAME)} (as many as letters in '{NAME}')")
     if st["h1Opacity"] > .4: errs.append(f"h1.brand is not hidden at p=0.3 (opacity {st['h1Opacity']})")
     if st["h1Vis"] == "hidden" or st["h1Disp"] == "none": errs.append("h1.brand was hidden with visibility/display, not just color/opacity")
     if not st["h1Text"].strip(): errs.append("h1.brand lost its text content")
@@ -427,9 +433,9 @@ async def check_letters_midway(page):
 async def check_letters_positions(page):
     """Each chip starts glued to its glyph on the wall (h1.brand), one per letter of the name -- just before its
     own liftoff -- and ends glued to its glyph on the table (h2#qe) at p=0.97, both read live through the real
-    transforms of #hero/#repisa, within 3 px. Uses the pairing Àlex approved for 'Nombre' -> 'Qué es'."""
+    transforms of #hero/#repisa, within 3 px. Uses the pairing of NAME -> 'Qué es' (QE_TARGET)."""
     errs = []
-    for i in range(6):
+    for i in range(len(NAME)):
         p = max(0, letters_start(i) - .015)
         await letters_at(page, p)
         chip = await page.evaluate(f"({CHIP_RECT})({i})")
@@ -732,6 +738,26 @@ async def check_red(browser):
     if f"{d} de {MONTHS[m - 1]} de {y}" not in text: errs.append(f"the back of the ticket does not give the data's update date, {d} de {MONTHS[m - 1]} de {y}")
     return errs
 
+SUBTITLE = "El tren a casa, y de vuelta a Barcelona"
+
+async def hero_page(browser, w=1440, h=900, at="2026-09-28T08:00:00Z"):
+    """The hero on the frozen timetable, as a still frame at a fixed Madrid time (10:00 by default)."""
+    page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce")
+    await page.clock.set_fixed_time(at)
+    await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1200)
+    return page
+
+async def check_hero(browser):
+    """15. The hero B: its name and subtitle."""
+    errs = []
+    page = await hero_page(browser)
+    got = await page.evaluate("({title: document.title, name: document.querySelector('.brand').textContent.trim(), sub: document.querySelector('.sub').textContent.trim()})")
+    if got["title"] != NAME: errs.append(f"the page's title is «{got['title']}», expected «{NAME}»")
+    if got["name"] != NAME: errs.append(f"the name on the wall is «{got['name']}», expected «{NAME}»")
+    if got["sub"] != SUBTITLE: errs.append(f"the subtitle is «{got['sub']}», expected «{SUBTITLE}»")
+    await page.close()
+    return errs
+
 async def main():
     failures = []
     async with async_playwright() as p:
@@ -743,6 +769,9 @@ async def main():
         if sys.argv[1:] == ["red"]:
             failures += await check_red(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · red"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["hero"]:
+            failures += await check_hero(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · hero"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["a11y"]:
             failures += await check_a11y(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · a11y"); sys.exit(1 if failures else 0)
@@ -790,6 +819,7 @@ async def main():
         failures += await check_sizes(browser)
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
         failures += [f"red: {e}" for e in await check_red(browser)]
+        failures += [f"hero: {e}" for e in await check_hero(browser)]
         failures += [f"reduced: {e}" for e in await check_still_window(browser)]
         # reduced motion: a still frame and every paper already in place
         page = await open_page(browser, viewport={"width": 1440, "height": 860}, reduced_motion="reduce")
