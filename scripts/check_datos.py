@@ -13,8 +13,10 @@ Rules checked:
      the site is Barcelona <-> your town.
   5. AVE/AVLO trains only stop, among the saved stations, at Sants (71801) and Camp de
      Tarragona (04104).
-  6. No duplicates: within the same day, no two trains share n, and no two trains share
-     the same sequence of (stop_id, salida) — the same physical train under another number.
+  6. No duplicates: within the same day, no two trains share n, and no two trains are the same
+     physical train under another number: two trains that stop at the same two or more stations,
+     in the same order, leaving each within a minute of the other (the two Renfe feeds often
+     differ by a minute at one station, e.g. Passeig de Gràcia).
   7. Stations: the Barcelona ones carry barcelona: true; every town carries a non-empty
      comarca and lineas; Camp de Tarragona (04104) carries lineas == ["AVE"] or including AVE.
   8. Coverage: at least the 59 towns with a direct train to Barcelona (by stops.txt name)
@@ -22,14 +24,15 @@ Rules checked:
   9. Parity with the current site: for every date present in both data/trains.json and
      red.json, the direct Sants->Reus trains derived from red.json (a train stopping at
      71801 then later at 71400) match trains.json's "r" key exactly on (salida, llegada),
-     and Reus->Sants matches "b". Reports concrete extra/missing departures (HH:MM).
+     counting repeats (a train listed twice is an error), and Reus->Sants matches "b".
+     Reports concrete extra/missing/repeated departures (HH:MM).
   10. There is an AVE Sants -> Camp de Tarragona every day (at least 5 a day), and the
       same in the opposite direction.
   11. Size: red.json is <= 150 KB gzip-compressed.
 
 Usage: python3 scripts/check_datos.py [path-to-red.json]   (default: data/red.json)
 """
-import gzip, json, pathlib, sys
+import collections, gzip, json, pathlib, sys
 
 root = pathlib.Path(__file__).resolve().parent.parent
 
@@ -198,7 +201,7 @@ def check_alta_velocidad_paradas(d):
 
 
 def check_duplicados(d):
-    """Rule 6: within a day, no two trains share n, or the same (stop_id, salida) sequence."""
+    """Rule 6: within a day, no two trains share n, or are the same physical train (same stations in order, ±1 min)."""
     trenes = d.get("trenes", [])
     dias = d.get("dias", {})
     bad = []
@@ -215,12 +218,15 @@ def check_duplicados(d):
                 bad.append(f"{day}: n={n!r} appears twice (trains #{seen_n[n]} and #{idx})")
             else:
                 seen_n[n] = idx
-            seq = tuple((stop[0], stop[2]) for stop in t.get("s", []) if isinstance(stop, list) and len(stop) == 3)
-            if seq in seen_seq:
-                bad.append(f"{day}: trains #{seen_seq[seq]} (n={trenes[seen_seq[seq]].get('n')!r}) and "
-                            f"#{idx} (n={n!r}) share the same stop sequence — same physical train")
-            else:
-                seen_seq[seq] = idx
+            seq = {stop[0]: stop[2] for stop in t.get("s", []) if isinstance(stop, list) and len(stop) == 3}
+            order = [stop[0] for stop in t.get("s", []) if isinstance(stop, list) and len(stop) == 3]
+            for other, (oseq, oorder) in seen_seq.items():
+                shared = [x for x in order if x in oseq]
+                if len(shared) >= 2 and shared == [x for x in oorder if x in seq] \
+                        and all(abs(seq[x] - oseq[x]) <= 1 for x in shared):
+                    bad.append(f"{day}: trains #{other} (n={trenes[other].get('n')!r}) and #{idx} (n={n!r}) "
+                               f"leave {len(shared)} shared stations within a minute of each other — same physical train")
+            seen_seq[idx] = (seq, order)
     return capped(bad)
 
 
@@ -299,7 +305,7 @@ def check_paridad(d, trains_path):
 
     def derive(day, origin, dest):
         """(salida, llegada) pairs for trains that stop at origin, then later at dest."""
-        pairs = set()
+        pairs = collections.Counter()
         for idx in dias.get(day, []):
             if not isinstance(idx, int) or not (0 <= idx < len(trenes)):
                 continue
@@ -308,7 +314,7 @@ def check_paridad(d, trains_path):
             if origin in pos and dest in pos and pos[origin] < pos[dest]:
                 salida = s[pos[origin]][2]
                 llegada = s[pos[dest]][1]
-                pairs.add((salida, llegada))
+                pairs[(salida, llegada)] += 1
         return pairs
 
     errs = []
@@ -316,12 +322,12 @@ def check_paridad(d, trains_path):
         if day not in dias:
             continue
         for key, origin, dest in (("r", SANTS, REUS), ("b", REUS, SANTS)):
-            expected = {(row[0], row[1]) for row in entry.get(key, [])}
+            expected = collections.Counter((row[0], row[1]) for row in entry.get(key, []))
             actual = derive(day, origin, dest)
-            missing = sorted(expected - actual)
-            extra = sorted(actual - expected)
+            missing = sorted((expected - actual).elements())
+            extra = sorted((actual - expected).elements())
             diffs = [f"missing {hhmm(dep)}->{hhmm(arr)}" for dep, arr in missing] + \
-                    [f"extra {hhmm(dep)}->{hhmm(arr)}" for dep, arr in extra]
+                    [f"{'repeated' if (dep, arr) in expected else 'extra'} {hhmm(dep)}->{hhmm(arr)}" for dep, arr in extra]
             if diffs:
                 errs.append(f"{day} [{key}]: {', '.join(capped(diffs, 5))}")
     return capped(errs, 10)
