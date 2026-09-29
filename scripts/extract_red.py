@@ -136,7 +136,7 @@ COMARCA = {
     # paradas de trenes directos a Barcelona que solo trae av (Lleida por Valls y La Riba, Ribera d'Ebre)
     "Flix": "Ribera d'Ebre", "Riba-roja d'Ebre": "Ribera d'Ebre", "Faió-La Pobla de Massaluca": "Terra Alta",
     "Juneda": "Garrigues", "Vinaixa": "Garrigues", "La Riba": "Alt Camp",
-    "Vilaverd": "Conca de Barberà", "Vimbodí i Poblet": "Conca de Barberà", "La Floresta": "Vallès Occidental",
+    "Vilaverd": "Conca de Barberà", "Vimbodí i Poblet": "Conca de Barberà", "La Floresta": "Garrigues",
     "Lleida-Pirineus": "Segrià",
     "Puigverd de Lleida-Artesa de Lleida": "Segrià",
     "Les Borges Blanques": "Garrigues",
