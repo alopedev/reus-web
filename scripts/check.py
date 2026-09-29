@@ -63,7 +63,11 @@ Rules checked:
      mark: every train is a tick, the AVE like the rest; the knob always stands on the train shown; «ahora» is a
      thin line with its word, with no «Son las HH:MM» heading; «Volver a ahora» never covers that word; the arrow
      keys step through every train, AVE included. From Reus in the evening, when no regional is left but an AVE
-     from Camp de Tarragona is, that AVE is the train shown and tomorrow's first regionals follow it, marked «mañana». Modo rápido: `python3 scripts/check.py hero`.
+     from Camp de Tarragona is, that AVE is the train shown and tomorrow's first regionals follow it, marked «mañana».
+     The ticket's town (`.tk .town`) opens a native `#selp` dialog (docs/spec-3.3.md): step 1 lists the four
+     corridor groups (R11, R13, R14, R16) with their line pills; step 2 lists a group's stops in real order, the
+     ramal after the main line's; choosing a stop closes the dialog, moves the board and ruler to it, and returns
+     the focus to the ticket. Modo rápido: `python3 scripts/check.py hero`.
   16. The travel things and the painted table follow the papers when these settle after the table was first
      measured (the web fonts arriving late): once the papers' text reflows, everything sits where measuring afresh
      puts it, on desktop and mobile. Modo rápido: `python3 scripts/check.py mesa`.
@@ -798,9 +802,19 @@ async def check_hero(browser):
     if got["name"] != NAME: errs.append(f"the name on the wall is «{got['name']}», expected «{NAME}»")
     if got["sub"] != SUBTITLE: errs.append(f"the subtitle is «{got['sub']}», expected «{SUBTITLE}»")
     errs += await check_hero_ticket(page)
+    errs += await check_town_ticket(page)
     errs += await check_hero_board(page)
     errs += await check_hero_ruler(page)
     await page.close()
+    # 3.3 · the town selector: opening, its two steps, choosing a town (with and without AVE), closing without
+    # choosing, and fitting the sheet with the longest eligible name
+    errs += [f"town: {e}" for e in await check_town_dialog(browser)]
+    errs += [f"town: {e}" for e in await check_town_step1(browser)]
+    errs += [f"town: {e}" for e in await check_town_groups(browser)]
+    errs += [f"town: {e}" for e in await check_town_choose_girona(browser)]
+    errs += [f"town: {e}" for e in await check_town_choose_tarragona(browser)]
+    errs += [f"town: {e}" for e in await check_town_close(browser)]
+    errs += [f"town: {e}" for e in await check_town_fit(browser)]
     # 21:30, from Reus: no regional left today, but two AVE from Camp de Tarragona (22:17, 22:39)
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
@@ -920,6 +934,326 @@ async def check_hero_ticket(page):
     t = await page.evaluate(TICKET)
     if t["route"] != "Sants ⇄ Reus": errs.append(f"⇄ twice does not bring the trip back («{t['route']}»)")
     return errs
+
+# --- 3.3 · the town selector ---------------------------------------------------------------------------------
+# eligible network stations (spec-3.3.md, decision 2): everything in the frozen timetable except Barcelona's own
+# stops, Camp de Tarragona (AVE only) and the three Barcelona-area stations the selector leaves out
+EXCLUDED_TOWNS = {"71707", "72400", "71708", "04104"}
+SANTS_ID, CAMP_ID, REUS_TOWN, GIRONA_TOWN, TARRAGONA_TOWN = "71801", "04104", "71400", "79300", "71500"
+
+def _net():
+    import json
+    return json.loads((root / "scripts/baseline/red.json").read_text())
+
+def _eligible(sid, info):
+    return sid not in EXCLUDED_TOWNS and not info.get("barcelona")
+
+def _line_set(net, line):
+    """Eligible stations whose lineas include this line."""
+    return {sid for sid, info in net["estaciones"].items() if _eligible(sid, info) and line in info.get("lineas", [])}
+
+def _branch_set(net, main_line, ramal_line):
+    """Eligible stations of a ramal: they carry its line but not the main one."""
+    return {sid for sid, info in net["estaciones"].items()
+            if _eligible(sid, info) and ramal_line in info.get("lineas", []) and main_line not in info.get("lineas", [])}
+
+# corridor groups of step 1 (spec-3.3.md, decision 5): data-group id -> (label, main line, ramal line or None)
+GROUPS = {
+    "R11": ("Girona · Figueres · Portbou", "R11", None),
+    "R13": ("Valls · Montblanc · Lleida", "R13", None),
+    "R14": ("Tarragona · Reus · Falset · Móra la Nova", "R15", "R14"),
+    "R16": ("Tarragona · Salou · Cambrils · Tortosa", "R16", "R17"),
+}
+
+def group_towns(net, group):
+    """(main, ramal) sets of eligible stop ids for a corridor group."""
+    _, main_line, ramal_line = GROUPS[group]
+    return _line_set(net, main_line), (_branch_set(net, main_line, ramal_line) if ramal_line else set())
+
+# known relative orders of real stops, Barcelona outwards (spec-3.3.md, decision 4): enough to catch a wrong
+# merge without reimplementing it -- the strip's exact order is the implementation's algorithm to get right, not
+# ours to duplicate. Faió-La Pobla de Massaluca (after Móra la Nova on paper) is missing from the frozen network.
+KNOWN_ORDER = {
+    "R11": {"main": ["79100", "79104", "79300", "79309", "79315"], "ramal": None},  # Granollers Centre, Sant Celoni, Girona, Figueres, Portbou
+    "R13": {"main": ["71600", "76004", "73008", "78400"], "ramal": None},           # Sant Vicenç de Calders, Valls, Montblanc, Lleida-Pirineus
+    "R14": {"main": ["71500", "71400", "71303", "71300"], "ramal": ["73101", "73008", "78400"]},  # Tarragona, Reus, Marçà-Falset, Móra la Nova · ramal Alcover, Montblanc, Lleida-Pirineus
+    "R16": {"main": ["71500", "65422", "65405"], "ramal": None},                    # Tarragona, Cambrils, L'Ametlla de Mar · ramal is Salou-Port Aventura alone
+}
+
+def hhmm(m):
+    m = m % 1440
+    return f"{m // 60:02d}:{m % 60:02d}"
+
+def board_row(line, dep, arr, soon=None, place=None):
+    """Text of one #board .trip once whitespace is collapsed (mirrors timetable.ts's trip())."""
+    bits = [line, hhmm(dep)]
+    if place and soon: bits.append(f"{place}, {soon}")
+    elif place: bits.append(place)
+    elif soon: bits.append(soon)
+    bits.append(f"→ {hhmm(arr)}")
+    return " ".join(bits)
+
+def _direct(net, day, frm, to):
+    """The direct trains of a day between two stops, straight from the frozen network (mirrors src/time.ts's
+    direct()): needed to compute the expected board, unlike the strip's stop order, checked above instead by
+    known relative order and exact sets."""
+    out = []
+    for i in net["dias"].get(day, []):
+        t = net["trenes"][i]; ids = [s[0] for s in t["s"]]
+        if frm in ids and to in ids:
+            a, b = ids.index(frm), ids.index(to)
+            if b > a: out.append((t["s"][a][2], t["s"][b][1], t["p"]))
+    return sorted(out)
+
+TOWN = """(() => { const b = document.querySelector('.tk .town'); if(!b) return null;
+  return {tag: b.tagName, text: b.textContent.trim(), haspopup: b.getAttribute('aria-haspopup'),
+          style: getComputedStyle(b).textDecorationStyle, label: b.getAttribute('aria-label') || '',
+          route: document.querySelector('.tk .route')?.textContent.replace(/\\s+/g, ' ').trim()}; })()"""
+
+async def check_town_ticket(page):
+    """The town on the ticket: a button that opens the selector, underlined like every interactive text, with an
+    accessible name starting with the town's own name; the route still reads «Sants ⇄ Reus»."""
+    t = await page.evaluate(TOWN)
+    if not t: return ["'.tk .town' is missing"]
+    errs = []
+    if t["tag"] != "BUTTON": errs.append(f".tk .town is a {t['tag']}, expected a button")
+    if t["text"] != "Reus": errs.append(f".tk .town reads «{t['text']}», expected «Reus»")
+    if t["haspopup"] != "dialog": errs.append(f".tk .town aria-haspopup is «{t['haspopup']}», expected «dialog»")
+    if t["style"] != "dotted": errs.append(f".tk .town underline is {t['style']}, expected dotted")
+    if not t["label"].startswith("Reus"): errs.append(f".tk .town accessible name is «{t['label']}», expected to start with «Reus»")
+    if t["route"] != "Sants ⇄ Reus": errs.append(f".tk .route reads «{t['route']}», expected «Sants ⇄ Reus»")
+    return errs
+
+async def open_town(page, timeout=4000):
+    """Open the town selector from the ticket. Returns an error list ([] on success)."""
+    try: await page.click(".tk .town", timeout=timeout)
+    except Exception: return ["'.tk .town' is not a clickable button that opens #selp"]
+    return []
+
+async def choose_town(page, group, town, timeout=4000):
+    """The three taps that choose a town: the ticket's town, its corridor group, then the stop itself."""
+    errs = await open_town(page, timeout)
+    if errs: return errs
+    try: await page.click(f'.ln[data-group="{group}"]', timeout=timeout)
+    except Exception: return [f"'.ln[data-group={group}]' is not clickable"]
+    try: await page.click(f'#selp .strip .opt[data-town="{town}"]', timeout=timeout)
+    except Exception: return [f"'.opt[data-town={town}]' is not clickable"]
+    return []
+
+async def check_town_dialog(browser):
+    """Opening the selector: a native <dialog> labelled by its own question, focus on the first group; the
+    question changes with the direction."""
+    errs = []
+    page = await hero_page(browser)
+    e = await open_town(page)
+    if e: await page.close(); return e
+    got = await page.evaluate("""() => { const d = document.getElementById('selp'); if(!d) return null;
+      const h = d.querySelector('h3'), first = d.querySelector('.ln');
+      return {tag: d.tagName, open: d.open, labelledby: d.getAttribute('aria-labelledby'), h3id: h?.id,
+              h3: h?.textContent.trim(), focusedFirst: !!first && document.activeElement === first}; }""")
+    if not got: errs.append("#selp is missing")
+    else:
+        if got["tag"] != "DIALOG": errs.append(f"#selp is a {got['tag']}, expected a native <dialog>")
+        if not got["open"]: errs.append("#selp is not open after clicking .tk .town")
+        if not got["labelledby"] or got["labelledby"] != got["h3id"]: errs.append(f"#selp's aria-labelledby ({got['labelledby']}) does not point at its h3 ({got['h3id']})")
+        if got["h3"] != "¿A qué pueblo vas?": errs.append(f"#selp's question reads «{got['h3']}», expected «¿A qué pueblo vas?»")
+        if not got["focusedFirst"]: errs.append("the focus is not on the first .ln when the selector opens")
+    await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
+    await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    e = await open_town(page)
+    if e: errs += e
+    else:
+        h3 = await page.evaluate("document.querySelector('#selp h3')?.textContent.trim()")
+        if h3 != "¿Desde qué pueblo vuelves?": errs.append(f"with the direction swapped, #selp's question reads «{h3}», expected «¿Desde qué pueblo vuelves?»")
+    await page.close()
+    return errs
+
+async def check_town_step1(browser):
+    """Step 1: exactly 4 corridor groups, in order, with their exact labels and line pills."""
+    page = await hero_page(browser)
+    e = await open_town(page)
+    if e: await page.close(); return e
+    got = await page.evaluate("""() => [...document.querySelectorAll('#selp .ln')].map(b => ({
+      group: b.dataset.group, text: b.textContent.replace(/\\s+/g, ' ').trim(),
+      pills: [...b.querySelectorAll('.pill')].map(p => p.textContent.trim())}))""")
+    await page.close()
+    errs = []
+    order = ["R11", "R13", "R14", "R16"]
+    groups = [o["group"] for o in got]
+    if groups != order: errs.append(f".ln groups are {groups}, expected {order}")
+    for o in got:
+        if o["group"] not in GROUPS: continue
+        label, main_line, ramal_line = GROUPS[o["group"]]
+        if label not in o["text"]: errs.append(f"{o['group']}: text «{o['text']}» does not contain the label «{label}»")
+        want_pills = sorted([main_line, ramal_line]) if ramal_line else [main_line]
+        if o["pills"] != want_pills: errs.append(f"{o['group']}: pills are {o['pills']}, expected {want_pills}")
+    return errs
+
+async def check_town_groups(browser):
+    """Step 2, per corridor group: the exact set of eligible stops, the ramal placed after the main ones, the
+    known relative order of real stops, no excluded station anywhere, .back returning to step 1, and the current
+    town (Reus) marked and focused when its own group (R14) is entered."""
+    net = _net()
+    errs = []
+    page = await hero_page(browser)
+    e = await open_town(page)
+    if e: await page.close(); return e
+    for group in ("R11", "R13", "R14", "R16"):
+        try: await page.click(f'.ln[data-group="{group}"]', timeout=4000)
+        except Exception: errs.append(f"{group}: '.ln[data-group={group}]' is not clickable"); continue
+        await page.wait_for_timeout(200)
+        opts = await page.evaluate("""() => [...document.querySelectorAll('#selp .strip .opt')].map(o => ({
+          town: o.dataset.town, branch: !!o.closest('li.branch'), current: o.getAttribute('aria-current'),
+          focused: document.activeElement === o}))""")
+        if not opts:
+            errs.append(f"{group}: no .strip .opt found at step 2")
+        else:
+            main, ramal = group_towns(net, group)
+            got_main = {o["town"] for o in opts if not o["branch"]}
+            got_ramal = {o["town"] for o in opts if o["branch"]}
+            if got_main != main: errs.append(f"{group}: main stops are {sorted(got_main)}, expected {sorted(main)}")
+            if got_ramal != ramal: errs.append(f"{group}: ramal stops are {sorted(got_ramal)}, expected {sorted(ramal)}")
+            branch_flags = [o["branch"] for o in opts]
+            if True in branch_flags:
+                first_branch = branch_flags.index(True)
+                if any(not b for b in branch_flags[first_branch:]): errs.append(f"{group}: the ramal is not placed after all the main stops")
+            towns = [o["town"] for o in opts]
+            for kind, seq in KNOWN_ORDER[group].items():
+                if not seq: continue
+                missing = [t for t in seq if t not in towns]
+                if missing: errs.append(f"{group} {kind}: missing known stops {[net['estaciones'][t]['nombre'] for t in missing]}")
+                idxs = [towns.index(t) for t in seq if t in towns]
+                if idxs != sorted(idxs): errs.append(f"{group} {kind}: known stops out of order ({[net['estaciones'][t]['nombre'] for t in seq if t in towns]})")
+            excluded_here = [t for t in towns if t in EXCLUDED_TOWNS or net["estaciones"].get(t, {}).get("barcelona")]
+            if excluded_here: errs.append(f"{group}: excluded stations present: {excluded_here}")
+            if group == "R14":
+                reus = next((o for o in opts if o["town"] == REUS_TOWN), None)
+                if not reus: errs.append("R14: Reus is missing from its own group")
+                else:
+                    if reus["current"] != "true": errs.append("R14: Reus does not carry aria-current=true")
+                    if not reus["focused"]: errs.append("R14: the focus is not on Reus when entering its group")
+        try: await page.click("#selp .back", timeout=4000)
+        except Exception: errs.append(f"{group}: '.back' is not clickable"); continue
+        await page.wait_for_timeout(200)
+        step1 = await page.evaluate("document.querySelectorAll('#selp .ln').length")
+        if step1 != 4: errs.append(f"{group}: .back did not return to step 1 (4 .ln expected, {step1} found)")
+    await page.close()
+    return errs
+
+async def check_town_choose_girona(browser):
+    """Choosing Girona (R11, Gironès, no AVE) in three taps: the board becomes the 3 next R11 direct trains
+    Sants -> Girona after 10:00 (+2 min margin, as the live board does), no AVE; the ruler has as many ticks as
+    that day's direct R11 trains; the live region names Girona. Swapping flips the board to Girona -> Sants."""
+    net, day, now, margin = _net(), "2026-09-28", 600, 2
+    page = await hero_page(browser)
+    errs = await choose_town(page, "R11", GIRONA_TOWN)
+    if errs: await page.close(); return errs
+    await page.wait_for_timeout(300)
+    if await page.evaluate("document.getElementById('selp')?.open"): errs.append("#selp is still open after choosing Girona")
+    route = await page.evaluate("document.querySelector('.tk .route')?.textContent.replace(/\\s+/g, ' ').trim()")
+    if route != "Sants ⇄ Girona": errs.append(f"after choosing Girona the route reads «{route}», expected «Sants ⇄ Girona»")
+    if not await page.evaluate("document.activeElement === document.querySelector('.tk .town')"): errs.append("the focus is not on .tk .town after choosing Girona")
+    b = await page.evaluate(BOARD); r = await page.evaluate(RULER)
+    trains = [t for t in _direct(net, day, SANTS_ID, GIRONA_TOWN) if t[0] >= now + margin][:3]
+    want = [board_row(t[2], t[0], t[1], soon=(f"en {t[0] - now} min" if i == 0 else None)) for i, t in enumerate(trains)]
+    if b["rows"] != want: errs.append(f"after choosing Girona the board reads {b['rows']}, expected {want}")
+    if any("AVE" in row for row in b["rows"]): errs.append("Girona has no AVE, but the board shows one")
+    total = len(_direct(net, day, SANTS_ID, GIRONA_TOWN))
+    if r["ticks"] != total: errs.append(f"the ruler has {r['ticks']} ticks, expected {total} (the day's direct R11 Sants→Girona trains)")
+    if "Girona" not in b["aviso"]: errs.append(f"choosing Girona, the live region does not name it («{b['aviso'][:80]}»)")
+    await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    route = await page.evaluate("document.querySelector('.tk .route')?.textContent.replace(/\\s+/g, ' ').trim()")
+    if route != "Girona ⇄ Sants": errs.append(f"after ⇄ the route reads «{route}», expected «Girona ⇄ Sants»")
+    b = await page.evaluate(BOARD)
+    trains = [t for t in _direct(net, day, GIRONA_TOWN, SANTS_ID) if t[0] >= now + margin][:3]
+    want = [board_row(t[2], t[0], t[1], soon=(f"en {t[0] - now} min" if i == 0 else None)) for i, t in enumerate(trains)]
+    if b["rows"] != want: errs.append(f"Girona ⇄ Sants: the board reads {b['rows']}, expected {want}")
+    await page.close()
+    return errs
+
+async def check_town_choose_tarragona(browser):
+    """Choosing Tarragona (Tarragonès): the board includes an AVE row to Camp de Tarragona plus 2 regionals,
+    all computed from the frozen network."""
+    net, day, now, margin = _net(), "2026-09-28", 600, 2
+    page = await hero_page(browser)
+    errs = await choose_town(page, "R14", TARRAGONA_TOWN)
+    if errs: await page.close(); return errs
+    await page.wait_for_timeout(300)
+    b = await page.evaluate(BOARD)
+    regs = [t for t in _direct(net, day, SANTS_ID, TARRAGONA_TOWN) if t[0] >= now + margin]
+    aves = [t for t in _direct(net, day, SANTS_ID, CAMP_ID) if t[0] >= now + margin]
+    if not aves: await page.close(); return ["no AVE Sants→Camp de Tarragona after 10:00 in the frozen data: the test's assumption is wrong"]
+    ave, shown = aves[0], regs[0]
+    trips = sorted(regs[:2] + [ave])
+    want = [board_row(t[2], t[0], t[1], soon=(f"en {t[0] - now} min" if t == shown else None), place=("Camp de Tarragona" if t[2] == "AVE" else None)) for t in trips]
+    if b["rows"] != want: errs.append(f"choosing Tarragona the board reads {b['rows']}, expected {want}")
+    if not any("Camp de Tarragona" in row for row in b["rows"]): errs.append("choosing Tarragona (Tarragonès) the board has no AVE row")
+    await page.close()
+    return errs
+
+async def check_town_close(browser):
+    """Closing the selector without choosing (Esc, the × button, or a click on the backdrop) never changes the
+    town and returns the focus to the ticket."""
+    errs = []
+    async def unchanged(page, how):
+        out = []
+        if await page.evaluate("document.getElementById('selp')?.open"): out.append(f"{how}: #selp is still open")
+        route = await page.evaluate("document.querySelector('.tk .route')?.textContent.replace(/\\s+/g, ' ').trim()")
+        if route != "Sants ⇄ Reus": out.append(f"{how}: the route changed to «{route}»")
+        if not await page.evaluate("document.activeElement === document.querySelector('.tk .town')"): out.append(f"{how}: the focus did not return to .tk .town")
+        return out
+    page = await hero_page(browser)
+    e = await open_town(page)
+    if e: errs += [f"Esc: {x}" for x in e]
+    else:
+        await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
+        errs += await unchanged(page, "Esc")
+    await page.close()
+    page = await hero_page(browser)
+    e = await open_town(page)
+    if e: errs += [f"button.x: {x}" for x in e]
+    else:
+        try:
+            await page.click("#selp button.x", timeout=4000); await page.wait_for_timeout(300)
+            errs += await unchanged(page, "button.x")
+        except Exception: errs.append("button.x: '#selp button.x' is not clickable")
+    await page.close()
+    page = await hero_page(browser)
+    e = await open_town(page)
+    if e: errs += [f"backdrop: {x}" for x in e]
+    else:
+        await page.mouse.click(2, 2); await page.wait_for_timeout(300)
+        errs += await unchanged(page, "backdrop")
+    await page.close()
+    return errs
+
+async def check_town_fit(browser):
+    """With the longest eligible town's name chosen (Puigverd de Lleida-Artesa de Lleida), across the 11 SIZES:
+    the existing FIT still passes, the sheet opened at step 2 fits the screen without a horizontal overflow, and
+    every .ln/.opt is at least 44 px tall."""
+    net = _net()
+    town, name = max(((sid, info["nombre"]) for sid, info in net["estaciones"].items() if _eligible(sid, info)), key=lambda x: len(x[1]))
+    group = next(g for g in GROUPS if town in (group_towns(net, g)[0] | group_towns(net, g)[1]))
+    failures = []
+    for size, (w, h) in SIZES.items():
+        page = await hero_page(browser, w, h)
+        e = await open_town(page)
+        if e: failures += [f"{size}: {x}" for x in e]; await page.close(); continue
+        short = [x for x in await page.evaluate("[...document.querySelectorAll('#selp .ln')].map(el => el.getBoundingClientRect().height)") if x < 43.5]
+        if short: failures.append(f"{size}: a .ln is only {min(short):.0f} px tall")
+        try: await page.click(f'.ln[data-group="{group}"]', timeout=4000)
+        except Exception: failures.append(f"{size}: '.ln[data-group={group}]' is not clickable"); await page.close(); continue
+        await page.wait_for_timeout(200)
+        sheet = await page.evaluate("(() => { const b = document.querySelector('#selp .sheet').getBoundingClientRect(); return {left: b.left, right: b.right}; })()")
+        if sheet["left"] < -1 or sheet["right"] > w + 1: failures.append(f"{size}: the sheet ({sheet['left']:.0f}–{sheet['right']:.0f}) does not fit the {w} px width")
+        short = [x for x in await page.evaluate("[...document.querySelectorAll('#selp .strip .opt')].map(el => el.getBoundingClientRect().height)") if x < 43.5]
+        if short: failures.append(f"{size}: a .opt is only {min(short):.0f} px tall")
+        try: await page.click(f'#selp .strip .opt[data-town="{town}"]', timeout=4000)
+        except Exception: failures.append(f"{size}: '.opt[data-town={town}]' ({name}) is not clickable"); await page.close(); continue
+        await page.wait_for_timeout(200)
+        failures += [f"{size}: {e}" for e in await page.evaluate(FIT)]
+        await page.close()
+    return failures
 
 async def main():
     failures = []
