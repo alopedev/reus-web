@@ -1,6 +1,6 @@
 # Capacasa
 
-Web de una sola pantalla con los próximos trenes directos entre Barcelona y tu pueblo (hoy solo Sants ↔ Reus; generalización en curso, ver `docs/PRD.md`). *Cap a casa*: hacia casa.
+Web de una sola pantalla con los próximos trenes directos entre Barcelona y tu pueblo (el pueblo se elige en el billete entre las unas 70 estaciones con tren directo, 71 en el horario del 28-09; generalización en curso, ver `docs/PRD.md`). *Cap a casa*: hacia casa.
 El hero es el interior de un vagón pintado en acuarela con el paisaje en movimiento en la ventanilla.
 Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Claude) y además una herramienta real.
 
@@ -18,7 +18,7 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 - `check.py` sirve `dist/` y `dist-paridad/` por HTTP: ejecuta siempre `npm run check` (compila ambos y comprueba). `python3 scripts/check.py paridad` solo compara con los fotogramas de referencia de `scripts/baseline/<sistema>/` (un minuto; macOS y Linux tienen los suyos); borra uno para renovarlo cuando un cambio visible esté aprobado. La paridad usa un horario congelado (`scripts/baseline/red.json`, compilado con `npm run build:paridad` vía la variable `RED` de `vite.config.js`) para que la actualización diaria de horarios no mueva sus referencias
 - `check.py` necesita Playwright + Chromium (`pip install playwright && playwright install chromium`); usa WebGL por software y espera 9 s por viewport
 - `python3 scripts/check.py a11y`: solo el check de accesibilidad (región viva, atajos, etiquetas), en un minuto
-- `python3 scripts/check.py hero`: solo el check del hero (nombre, billete, tablero de 3 trayectos, regla) sobre el horario congelado a las 10:00, en un minuto
+- `python3 scripts/check.py hero`: solo el check del hero (nombre, billete con el selector de pueblo, tablero de 3 trayectos, regla) sobre el horario congelado a las 10:00, en un minuto
 - `python3 scripts/check.py mesa`: solo el check 16 (los objetos de viaje y la mesa pintada siguen a los papeles cuando estos se recolocan tarde, p. ej. al llegar las fuentes), en escritorio y móvil, en un minuto
 - `python3 scripts/check_datos.py` (o `npm run check:datos`): comprueba `data/red.json` contra su contrato (`docs/referencias/datos-red-contrato.md`) — forma, cobertura de pueblos, paridad con `data/trains.json`, tamaño. Sin dependencias, en segundos; acepta una ruta alternativa como argumento
 - No hay tests unitarios ni linter; las verificaciones son los tipos (`tsc`) y `check.py`
@@ -37,7 +37,7 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 - El nombre de la web nunca pisa la ventanilla (lo verifica `check.py`)
 - Texto grande en formato cartel: color papel `#F1EADC` con sombra desplazada `#2D241C`
 - Subrayado punteado = «esto se puede pulsar». Úsalo igual en todos los textos interactivos
-- Sentido del viaje: un único billete de tren recortado en papel, «Billete · Sants ⇄ Reus»; ⇄ cambia el sentido. Cada extremo se pulsará (el pueblo abre la lista en 3.3, Barcelona sus estaciones en 3.5); hasta entonces son texto
+- Sentido del viaje: un único billete de tren recortado en papel, «Billete · Sants ⇄ Reus»; ⇄ cambia el sentido. El pueblo se pulsa y abre el selector (hecho en 3.3); Barcelona sigue siendo texto hasta que sus estaciones se puedan elegir (3.5)
 - Salidas: tablero de 3 trayectos (2 regionales + el próximo AVE para Baix Camp y Tarragonès; si no, 3 regionales), «R15 18:33 en 13 min → 20:03», sin cabeceras; el tren mostrado va grande y los demás se pulsan. Regla del día con una sola marca: la bolita siempre sobre el tren grande, «ahora» es una rayita naranja; el AVE, con la misma raya que los regionales
 - Sin controles de pausa ni «volver a pintar» para el público. Atajos solo para grabar, activos con `?grabar` en la URL: R repinta, P pausa (el espacio queda para hacer scroll)
 - La luz del paisaje y del vagón sigue la hora elegida (amanecer, día, atardecer, noche)
