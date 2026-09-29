@@ -19,6 +19,7 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 - `check.py` necesita Playwright + Chromium (`pip install playwright && playwright install chromium`); usa WebGL por software y espera 9 s por viewport
 - `python3 scripts/check.py a11y`: solo el check de accesibilidad (región viva, atajos, etiquetas), en un minuto
 - `python3 scripts/check.py hero`: solo el check del hero (nombre, billete, tablero de 3 trayectos, regla) sobre el horario congelado a las 10:00, en un minuto
+- `python3 scripts/check.py mesa`: solo el check 16 (los objetos de viaje y la mesa pintada siguen a los papeles cuando estos se recolocan tarde, p. ej. al llegar las fuentes), en escritorio y móvil, en un minuto
 - `python3 scripts/check_datos.py` (o `npm run check:datos`): comprueba `data/red.json` contra su contrato (`docs/referencias/datos-red-contrato.md`) — forma, cobertura de pueblos, paridad con `data/trains.json`, tamaño. Sin dependencias, en segundos; acepta una ruta alternativa como argumento
 - No hay tests unitarios ni linter; las verificaciones son los tipos (`tsc`) y `check.py`
 

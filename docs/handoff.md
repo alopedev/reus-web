@@ -43,11 +43,14 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 - Antes de cada commit, `git status`: un `git rm` ya preparado se cuela en el commit siguiente
 - Capturas con Playwright: `reduced_motion="reduce"` + `page.clock.set_fixed_time(...)` (`clock.install` bloquea `screenshot`); fuerza `.top,.info{opacity:1;transition:none}` para no capturar antes de la entrada
 - Verifica los datos contando, no solo leyendo: la revisión por subagente no vio un tren duplicado entre feeds ni pueblos descartados en silencio
+- La paridad de `escritorio-mesa` fallaba a ratos en CI con dos estados fijos (media 0,12 / 4,4): la mesa se mide al arrancar (el IntersectionObserver la da por visible porque `.escena` empieza justo en el borde inferior, a 100svh, y la intersección de borde cuenta), a menudo antes de que lleguen Karla y Young Serif. En Linux la fuente de reserva (DejaVu, más ancha) parte el texto de los papeles de otra forma, y los objetos de viaje (boli, Rodalies, gafas) y el tamaño del lienzo se quedaban con esa medida. En macOS la reserva apenas cambia los saltos, por eso no se veía. Ahora un `ResizeObserver` sobre `.escena` y los hijos de `.mesa` recoloca los objetos al instante y repinta el lienzo (con el mismo retardo de 200 ms que `resize`). Check 16 (`check.py mesa`): reflujo forzado del texto tras pintar y comparación con una medida fresca
 - Python no descarga de Renfe en esta máquina (SSL); `curl` sí. `extract_red.py --fomento/--avld RUTA --desde AAAA-MM-DD` regenera en local
 
 
 ## Pendiente y riesgos
 
+- La referencia de Linux `scripts/baseline/linux/escritorio-mesa.png` retrata el estado erróneo (boli pisando el cuaderno, Rodalies y gafas ~30–50 px más abajo, crédito antiguo «Fuente: Renfe, datos abiertos (GTFS)»). Con el fix, CI dará siempre el estado correcto y fallará contra ella: hay que renovarla (con aprobación de Àlex)
+- La mesa se pinta al cargar, tapada por el hero, no «la primera vez que se ve» como dice `table.ts`: la intersección de borde de `.escena` (a 100svh) cuenta como visible. El pintado en acuarela no se llega a ver en escritorio. Sin tocar: cambia lo que se ve
 - Robot diario: si `red.json` falla su check, tampoco se publica `trains.json`. Claude recomendó dejarlo así; Àlex no ha respondido
 - Accesibilidad visible sin propuesta: la barra de Safari tapa el pie del hero (`safe-area-inset` no llega a `#hero` fijo) y el contraste de las etiquetas pequeñas de la regla (~4,2:1)
 - En el tablero, pulsar un trayecto de mañana muestra el de hoy a esa hora (heredado del hero anterior); con la vista de mañana la bolita se queda en «ahora»
@@ -55,4 +58,4 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 ## Cómo verificar
 
-`npm run check` (varios minutos) y revisar las capturas de `screenshots/`. Modos rápidos: `python3 scripts/check.py hero|a11y|letras|red|paridad`.
+`npm run check` (varios minutos) y revisar las capturas de `screenshots/`. Modos rápidos: `python3 scripts/check.py hero|a11y|letras|red|paridad|mesa`.

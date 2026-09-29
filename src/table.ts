@@ -90,11 +90,15 @@ export function createTable(): Table {
     gl.uniform3f(u('hor'), ...p.hor);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
+  // the canvas follows the scene, at most 1.3 Mpx; a new size clears it
+  function size(){
+    const k = Math.min(1, Math.sqrt(1.3e6 / (G.W * G.H))), w = Math.max(2, Math.round(G.W * k)), h = Math.max(2, Math.round(G.H * k));
+    if(cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+  }
   function paint(animate: boolean){
     layout();
     if(!prog) return;
-    const k = Math.min(1, Math.sqrt(1.3e6 / (G.W * G.H)));
-    cv.width = Math.max(2, Math.round(G.W * k)); cv.height = Math.max(2, Math.round(G.H * k));
+    size();
     cancelAnimationFrame(raf);
     if(!animate){ draw(1); cv.dataset.pintada = '1'; return; }
     const t0 = performance.now();
@@ -107,6 +111,12 @@ export function createTable(): Table {
     if(e.isIntersecting && !started){ started = true; paint(!reduce); }
   }).observe(esc);
   let rs = 0;
-  addEventListener('resize', () => { clearTimeout(rs); rs = setTimeout(() => { if(started) paint(false); }, 200); });
+  // a new size: repaint once it stops changing; a paint-in still under way carries on at the new size
+  const resized = () => { clearTimeout(rs); rs = setTimeout(() => { if(!started) return; if(cv.dataset.pintada || !prog) paint(false); else { layout(); size(); } }, 200); };
+  addEventListener('resize', resized);
+  // the papers can settle after the table was measured (on a slow network the web fonts arrive later and the text
+  // wraps anew): the travel things follow them at once, the painted table once the scene stops changing size
+  const papers = new ResizeObserver(() => { if(!started) return; const {W, H} = G; layout(); if(G.W !== W || G.H !== H) resized(); });
+  [esc, ...mesa.children].forEach(el => papers.observe(el));
   return {setTime(m: number){ const before = daylight(minute).name; minute = m; if(started && daylight(m).name !== before) paint(false); else if(started) layout(); }};
 }
