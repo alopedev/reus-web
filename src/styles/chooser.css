@@ -1,0 +1,44 @@
+/* the pueblo chooser: a sheet of paper laid over the darkened scene (prototype B, rewritten). Touch targets are
+   at least 44 px whatever the poster scale: a finger does not shrink with the screen */
+/* overflow visible: the browser's own dialog clips, and would cut the sheet's offset shadow */
+dialog#selp{ border:0; padding:0; margin:auto; background:transparent; max-width:none; max-height:none; overflow:visible; color:var(--shadow); }
+dialog#selp::backdrop{ background:rgba(30,22,16,.45); }
+dialog#selp:not([open]){ display:none; }
+
+.sheet{ position:relative; width:min(44rem, 92vw); max-height:min(86vh, 48rem); overflow:auto;
+  background:#EFE6D2 var(--grain); color:var(--shadow); font-family:var(--sans);
+  padding:1.4rem 1.4rem 1.2rem; filter:drop-shadow(.35rem .35rem 0 var(--shadow)); transform:rotate(-.6deg); }
+.sheet h3{ font:400 1.6rem/1.15 var(--serif); margin:.1rem 2.2rem .8rem 0; }
+.sheet .x{ position:absolute; top:.6rem; right:.7rem; min-width:max(2.75rem, 44px); min-height:max(2.75rem, 44px); font-size:1.2rem;
+  background:none; border:0; cursor:pointer; color:inherit; }
+.sheet .back{ display:block; font:700 .95rem var(--sans); background:none; border:0; padding:.6rem 0; margin-bottom:.2rem;
+  min-height:max(2.75rem, 44px); cursor:pointer; color:inherit; text-decoration:underline dotted; text-decoration-thickness:1.5px; text-underline-offset:.25em; }
+.sheet .back:hover{ text-decoration-style:solid; }
+.sheet .x:focus-visible, .sheet .back:focus-visible, .ln:focus-visible, .opt:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; border-radius:.2rem; }
+
+/* step 1: the four corridors, each line's colour as a pill */
+.lns{ display:grid; gap:.3rem; }
+.ln{ all:unset; box-sizing:border-box; display:flex; gap:.8rem; align-items:center; padding:.65rem .5rem;
+  min-height:max(2.75rem, 44px); cursor:pointer; border-bottom:1.5px dashed rgba(45,36,28,.35); font:700 1.1rem var(--sans); }
+.ln:hover{ background:rgba(45,36,28,.07); }
+.pills{ display:flex; flex-direction:column; gap:.2rem; min-width:2.9rem; }
+
+/* step 2: the line as a strip map, a coloured rail with one stop per town; the branch keeps its own colour */
+.strip{ list-style:none; margin:.3rem 0 0; padding:0 0 0 1.6rem; columns:2 14rem; column-gap:2rem; }
+/* each stop carries its own piece of rail, so the line runs on in the second column and the branch keeps its colour */
+.strip li{ position:relative; break-inside:avoid; }
+.strip li::after{ content:""; position:absolute; left:-1.1rem; top:0; bottom:0; width:5px; background:var(--c); }
+.strip li:first-child::after{ top:50%; }
+.strip li:last-child::after{ bottom:50%; }
+.strip li::before{ content:""; position:absolute; left:-1.32rem; top:50%; width:.7rem; height:.7rem; margin-top:-.35rem;
+  border-radius:50%; background:#EFE6D2; border:3px solid var(--c); z-index:1; }
+.strip li.branch::before{ background:var(--c); }
+.strip .opt{ all:unset; box-sizing:border-box; display:block; width:100%; min-height:max(2.75rem, 44px); padding:.5rem .3rem;
+  cursor:pointer; font:500 1rem var(--sans); color:inherit; }
+.strip .opt:hover{ background:rgba(45,36,28,.07); }
+.strip .opt[aria-current="true"]{ font-weight:700; text-decoration:underline; text-underline-offset:.2em; }
+
+@media (max-width:700px), (max-aspect-ratio:4/5){
+  .sheet{ padding:1.1rem 1rem 1rem; max-height:min(88vh, 42rem); }
+  .strip{ columns:1; }
+}

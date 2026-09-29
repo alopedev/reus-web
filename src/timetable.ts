@@ -1,8 +1,7 @@
 import { reduce, state } from './state';
-import { madridNow, addDays, hhmm, dur, dayData, lastDay, source, type Train } from './time';
-
-// each line's colour, as Renfe paints it; the AVE in the carriage's dark ink
-const LINE: Record<string, string> = { R11:'#0064A7', R13:'#E52782', R14:'#6A2C91', R15:'#9B7B5A', R16:'#B8114E', R17:'#F39700' };
+import { madridNow, addDays, hhmm, dur, dayData, lastDay, source, NET, type Train } from './time';
+import { LINE } from './towns';
+import { setupChooser } from './chooser';
 import { byId } from './dom';
 import type { World } from './world';
 import type { Table } from './table';
@@ -18,15 +17,35 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
   function render(){
     const now = madridNow();
     const start = state.useNow ? now.min : state.minute ?? now.min;
-    const ida = state.dir==='reus';
-    const from = ida ? 'Sants' : 'Reus', to = ida ? 'Reus' : 'Barcelona Sants';
-    let {d, exact} = dayData(now.date);
+    const ida = state.dir==='casa';
+    const townName = NET.estaciones[state.town].nombre;
+    const from = ida ? 'Sants' : townName, to = ida ? townName : 'Barcelona Sants';
+    setRoute(route(ida, townName));
+    let {d, exact} = dayData(now.date, state.town);
     today = [...(ida ? d.r : d.b).map(t => ({t, ave:false})), ...(ida ? d.ar : d.ab).map(t => ({t, ave:true}))].sort((x, y) => x.t[0]-y.t[0]);
     const after = (list: Train[]) => list.filter(([dep]) => dep >= start + (state.useNow?2:0));
     let regs = after(ida ? d.r : d.b), aves = after(ida ? d.ar : d.ab), tomorrow = false;
     // no regional left today: tomorrow's first ones, after the AVE still to come today, if there is one
     const lastAve = regs.length ? undefined : aves[0];
-    if(!regs.length){ ({d, exact} = dayData(addDays(now.date,1))); regs = ida ? d.r : d.b; aves = ida ? d.ar : d.ab; tomorrow = !lastAve; }
+    if(!regs.length){ ({d, exact} = dayData(addDays(now.date,1), state.town)); regs = ida ? d.r : d.b; aves = ida ? d.ar : d.ab; tomorrow = !lastAve; }
+    // safety net (decision 3): no direct train at all today nor tomorrow in this direction. Only reachable for a
+    // town whose only trains run on days the frozen or newly-generated timetable does not cover
+    const none = !lastAve && !regs.length && !aves.length;
+    if(none){
+      byId('lbl').textContent = `No hay tren directo entre ${from} y ${to} hoy ni mañana.`;
+      byId('ticks').innerHTML = `<b class="nowline${now.min < R0 + 60 ? ' start' : now.min > R1 - 60 ? ' end' : ''}" style="left:${pos(now.min)}"><span>ahora</span></b>`;
+      tIn.value = String(Math.min(R1, Math.max(R0, now.min)));
+      nowBtn.parentElement!.classList.toggle('left', now.min > (R0+R1)/2);
+      tIn.setAttribute('aria-valuetext', 'sin tren directo hoy ni mañana');
+      nowBtn.hidden = state.useNow;
+      if(world) world.setTime(now.min);
+      table.setTime(now.min);
+      byId('board').innerHTML = drawn = '';
+      if(shown !== 'none'){ byId('aviso').textContent = `No hay tren directo entre ${from} y ${to} hoy ni mañana.`; shown = 'none'; }
+      byId('note').textContent = exact ? '' : 'Horario aproximado: aún no hay horario oficial de este día.';
+      if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
+      return;
+    }
     // the train shown: the one chosen, or the next regional (today's last AVE when none is left); the board adds
     // the next ones and the next AVE
     const ave = lastAve ?? aves[0], isAve = lastAve ? true : !state.useNow && !tomorrow && state.ave && ave?.[0] === start;
@@ -46,12 +65,29 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     table.setTime(tomorrow ? a[0] : start);
     const trips = lastAve ? [lastAve, ...regs.slice(0, 2)] : [...regs.slice(0, ave ? 2 : 3), ...(ave ? [ave] : [])].sort((x, y) => x[0]-y[0]);
     const html = trips.map(t => trip(t, t === a, t === ave, live ? dur(t[0]-now.min) : '', !!lastAve && t !== lastAve)).join('');
-    const turn = shown !== null && shown !== a[0] + state.dir + isAve;
+    const key = a[0] + state.dir + isAve + state.town;
+    const turn = shown !== null && shown !== key;
     if(html !== drawn || turn){ byId('board').innerHTML = drawn = html; if(turn && !reduce) byId('dep').classList.add('swap'); }
-    if(shown !== a[0] + state.dir + isAve){ say(tomorrow, isAve ? (ida ? 'Sants' : 'Camp de Tarragona') : from, isAve ? (ida ? 'Camp de Tarragona' : 'Barcelona Sants') : to, a, isAve); shown = a[0] + state.dir + isAve; }
-    ends[0].textContent = from; ends[1].textContent = ida ? 'Reus' : 'Sants';
+    if(shown !== key){ say(tomorrow, isAve ? (ida ? 'Sants' : 'Camp de Tarragona') : from, isAve ? (ida ? 'Camp de Tarragona' : 'Barcelona Sants') : to, a, isAve); shown = key; }
     byId('note').textContent = exact ? '' : 'Horario aproximado: aún no hay horario oficial de este día.';
     if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
+  }
+  // the ticket's route: the town's end is a button (opens the chooser), Sants stays plain text until 3.5;
+  // ⇄ turns the order around, so the DOM order matches what is read: «Sants ⇄ Reus» / «Reus ⇄ Sants»
+  function route(ida: boolean, townName: string): string {
+    const swap = `<button type="button" class="swap" aria-label="Cambiar el sentido">⇄</button>`;
+    const townBtn = `<button type="button" class="end town" aria-haspopup="dialog" aria-label="${townName}, cambiar de pueblo">${townName}</button>`;
+    const sants = `<span class="end">Sants</span>`;
+    return ida ? `${sants} ${swap} ${townBtn}` : `${townBtn} ${swap} ${sants}`;
+  }
+  // the route is only rebuilt when it changes (⇄, a new town), never on the countdown's refresh; a rebuilt control
+  // hands the focus to its new self, so ⇄ keeps it after turning the trip around
+  let routeHtml = '';
+  function setRoute(html: string){
+    if(html === routeHtml) return;
+    const el = byId('tickets').querySelector<HTMLElement>('.route')!, had = el.querySelector(':focus')?.className;
+    el.innerHTML = routeHtml = html;
+    if(had) el.querySelector<HTMLElement>('.' + had.split(' ').join('.'))?.focus({preventScroll:true});
   }
   // one trip of the board: line, departure, where (the countdown, Camp de Tarragona for the AVE, «mañana» after
   // today's last AVE), arrival. The train shown is big; the others are buttons that show them
@@ -62,7 +98,7 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     const cells = `<span class="pill" style="--c:${LINE[t[3]] ?? 'var(--shadow)'}">${t[3]}</span> <span class="t"${big ? ' id="dep"' : ''}>${hhmm(t[0])}</span> `
       + `<span class="w">${where}</span> <span class="t arr">→ ${hhmm(t[1])}</span>`;
     if(big) return `<div class="trip big">${cells}</div>`;
-    const label = `${isAve ? 'AVE' : t[3]} de las ${hhmm(t[0])}${isAve ? (state.dir==='reus' ? ' a' : ' desde') + ' Camp de Tarragona' : ''}, llega a las ${hhmm(t[1])}`;
+    const label = `${isAve ? 'AVE' : t[3]} de las ${hhmm(t[0])}${isAve ? (state.dir==='casa' ? ' a' : ' desde') + ' Camp de Tarragona' : ''}, llega a las ${hhmm(t[1])}`;
     return `<button type="button" class="trip tt" data-m="${t[0]}"${isAve ? ' data-ave' : ''} aria-label="${label}">${cells}</button>`;
   }
   // what a screen reader hears: the train, only when it changes (never the countdown's refresh)
@@ -103,17 +139,19 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     for(let i=4;i>=1;i--){ const y = i*20; pts.push(`${j()}% ${y}%`); }
     return `polygon(${pts.join(',')})`;
   }
-  // one ticket with both ends of the trip; ⇄ turns it around. The ends will open their lists (the town, Barcelona's
-  // stations): until then they are plain text, never a button that does nothing
+  // one ticket with both ends of the trip; ⇄ turns it around. The town end opens the chooser; Barcelona's end
+  // stays plain text until 3.5. Both the swap and the town button are rebuilt on every render() (route()), so
+  // their listeners are delegated on the container instead of attached to elements that get replaced
   byId('tickets').innerHTML = `
     <div class="tk" style="--cut:${cut(7)}">
       <span class="pp"><span class="k">Billete</span>
-      <span class="route"><span class="end"></span> <button type="button" class="swap" aria-label="Cambiar el sentido">⇄</button> <span class="end"></span></span></span><span class="stub" aria-hidden="true"></span>
+      <span class="route"></span></span><span class="stub" aria-hidden="true"></span>
     </div>`;
-  const ends = byId('tickets').querySelectorAll<HTMLElement>('.end');
-  byId('tickets').querySelector('.swap')!.addEventListener('click', ()=>{
-    state.dir = state.dir==='reus' ? 'bcn' : 'reus'; render();
-    if(world) world.resize();
+  const chooser = setupChooser(id => { state.town = id; state.useNow = true; state.ave = false; render(); byId('tickets').querySelector<HTMLElement>('.end.town')?.focus(); });
+  byId('tickets').addEventListener('click', e=>{
+    const t = e.target as HTMLElement;
+    if(t.closest('.swap')){ state.dir = state.dir==='casa' ? 'bcn' : 'casa'; render(); if(world) world.resize(); }
+    else if(t.closest('.end.town')) chooser.open();
   });
   setInterval(()=>{ if(state.useNow) render(); }, 30000);
   { const day = (iso: string) => new Date(iso+'T12:00:00Z').toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});

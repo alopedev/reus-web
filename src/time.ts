@@ -2,13 +2,14 @@ import red from '../data/red.json';
 
 // the network timetable (scripts/extract_red.py, contract in docs/referencias/datos-red-contrato.md): every train
 // once, with its stops as [stop_id, arrival, departure], and the trains that run each day
-interface Network {
+export interface Network {
   fuente: string; actualizado: string;
   estaciones: Record<string, { nombre: string; comarca?: string; lineas?: string[]; barcelona?: boolean }>;
   trenes: { n: string; p: string; s: [string, number, number][] }[];
   dias: Record<string, number[]>;
 }
-const NET = red as unknown as Network;
+// exported so towns.ts can build the chooser's groups from the same parsed network, without reading red.json twice
+export const NET = red as unknown as Network;
 export const SANTS = '71801', REUS = '71400', CAMP = '04104';
 // towns for which the AVE from Camp de Tarragona is a real alternative to the regional (about 35 min instead of 1 h 40 min)
 const AVE_COMARCAS = new Set(['Baix Camp', 'Tarragonès']);
@@ -43,12 +44,13 @@ export const weekday = (iso: string): number => new Date(iso+'T12:00:00Z').getUT
 export const hhmm = (m: number): string => { m=((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); };
 export const dur = (m: number): string => { if(m<1) return 'ahora'; const h=Math.floor(m/60), r=m%60; return h?(r?`${h} h ${r} min`:`${h} h`):`${r} min`; };
 
-// days missing from the data borrow the latest known day of the same kind (weekday, Saturday or Sunday)
-export function dayData(iso: string): {d: DayTimetable, exact: boolean} {
+// days missing from the data borrow the latest known day of the same kind (weekday, Saturday or Sunday). `station`
+// is the Barcelona end of the trip (Sants by default; a parameter already, for 3.5's choice of station)
+export function dayData(iso: string, town: string, station: string = SANTS): {d: DayTimetable, exact: boolean} {
   const kind = (x: string) => { const w = weekday(x); return w===6 ? 6 : w===0 ? 0 : 1; };
   const exact = iso in NET.dias, day = exact ? iso : Object.keys(NET.dias).sort().reverse().find(x => kind(x)===kind(iso))!;
-  const ave = hasAve(REUS);
-  return {d:{r:direct(day, SANTS, REUS), b:direct(day, REUS, SANTS), ar:ave ? direct(day, SANTS, CAMP) : [], ab:ave ? direct(day, CAMP, SANTS) : []}, exact};
+  const ave = hasAve(town);
+  return {d:{r:direct(day, station, town), b:direct(day, town, station), ar:ave ? direct(day, station, CAMP) : [], ab:ave ? direct(day, CAMP, station) : []}, exact};
 }
 // the last day the timetable covers
 export const lastDay = (): string => Object.keys(NET.dias).sort().pop()!;
