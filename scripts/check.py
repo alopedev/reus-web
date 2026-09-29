@@ -64,12 +64,15 @@ Rules checked:
      thin line with its word, with no «Son las HH:MM» heading; «Volver a ahora» never covers that word; the arrow
      keys step through every train, AVE included. From Reus in the evening, when no regional is left but an AVE
      from Camp de Tarragona is, that AVE is the train shown and tomorrow's first regionals follow it, marked «mañana». Modo rápido: `python3 scripts/check.py hero`.
+  16. The travel things and the painted table follow the papers when these settle after the table was first
+     measured (the web fonts arriving late): once the papers' text reflows, everything sits where measuring afresh
+     puts it, on desktop and mobile. Modo rápido: `python3 scripts/check.py mesa`.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
-Usage: npm run build && npm run build:paridad && python3 scripts/check.py [paridad|letras|a11y|red|hero]   (or: npm run check)
+Usage: npm run build && npm run build:paridad && python3 scripts/check.py [paridad|letras|a11y|red|hero|mesa]   (or: npm run check)
        (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute; a11y: only check 13; red: only check 14;
-        hero: only check 15)
+        hero: only check 15; mesa: only check 16)
 """
 import asyncio, functools, http.server, io, os, pathlib, sys, threading
 from PIL import Image, ImageChops, ImageStat
@@ -617,6 +620,37 @@ FIT = """(() => {
   return errs;
 })()"""
 
+# where table.ts put each travel thing, and the painted table's size (what layout() and paint() write)
+TABLE_STATE = """(() => ({things: Object.fromEntries(['cafe', 'boli', 'rodalies', 'gafas'].map(id => { const s = document.getElementById(id).style;
+    return [id, [parseFloat(s.left), parseFloat(s.top)]]; })), lienzo: [document.getElementById('lienzo').width, document.getElementById('lienzo').height],
+  papers: ['folleto', 'cuaderno', 'reverso'].map(id => { const e = document.getElementById(id); return [e.offsetTop, e.offsetHeight]; })}))()"""
+
+async def check_table_follows(browser):
+    """The papers can settle after the table was first measured (on a slow network the web fonts arrive after it,
+    and Linux's fallback font wraps the text differently): the travel things and the painted table follow them.
+    The papers' text reflows once the table is painted; what the page shows then must be what measuring afresh
+    (a resize) gives."""
+    errs = []
+    for name, (w, h) in {"1440x900": (1440, 900), "390x844": (390, 844)}.items():
+        page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce")
+        await page.goto(page_url); await page.evaluate("document.fonts.ready")
+        await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})")
+        try: await page.wait_for_function("document.getElementById('lienzo')?.dataset.pintada === '1'", timeout=12000)
+        except Exception: errs.append(f"{name}: the table never gets painted"); await page.close(); continue
+        await page.wait_for_timeout(500)
+        before = await page.evaluate(TABLE_STATE)
+        # the papers' text reflows, as when the web fonts replace the fallback
+        await page.add_style_tag(content=".mesa p, .mesa li{ letter-spacing:.07em; }"); await page.wait_for_timeout(800)
+        settled = await page.evaluate(TABLE_STATE)
+        await page.evaluate("dispatchEvent(new Event('resize'))"); await page.wait_for_timeout(800)
+        fresh = await page.evaluate(TABLE_STATE); await page.close()
+        if settled["papers"] == before["papers"]: errs.append(f"{name}: the papers did not reflow (the check proves nothing)"); continue
+        for thing, (x, y) in fresh["things"].items():
+            sx, sy = settled["things"][thing]
+            if abs(sx - x) > 1 or abs(sy - y) > 1: errs.append(f"{name}: #{thing} stays at {sx:.0f},{sy:.0f} after the papers settle; measured afresh it goes to {x:.0f},{y:.0f}")
+        if settled["lienzo"] != fresh["lienzo"]: errs.append(f"{name}: the painted table stays {settled['lienzo']} after the papers settle; measured afresh it is {fresh['lienzo']}")
+    return errs
+
 async def check_still_window(browser):
     """With reduced motion the still frame is painted where #win is once the page is laid out (tickets and fonts in):
     at 10:00, the sky just inside the top of #win and the wall just above its painted frame look clearly different. A
@@ -901,6 +935,9 @@ async def main():
         if sys.argv[1:] == ["hero"]:
             failures += await check_hero(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · hero"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["mesa"]:
+            failures += await check_table_follows(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · mesa"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["a11y"]:
             failures += await check_a11y(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · a11y"); sys.exit(1 if failures else 0)
@@ -949,6 +986,7 @@ async def main():
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
         failures += [f"red: {e}" for e in await check_red(browser)]
         failures += [f"hero: {e}" for e in await check_hero(browser)]
+        failures += [f"mesa: {e}" for e in await check_table_follows(browser)]
         failures += [f"reduced: {e}" for e in await check_still_window(browser)]
         # reduced motion: a still frame and every paper already in place
         page = await open_page(browser, viewport={"width": 1440, "height": 860}, reduced_motion="reduce")
