@@ -107,9 +107,9 @@ out = root / "data/red.json"
 # Francoli y Montblanc (linea Lleida-Barcelona via La Plana-Picamoixons) y Ulldecona-
 # Alcanar-La Senia (R16).
 COMARCA = {
-    "Bellvitge - Gornal": "Barcelones", "El Prat Aeroport": "Baix Llobregat",
-    "El Prat de Llobregat": "Baix Llobregat", "Granollers Centre": "Valles Oriental",
-    "Sant Celoni": "Valles Oriental", "Gualba": "Valles Oriental",
+    "Bellvitge - Gornal": "Barcelonès", "El Prat Aeroport": "Baix Llobregat",
+    "El Prat de Llobregat": "Baix Llobregat", "Granollers Centre": "Vallès Oriental",
+    "Sant Celoni": "Vallès Oriental", "Gualba": "Vallès Oriental",
     "Riells i Viabrea-Breda": "Selva", "Hostalric": "Selva", "Maçanet-Massanes": "Selva",
     "Sils": "Selva", "Caldes de Malavella": "Selva", "Riudellots": "Selva",
     "Fornells de la Selva": "Gironès", "Girona": "Gironès", "Celrà": "Gironès",
