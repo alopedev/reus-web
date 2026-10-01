@@ -1034,7 +1034,12 @@ async def check_town_ticket(page):
     if t["route"] != "Sants ⇄ Reus": errs.append(f".tk .route reads «{t['route']}», expected «Sants ⇄ Reus»")
     return errs
 
-async def open_town(page, timeout=4000):
+# a click in the town selector may wait for a slow frame: the software-rendered hero takes seconds per frame at the
+# largest sizes on a slow CI runner (1000x1300, 1920x1080 and 2560x1440 timed out at 4 s on 32-minute runs, passed on a
+# 17-minute one). The wait only costs time when the click never becomes possible
+CLICK_MS = 15000
+
+async def open_town(page, timeout=CLICK_MS):
     """Open the town selector from the ticket. Returns an error list ([] on success)."""
     try: await page.click(".tk .town", timeout=timeout)
     except Exception as e:
@@ -1044,7 +1049,7 @@ async def open_town(page, timeout=4000):
         return [f"'.tk .town' is not a clickable button that opens #selp ({(why[-1] if why else log[0])[:200]})"]
     return []
 
-async def choose_town(page, group, town, timeout=4000):
+async def choose_town(page, group, town, timeout=CLICK_MS):
     """The three taps that choose a town: the ticket's town, its corridor group, then the stop itself."""
     errs = await open_town(page, timeout)
     if errs: return errs
@@ -1113,7 +1118,7 @@ async def check_town_groups(browser):
     e = await open_town(page)
     if e: await page.close(); return e
     for group in ("R11", "R13", "R14", "R16"):
-        try: await page.click(f'.ln[data-group="{group}"]', timeout=4000)
+        try: await page.click(f'.ln[data-group="{group}"]', timeout=CLICK_MS)
         except Exception: errs.append(f"{group}: '.ln[data-group={group}]' is not clickable"); continue
         await page.wait_for_timeout(200)
         opts = await page.evaluate("""() => [...document.querySelectorAll('#selp .strip .opt')].map(o => ({
@@ -1146,7 +1151,7 @@ async def check_town_groups(browser):
                 else:
                     if reus["current"] != "true": errs.append("R14: Reus does not carry aria-current=true")
                     if not reus["focused"]: errs.append("R14: the focus is not on Reus when entering its group")
-        try: await page.click("#selp .back", timeout=4000)
+        try: await page.click("#selp .back", timeout=CLICK_MS)
         except Exception: errs.append(f"{group}: '.back' is not clickable"); continue
         await page.wait_for_timeout(200)
         step1 = await page.evaluate("document.querySelectorAll('#selp .ln').length")
@@ -1228,7 +1233,7 @@ async def check_town_close(browser):
     if e: errs += [f"button.x: {x}" for x in e]
     else:
         try:
-            await page.click("#selp button.x", timeout=4000); await page.wait_for_timeout(300)
+            await page.click("#selp button.x", timeout=CLICK_MS); await page.wait_for_timeout(300)
             errs += await unchanged(page, "button.x")
         except Exception: errs.append("button.x: '#selp button.x' is not clickable")
     await page.close()
@@ -1255,14 +1260,14 @@ async def check_town_fit(browser):
         if e: failures += [f"{size}: {x}" for x in e]; await page.close(); continue
         short = [x for x in await page.evaluate("[...document.querySelectorAll('#selp .ln')].map(el => el.getBoundingClientRect().height)") if x < 43.5]
         if short: failures.append(f"{size}: a .ln is only {min(short):.0f} px tall")
-        try: await page.click(f'.ln[data-group="{group}"]', timeout=4000)
+        try: await page.click(f'.ln[data-group="{group}"]', timeout=CLICK_MS)
         except Exception: failures.append(f"{size}: '.ln[data-group={group}]' is not clickable"); await page.close(); continue
         await page.wait_for_timeout(200)
         sheet = await page.evaluate("(() => { const b = document.querySelector('#selp .sheet').getBoundingClientRect(); return {left: b.left, right: b.right}; })()")
         if sheet["left"] < -1 or sheet["right"] > w + 1: failures.append(f"{size}: the sheet ({sheet['left']:.0f}–{sheet['right']:.0f}) does not fit the {w} px width")
         short = [x for x in await page.evaluate("[...document.querySelectorAll('#selp .strip .opt')].map(el => el.getBoundingClientRect().height)") if x < 43.5]
         if short: failures.append(f"{size}: a .opt is only {min(short):.0f} px tall")
-        try: await page.click(f'#selp .strip .opt[data-town="{town}"]', timeout=4000)
+        try: await page.click(f'#selp .strip .opt[data-town="{town}"]', timeout=CLICK_MS)
         except Exception: failures.append(f"{size}: '.opt[data-town={town}]' ({name}) is not clickable"); await page.close(); continue
         await page.wait_for_timeout(200)
         failures += [f"{size}: {e}" for e in await page.evaluate(FIT)]
