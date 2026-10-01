@@ -628,6 +628,16 @@ FIT = """(() => {
 TABLE_STATE = """(() => ({things: Object.fromEntries(['cafe', 'boli', 'rodalies', 'gafas'].map(id => { const s = document.getElementById(id).style;
     return [id, [parseFloat(s.left), parseFloat(s.top)]]; })), lienzo: [document.getElementById('lienzo').width, document.getElementById('lienzo').height],
   papers: ['folleto', 'cuaderno', 'reverso'].map(id => { const e = document.getElementById(id); return [e.offsetTop, e.offsetHeight]; })}))()"""
+# the painted table already has the size the scene asks for now (table.ts size(): the scene, at most 1.3 Mpx)
+TABLE_SIZED = """(() => { const e = document.getElementById('escena'), c = document.getElementById('lienzo'), W = e.clientWidth, H = e.clientHeight,
+  k = Math.min(1, Math.sqrt(1.3e6 / (W * H))); return c.width === Math.max(2, Math.round(W * k)) && c.height === Math.max(2, Math.round(H * k)); })()"""
+
+async def table_sized(page, timeout=10000):
+    """Wait for the painted table to follow the scene: a new size waits for the ResizeObserver (next frame), the 200 ms
+    debounce and the repaint, which on CI's software rendering can take longer than any fixed wait. On a timeout the
+    caller's comparison reports the mismatch."""
+    try: await page.wait_for_function(TABLE_SIZED, timeout=timeout)
+    except Exception: pass
 
 async def check_table_follows(browser):
     """The papers can settle after the table was first measured (on a slow network the web fonts arrive after it,
@@ -644,9 +654,9 @@ async def check_table_follows(browser):
         await page.wait_for_timeout(500)
         before = await page.evaluate(TABLE_STATE)
         # the papers' text reflows, as when the web fonts replace the fallback
-        await page.add_style_tag(content=".mesa p, .mesa li{ letter-spacing:.07em; }"); await page.wait_for_timeout(800)
+        await page.add_style_tag(content=".mesa p, .mesa li{ letter-spacing:.07em; }"); await page.wait_for_timeout(800); await table_sized(page)
         settled = await page.evaluate(TABLE_STATE)
-        await page.evaluate("dispatchEvent(new Event('resize'))"); await page.wait_for_timeout(800)
+        await page.evaluate("dispatchEvent(new Event('resize'))"); await page.wait_for_timeout(800); await table_sized(page)
         fresh = await page.evaluate(TABLE_STATE); await page.close()
         if settled["papers"] == before["papers"]: errs.append(f"{name}: the papers did not reflow (the check proves nothing)"); continue
         for thing, (x, y) in fresh["things"].items():
@@ -1027,7 +1037,11 @@ async def check_town_ticket(page):
 async def open_town(page, timeout=4000):
     """Open the town selector from the ticket. Returns an error list ([] on success)."""
     try: await page.click(".tk .town", timeout=timeout)
-    except Exception: return ["'.tk .town' is not a clickable button that opens #selp"]
+    except Exception as e:
+        # Playwright's call log ends with why it kept retrying (covered by another element, not stable, off screen…)
+        log = [l.strip(" -") for l in str(e).splitlines()]
+        why = [l for l in log if any(k in l for k in ("intercepts pointer events", "not stable", "outside of the viewport", "not visible", "not enabled"))]
+        return [f"'.tk .town' is not a clickable button that opens #selp ({(why[-1] if why else log[0])[:200]})"]
     return []
 
 async def choose_town(page, group, town, timeout=4000):
