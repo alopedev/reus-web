@@ -1,10 +1,10 @@
-# Handoff · 29 de septiembre de 2026
+# Handoff · 2 de octubre de 2026
 
 Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md` (registro estético). Producto: `docs/PRD.md` v0.2.
 
 ## Estado
 
-**Código:** local 4 commits por delante de `origin/main` (el selector de pueblo de 3.3 y el arreglo de la mesa que aterriza tarde); publicación pendiente del push (procedimiento en «Publicación» de `CLAUDE.md`). Vite + TypeScript estricto en módulos (`src/`, mapa en `CLAUDE.md`), Three.js 0.128 y GSAP 3.15 desde npm. GitHub Actions pasa tipos, compilación y `check.py` en cada push; `check.py paridad` compara con fotogramas de referencia por sistema (`scripts/baseline/darwin|linux/`).
+**Código:** `main` publicado. La CI estuvo en rojo del 28-09 al 02-10 por dos checks que esperaban un tiempo fijo (ver «Lecciones técnicas»); arreglado en el PR #1 (`65985fb`/`40bbb6a`), y con ella vuelve a publicar el robot de horarios. Vite + TypeScript estricto en módulos (`src/`, mapa en `CLAUDE.md`), Three.js 0.128 y GSAP 3.15 desde npm. GitHub Actions pasa tipos, compilación y `check.py` en cada push; `check.py paridad` compara con fotogramas de referencia por sistema (`scripts/baseline/darwin|linux/`).
 
 **Datos:** la web lee `data/red.json` (regionales R11, R13–R17 y AVE/Avlo Sants ↔ Camp de Tarragona, 14 días; contrato en `docs/referencias/datos-red-contrato.md`), regenerado cada día por `.github/workflows/horarios.yml`. `src/time.ts`: `direct(fecha, desde, hasta)`; `dayData(fecha, pueblo)` da Sants ↔ el pueblo elegido (`r`/`b`) y, para Baix Camp y Tarragonès, el AVE (`ar`/`ab`).
 
@@ -50,13 +50,16 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 - `gh` para el repo privado sin cambiar de cuenta activa: `GH_TOKEN=$(gh auth token --user alopedev) gh run …`. `gh run watch` a veces sale antes de que el run acabe: comprueba `status` en bucle en vez de fiarte de que `watch` haya esperado
 - Separa las celdas de las filas del tablero con espacios en el HTML (el grid los ignora visualmente, pero sin ellos el lector de pantalla y `textContent` leen «R1510:03» en vez de «R15 10:03»)
 - Nunca dos `check.py` (ni capturas con Playwright) a la vez
+- Los runners de GitHub varían el doble de velocidad: `check.py` tarda 17 min en uno rápido y 32–36 en uno lento. Del 28-09 al 01-10, los runs lentos fallaron en el clic del pueblo (1000x1300, 1920x1080, 2560x1440: los tamaños más caros de pintar por software) con 4 s de margen, y en el check 16 con 800 ms fijos para que el lienzo siguiera a los papeles. Parecía determinista (siempre los mismos tamaños) y era tiempo: el mismo código pasó en un runner rápido. Ahora los clics del selector esperan hasta `CLICK_MS` (15 s) y el check 16 espera a que el lienzo tenga su tamaño (`table_sized`). Si un check falla siempre en los mismos tamaños grandes, mira cuánto tardó el run antes de buscar un bug
+- Si `check.py` falla, el robot de horarios no publica nada: una CI roja en `main` deja la web con los horarios del último día bueno (cubren 14 días)
 - Una regla CSS de componente sin ámbito pisa la del vecino aunque los ficheros sean distintos: `.pill` solo debe existir una vez (vive en `hero.css`, del tablero); `chooser.css` reutiliza esa clase en vez de redefinirla. Al añadir un módulo de estilos nuevo, comprueba que no repite el nombre de una clase ya usada en otro
 - `route()` reconstruía el HTML del billete en cada `render()` (cada 30 s con `useNow`), lo que perdía el foco de `⇄` tras pulsarlo. Ahora `setRoute()` compara con el HTML ya pintado y solo reconstruye si cambia (sentido o pueblo), devolviendo el foco al control equivalente del nuevo HTML
 - El orden de la tira de un corredor no es «el orden de paradas de un tren», sino la fusión topológica de las paradas de *todos* los trenes de la línea: un tren que cruza Barcelona (El Prat → Sants → Girona) da dos tramos hacia fuera, no uno, y hay que tratarlo como dos secuencias independientes (`outward()` en `src/towns.ts`). Cuando dos trenes discrepan en el orden de dos paradas se forma un ciclo en el grafo de «va antes que»: esos nodos deben ir al final (por el tren más rápido desde Sants), nunca desaparecer del selector
 
 ## Pendiente y riesgos
 
-- La referencia de Linux `scripts/baseline/linux/escritorio-mesa.png` retrata el estado erróneo (boli pisando el cuaderno, Rodalies y gafas ~30–50 px más abajo, crédito antiguo «Fuente: Renfe, datos abiertos (GTFS)»); el fix ya está en `main` (`99fd3af`/`7cc4f50`) pero la referencia no se ha renovado, así que CI fallará la paridad `escritorio-mesa` contra el estado antiguo hasta renovarla (con aprobación de Àlex) — no es un flake que siga abierto, es una referencia por actualizar
+- El 30-09 el feed de Renfe trajo un tren repetido (Sants → Reus 09:03 → 10:33, del 30-09 al 04-10): `check_datos.py` lo paró y el robot no publicó; el 01-10 ya no salía. Si se repite a menudo, valorar deduplicarlo en `extract_red.py` en vez de parar la publicación
+
 - La mesa se pinta al cargar, tapada por el hero, no «la primera vez que se ve» como dice `table.ts`: la intersección de borde de `.escena` (a 100svh) cuenta como visible. El pintado en acuarela no se llega a ver en escritorio. Sin tocar: cambia lo que se ve
 - Robot diario: si `red.json` falla su check, tampoco se publica `trains.json`. Claude recomendó dejarlo así; Àlex no ha respondido
 - Accesibilidad visible sin propuesta: la barra de Safari tapa el pie del hero (`safe-area-inset` no llega a `#hero` fijo) y el contraste de las etiquetas pequeñas de la regla (~4,2:1)
@@ -65,7 +68,6 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 - La mesa sigue hablando de Reus (folleto «Cómo leerla», cuaderno «Barcelona ↔ Reus», billete de Rodalies, «Qué es»): generalizar a cualquier pueblo es la tarea 3 de «Siguiente paso»
 - El pueblo elegido no se recuerda al recargar la página (3.4)
 - El caso «sin tren directo hoy ni mañana» (decisión 3 de `spec-3.3.md`) no tiene test con datos reales: con la exclusión del área de Barcelona y Camp de Tarragona, no se da con el horario congelado. Queda como red de seguridad sin ejercitar
-- `data/red.json`: La Floresta tiene la comarca equivocada (Vallès Occidental; es de Les Garrigues) — no afecta a la elegibilidad para el AVE (no es Baix Camp ni Tarragonès), pero conviene corregirla en `extract_red.py` › `COMARCA`
 
 ## Cómo verificar
 
