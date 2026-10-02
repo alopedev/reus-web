@@ -137,11 +137,11 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     sun.color.set(p.dir[0]); sun.intensity = p.dir[1]; sun.position.set(...p.dir[2]);
     // Safari on iPhone paints the strip around the Dynamic Island in one flat colour, read at load: the top edge of
     // the painted wall, wallA under the luggage rack's shadow (×.9), the corners' shade averaged across the width
-    // (×.94) and the watercolour's pigment (×.89, measured on an iPhone). Safari 26 takes it from #frente (a fixed
-    // band at the top, base.css) or else the body; Safari 18 and earlier from theme-color
+    // (×.94) and the watercolour's pigment (×.89, measured on an iPhone). Safari 26 takes it from the body (a fixed
+    // element with its own background would win, and a faded band of that colour came out darker); Safari 18 and
+    // earlier from theme-color
     const top = `rgb(${p.wallA.map(v=>Math.round(v*.75*255)).join(',')})`;
     document.body.style.background = top;
-    document.documentElement.style.setProperty('--frente', top);
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', top);
     return p.name;
   }

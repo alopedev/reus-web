@@ -18,14 +18,6 @@ body{ min-height:100%; background:#7d6650; color:var(--paper); font-family:var(-
 /* the wall darkens as it leans away from the camera: painted in the wall's shader when WebGL runs (the texts on
    it dim with --lavado, set only while it turns), or this flat veil when it does not */
 .pintada .stage{ filter:brightness(calc(1 - .45 * var(--lavado))); }
-/* Safari 26 on iPhone paints the strip around the Dynamic Island in one flat colour, the top of the wall (--frente,
-   set by world.ts). This fixed band of that colour fades into the painted wall, so the strip reads as the wall's
-   shaded top rather than a lid, and it is the element Safari takes the colour from. iOS only, and only over the
-   painted wall; it dims with the wall as it turns */
-#frente{ display:none; position:fixed; top:0; left:0; right:0; height:1.5rem; z-index:1; pointer-events:none;
-  background-color:var(--frente); -webkit-mask-image:linear-gradient(#000, transparent); mask-image:linear-gradient(#000, transparent);
-  filter:brightness(calc(1 - .45 * var(--lavado))); }
-@supports (-webkit-touch-callout:none){ .pintada #frente{ display:block; } }
 .sombra{ position:absolute; inset:0; z-index:2; pointer-events:none; background:linear-gradient(#1d1712, #2D241C); opacity:0; }
 strong{ font-weight:700; }
 canvas#gl{ position:fixed; inset:0; width:100%; height:100%; display:block; z-index:0; }

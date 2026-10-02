@@ -9,12 +9,21 @@ import { createScenery } from './scenery';
 import { setupTimetable } from './timetable';
 import { setupShelf, dropped, hingeAt } from './shelf';
 import { pair, state } from './letters';
+import { byId } from './dom';
 
 // the page always opens on the hero: the browser must not put back the last visit's scroll (Safari does on a reload
 // or a reopened tab). The native API, not ScrollTrigger.clearScrollMemory(): ScrollTrigger is only registered later,
 // in setupShelf, and calling it before stops the whole page from starting
 if('scrollRestoration' in history) history.scrollRestoration = 'manual';
+// nor jump to an anchor: «Qué es y cómo se hizo» used to leave #repisa in the address, and reopening the site from
+// the history or the address bar's suggestions landed on the table (Safari shows only the domain, so it was unseen)
+if(location.hash){
+  history.replaceState(null, '', location.pathname + location.search);
+  addEventListener('load', () => scrollTo({top: 0, behavior: 'instant'}), {once: true});
+}
 scrollTo({top: 0, behavior: 'instant'});
+// the link still goes down to the table, without writing #repisa into the address (its href stays for no script)
+byId('more').addEventListener('click', e => { e.preventDefault(); byId('repisa').scrollIntoView({behavior: 'smooth'}); });
 
 const world = build3D();
 const table = createTable();
