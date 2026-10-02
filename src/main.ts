@@ -10,9 +10,10 @@ import { setupTimetable } from './timetable';
 import { setupShelf, dropped, hingeAt } from './shelf';
 import { pair, state } from './letters';
 
-// the page always opens on the hero: neither the browser (Safari puts back the last visit's scroll on a reload or a
-// reopened tab) nor ScrollTrigger may restore where the table was left
-ScrollTrigger.clearScrollMemory('manual');
+// the page always opens on the hero: the browser must not put back the last visit's scroll (Safari does on a reload
+// or a reopened tab). The native API, not ScrollTrigger.clearScrollMemory(): ScrollTrigger is only registered later,
+// in setupShelf, and calling it before stops the whole page from starting
+if('scrollRestoration' in history) history.scrollRestoration = 'manual';
 scrollTo({top: 0, behavior: 'instant'});
 
 const world = build3D();
