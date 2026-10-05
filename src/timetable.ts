@@ -104,7 +104,7 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     const to = ` href="${buy.replace(/&/g, '&amp;')}" target="_blank" rel="noopener"`;
     const soon = big ? `<span class="soon">${until && 'en ' + until}</span>` : '';
     const word = big ? ` <a class="buy"${to} tabindex="-1" aria-hidden="true">comprar ↗</a>` : '';
-    const where = (big ? `el próximo${until ? ', ' : ''}${soon}` : morrow ? 'mañana' : 'el siguiente') + word;
+    const where = (big ? `<span class="nx">el próximo${until ? ', ' : ''}</span>${soon}` : morrow ? 'mañana' : 'el siguiente') + word;
     const camp = isAve ? ` <span class="st">${state.dir==='casa' ? 'hasta' : 'desde'} Camp de Tarragona</span>` : '';
     // spaces between the cells: the grid ignores them, but the text (and a screen reader) keeps its words apart
     const dep = big ? `<a class="t" id="dep"${to} aria-label="${hhmm(t[0])}, comprar en Renfe (abre otra pestaña)">${hhmm(t[0])}</a>` : `<span class="t">${hhmm(t[0])}</span>`;
