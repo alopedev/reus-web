@@ -11,6 +11,9 @@ export interface Network {
 // exported so towns.ts can build the chooser's groups from the same parsed network, without reading red.json twice
 export const NET = red as unknown as Network;
 export const SANTS = '71801', REUS = '71400', CAMP = '04104';
+// the Barcelona end of the trip (3.5): Sants first, the default. El Clot left out (Àlex, 05-10: nobody asks for it)
+export const BCN: {id: string, name: string}[] = [{id:SANTS, name:'Sants'}, {id:'71802', name:'Passeig de Gràcia'}, {id:'79400', name:'França'}];
+export const bcnName = (id: string): string => BCN.find(s => s.id === id)?.name ?? 'Sants';
 // towns for which the AVE from Camp de Tarragona is a real alternative to the regional (about 35 min instead of 1 h 40 min)
 const AVE_COMARCAS = new Set(['Baix Camp', 'Tarragonès']);
 const hasAve = (town: string): boolean => AVE_COMARCAS.has(NET.estaciones[town]?.comarca ?? '');
