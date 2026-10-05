@@ -834,6 +834,7 @@ async def check_hero(browser):
     if b["dep"] != "22:17" or r["knob"] != 1337: errs.append(f"at 21:30 from Reus the train shown is {b['dep']} with the knob at {r['knob']}, expected the 22:17 AVE (1337)")
     if b["soon"] != "en 47 min": errs.append(f"at 21:30 from Reus .soon reads «{b['soon']}», expected «en 47 min»")
     if "Hoy ya no quedan regionales" not in b["info"]: errs.append("at 21:30 from Reus the board does not say «Hoy ya no quedan regionales»")
+    errs += [f"at 21:30 from Reus: {e}" for e in buy_link(b, CAMP_ID, SANTS_ID, "28/09/2026")]
     await page.close()
     # «ahora» at both ends of the day (00:30 is clamped to the ruler's start, 23:59 is its end) never leaves the screen
     for at, when in (("2026-09-28T22:30:00Z", "00:30"), ("2026-09-28T21:59:00Z", "23:59")):
@@ -858,11 +859,16 @@ async def check_hero(browser):
     want = ["AVE 05:50 Camp de Tarragona → 06:22", "R15 06:33 → 08:03", "R15 07:03 → 08:33"]
     if b["rows"] != want: errs.append(f"at 23:30 the board reads {b['rows']}, expected tomorrow's first trips {want}")
     if "Hoy ya no quedan" not in b["info"]: errs.append("at 23:30 the board does not say «Hoy ya no quedan · mañana»")
+    errs += [f"at 23:30: {e}" for e in buy_link(b, "71801", "71400", "29/09/2026")]
     await page.close()
     return errs
 
 BOARD = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), rows = [...document.querySelectorAll('#board .trip')];
-  return {rows: rows.map(r => n(r.textContent)), buttons: rows.map(r => r.matches('button.tt')), dep: document.getElementById('dep')?.textContent,
+  // «comprar ↗» is the big row's link to Renfe, read on its own (buy) rather than as part of the row's text
+  const text = r => { const c = r.cloneNode(true); c.querySelectorAll('.buy').forEach(x => x.remove()); return n(c.textContent); };
+  const dep = document.getElementById('dep'), word = document.querySelector('#board .buy'), q = dep?.href ? new URL(dep.href).searchParams : null;
+  return {rows: rows.map(text), buy: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), host: new URL(dep.href).host,
+            tab: dep.target === '_blank' && word?.target === '_blank', same: word?.href === dep.href, label: dep.getAttribute('aria-label')}, buttons: rows.map(r => r.matches('button.tt')), dep: document.getElementById('dep')?.textContent,
           soon: document.querySelector('.soon')?.textContent.trim(), info: n(document.getElementById('info').textContent),
           aviso: document.getElementById('aviso').textContent}; })()"""
 
@@ -898,9 +904,10 @@ async def check_hero_board(page):
     """Three trips at 10:00 on the frozen timetable (Sants → Reus: R15 10:03, R15 11:03, AVE 12:00; Reus → Sants:
     AVE 10:30, R15 10:36, R15 11:36); choosing a trip, AVE included, makes it the train shown."""
     errs = []
-    async def expect(when, rows, dep, soon):
+    async def expect(when, rows, dep, soon, buy=("71801", "71400", "28/09/2026")):
         b = await page.evaluate(BOARD)
         if b["rows"] != rows: errs.append(f"{when}: the board reads {b['rows']}, expected {rows}"); return b
+        errs.extend(f"{when}: {e}" for e in buy_link(b, *buy))
         if b["dep"] != dep: errs.append(f"{when}: the train shown (#dep) is {b['dep']}, expected {dep}")
         if b["soon"] != soon: errs.append(f"{when}: .soon reads «{b['soon']}», expected «{soon}»")
         big = [r.split()[1] for r, btn in zip(b["rows"], b["buttons"]) if not btn]
@@ -910,17 +917,30 @@ async def check_hero_board(page):
     for word in ("Próximo", "Luego", "Anterior", "Tren elegido"):
         if word in b["info"]: errs.append(f"the board still says «{word}»")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
-    await expect("at 10:00, Reus → Sants", ["AVE 10:30 Camp de Tarragona → 11:11", "R15 10:36 en 36 min → 12:07", "R15 11:36 → 13:07"], "10:36", "en 36 min")
+    await expect("at 10:00, Reus → Sants", ["AVE 10:30 Camp de Tarragona → 11:11", "R15 10:36 en 36 min → 12:07", "R15 11:36 → 13:07"], "10:36", "en 36 min", ("71400", "71801", "28/09/2026"))
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     async def choose(time):
         ok = await page.evaluate(f"(() => {{ const b = [...document.querySelectorAll('#board button.tt')].find(b => b.querySelector('.t').textContent === '{time}'); if(b) b.click(); return !!b; }})()")
         await page.wait_for_timeout(300); return ok
     if not await choose("12:00"): return errs + ["the AVE at 12:00 is not a button"]
-    b = await expect("after choosing the AVE", ["AVE 12:00 Camp de Tarragona → 12:31", "R14 12:03 → 13:33", "R15 13:03 → 14:35"], "12:00", None)
+    b = await expect("after choosing the AVE", ["AVE 12:00 Camp de Tarragona → 12:31", "R14 12:03 → 13:33", "R15 13:03 → 14:35"], "12:00", None, ("71801", "04104", "28/09/2026"))
     if "AVE" not in b["aviso"] or "Camp de Tarragona" not in b["aviso"]: errs.append(f"choosing the AVE, the live region does not say it is an AVE to Camp de Tarragona («{b['aviso']}»)")
     if not await choose("12:03"): return errs + ["the R14 at 12:03 is not a button"]
     await expect("after choosing the 12:03", ["R14 12:03 → 13:33", "AVE 12:50 Camp de Tarragona → 13:22", "R15 13:03 → 14:35"], "12:03", "")
     await page.click("#nowBtn"); await page.wait_for_timeout(300)
+    return errs
+
+def buy_link(b, frm, to, day):
+    """The big train's time and «comprar ↗» open Renfe's search for its trip and day, in a new tab (src/buy.ts)."""
+    k = b.get("buy")
+    if not k: return ["the train shown (#dep) is not a link to Renfe"]
+    errs = []
+    if k["host"] != "venta.renfe.com": errs.append(f"the buy link goes to {k['host']}, expected venta.renfe.com")
+    if (k["from"], k["to"], k["day"]) != (f"0071,{frm},{frm}", f"0071,{to},{to}", day):
+        errs.append(f"the buy link searches {k['from']} → {k['to']} on {k['day']}, expected {frm} → {to} on {day}")
+    if not k["tab"]: errs.append("the buy links do not open in a new tab")
+    if not k["same"]: errs.append("«comprar ↗» and the time do not open the same search")
+    if "Renfe" not in (k["label"] or ""): errs.append(f"the time's label does not say it buys on Renfe («{k['label']}»)")
     return errs
 
 TICKET = """(() => { const t = [...document.querySelectorAll('#tickets .tk')], sw = document.querySelector('.tk .swap');
@@ -1180,6 +1200,7 @@ async def check_town_choose_girona(browser):
     total = len(_direct(net, day, SANTS_ID, GIRONA_TOWN))
     if r["ticks"] != total: errs.append(f"the ruler has {r['ticks']} ticks, expected {total} (the day's direct R11 Sants→Girona trains)")
     if "Girona" not in b["aviso"]: errs.append(f"choosing Girona, the live region does not name it («{b['aviso'][:80]}»)")
+    errs += buy_link(b, SANTS_ID, GIRONA_TOWN, "28/09/2026")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     route = await page.evaluate("document.querySelector('.tk .route')?.textContent.replace(/\\s+/g, ' ').trim()")
     if route != "Girona ⇄ Sants": errs.append(f"after ⇄ the route reads «{route}», expected «Girona ⇄ Sants»")
