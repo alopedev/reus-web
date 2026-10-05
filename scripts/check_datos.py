@@ -46,11 +46,14 @@ MAX_BYTES_GZIP = 150 * 1024
 
 # the 59 towns with a direct train to Barcelona (by stops.txt name), sorted.
 # See docs/referencias/datos-red-contrato.md and the GTFS investigation for how this list was built.
+# Not required: the stops in Barcelona's area (Bellvitge - Gornal, El Prat Aeroport, El Prat de Llobregat). The
+# chooser leaves them out, and from 03-10-2026 Renfe's regionals stopped calling there (works or a detour): their
+# absence then held back every new timetable
 PUEBLOS_59 = sorted([
-    "Alcover", "Altafulla-Tamarit", "Ascó", "Bellvitge - Gornal", "Bordils-Juià",
+    "Alcover", "Altafulla-Tamarit", "Ascó", "Bordils-Juià",
     "Caldes de Malavella", "Camallera", "Camarles-Deltebre", "Cambrils", "Camp-redó",
     "Capçanes", "Celrà", "Cerbère", "Colera", "Duesaigües-L'Argentera",
-    "El Prat Aeroport", "El Prat de Llobregat", "Figueres", "Flaçà",
+    "Figueres", "Flaçà",
     "Fornells de la Selva", "Girona", "Granollers Centre", "Gualba", "Hostalric",
     "L'Aldea-Amposta-Tortosa", "L'Ametlla de Mar", "L'Ampolla-El Perelló-Deltebre",
     "L'Hospitalet de l'Infant", "La Plana-Picamoixons", "La Selva del Camp",

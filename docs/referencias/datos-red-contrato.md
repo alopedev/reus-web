@@ -35,4 +35,5 @@ Formato que produce `scripts/extract_red.py` y que comprueba `scripts/check_dato
 
 - Sin duplicados: un mismo tren físico (número y horas) aparece una sola vez por día.
 - Horas crecientes a lo largo de `s`.
+- Cobertura: los pueblos con tren directo a Barcelona de `PUEBLOS_59` (`scripts/check_datos.py`) tienen estación y algún tren. Las paradas del área de Barcelona (Bellvitge - Gornal, El Prat Aeroport, El Prat de Llobregat) pueden faltar: el selector no las ofrece y Renfe deja de parar ahí cuando hay obras (desde el 03-10-2026).
 - Sants → Reus y Reus → Sants deben coincidir con `data/trains.json` (claves `r` y `b`) los días que ambos cubren: es la red de seguridad de que la web actual no pierde trenes.
