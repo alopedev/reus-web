@@ -111,7 +111,9 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   /* a compact departure leaves the height to the window */
   .info{ row-gap:.3rem; }
   .board{ column-gap:.6rem; }
-  #dep{ font-size:3.2rem; } .trip .t{ font-size:1.2rem; } .trip .w, .trip .st{ font-size:.85rem; }
+  #dep{ font-size:3.2rem; } .trip .t{ font-size:1.2rem; } .trip .w{ font-size:.85rem; }
+  /* the AVE's station takes a whole line on a phone: hidden from sight, still read aloud (as .sr) */
+  .trip .st{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
   .ruler{ margin-top:.4rem; }
 }
 .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
