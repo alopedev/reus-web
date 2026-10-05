@@ -48,6 +48,13 @@
 #dep::after{ content:""; position:absolute; inset:-.06em -.16em -.02em; border:3px solid var(--tinta); border-radius:.16em; transform:rotate(-1.6deg);
   -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:160px; mask-size:160px; pointer-events:none; }
 .big .arr{ color:var(--paper); font-size:1.8rem; }
+/* the big train is the door to Renfe: its time (stamped, the train chosen) and «comprar ↗», raised like everything
+   you can press */
+.big a{ color:inherit; text-decoration:none; }
+.big a:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
+.big .buy{ font-weight:700; color:var(--paper); white-space:nowrap; margin-left:.35em; text-shadow:var(--alzado-pared); }
+.big .buy:hover{ text-shadow:var(--alzado-pared-hover); }
+.big .buy:active{ text-shadow:none; }
 /* the other trips are doors to them: the whole row presses, its time stands off the wall (raised, the hard offset
    shadow of the ticket); pressing flattens it */
 .tt{ font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; text-align:left; cursor:pointer; text-shadow:inherit; }
