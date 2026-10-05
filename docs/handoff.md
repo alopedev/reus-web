@@ -61,7 +61,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 ## Pendiente y riesgos
 
-- Enlace de compra: Àlex lo probó a mano el 05-10 con Sants → Reus y L'Aldea → Sants, solo con códigos y fecha (sin nombres de estación, que Renfe y el GTFS escriben distinto). Si Renfe cambia la URL, el enlace se rompe sin avisar: solo hay que tocar `src/buy.ts`
+- Enlace de compra: Àlex lo probó a mano el 05-10 con Sants → Reus y L'Aldea → Sants, solo con códigos y fecha (sin nombres de estación, que Renfe y el GTFS escriben distinto). Si Renfe cambia la URL, el enlace se rompe sin avisar: solo hay que tocar `src/buy.ts`. La referencia `scripts/baseline/darwin/movil-hero.png` aún retrata el tablero sin «comprar ↗»: bórrala y vuelve a pasar `check.py paridad` en el Mac para renovarla (la de Linux ya está renovada)
 
 - El 30-09 el feed de Renfe trajo un tren repetido (Sants → Reus 09:03 → 10:33, del 30-09 al 04-10): `check_datos.py` lo paró y el robot no publicó; el 01-10 ya no salía. Si se repite a menudo, valorar deduplicarlo en `extract_red.py` en vez de parar la publicación
 
