@@ -69,8 +69,8 @@ Ordenadas por prioridad.
 3. Como quien vuelve a Barcelona el domingo, quiero cambiar el sentido con un toque, para ver los trenes desde mi pueblo.
 4. Como viajero con el tren justo, quiero ver los trenes siguientes y pasar a ellos con un toque, para elegir otra opción si no llego.
 5. Como viajero que se organiza el día, quiero elegir otra hora de hoy y ver el tren correspondiente (por ejemplo, el último), para decidir cuándo salir.
-6. Como nuevo usuario, quiero elegir mi pueblo sin escribir y que la web lo recuerde, para no volver a elegirlo.
-7. Como quien sale de Passeig de Gràcia (o Clot, o França), quiero cambiar la estación de Barcelona una vez, para ver mis trenes reales.
+6. Como nuevo usuario, quiero elegir mi pueblo sin escribir. (Que la web lo recuerde queda fuera de esta fase: P0-16 descartado.)
+7. Como quien sale de Passeig de Gràcia o de França, quiero cambiar la estación de Barcelona una vez, para ver mis trenes reales.
 8. Como quien vuelve al Baix Camp o al Tarragonès, quiero ver junto al regional el próximo AVE desde Camp de Tarragona, para decidir si me compensa.
 9. Como viajero de noche, quiero que la web me diga si ya no quedan trenes hoy y cuál es el primero de mañana, para no quedarme sin respuesta.
 10. Como viajero, quiero compartir mi trayecto con un enlace, para que otra persona lo abra directamente.
@@ -98,8 +98,8 @@ Ordenadas por prioridad.
 | P0-12 | Secciones con scroll | Debajo del hero: qué es, cómo leerla, cómo se hizo, datos y límites | Hecho (La repisa); textos por generalizar |
 | P0-13 | Nombre definitivo | «Capacasa», aplicado en título, cabecera y publicaciones; recalibrar el viaje de letras (hoy diseñado con «Nombre») | Hecho en 3.2 |
 | P0-14 | Elegir tu pueblo | En la primera visita se elige el pueblo sin teclado, en tres toques como máximo, entre las estaciones con tren directo a Barcelona; el selector vive en los billetes | Hecho en 3.3: el pueblo del billete abre un selector (corredor → estación) en tres toques, entre unos 70 pueblos (71 en el horario del 28-09) |
-| P0-15 | Estación de Barcelona | Sants por defecto; se puede cambiar a Passeig de Gràcia, Clot o França. Si no hay tren directo entre esa estación y el pueblo, la web lo dice | Pendiente |
-| P0-16 | Recordar el trayecto | La web abre con el último pueblo, estación y sentido elegidos; la URL los refleja y se puede compartir. La primera visita abre en Sants → Reus | Pendiente |
+| P0-15 | Estación de Barcelona | Sants por defecto; se puede cambiar a Passeig de Gràcia o França (El Clot descartado el 05-10: nadie la pide). Si no hay tren directo entre esa estación y el pueblo, la web lo dice | Pendiente |
+| P0-16 | Recordar el trayecto | La web abre con el último pueblo, estación y sentido elegidos; la URL los refleja y se puede compartir. La primera visita abre en Sants → Reus | Descartado el 05-10 (Àlex: no hace falta en esta fase) |
 | P0-17 | Alternativa AVE (Baix Camp y Tarragonès) | Si el pueblo es del Baix Camp o del Tarragonès, junto al regional se ve el próximo AVE/Avlo desde o hasta Camp de Tarragona (salida y llegada), sin quitar protagonismo al regional | Hecho en 3.2 |
 | P0-18 | Datos de la red | Regionales de `fomento_transit.zip` y AVE/Avlo de `Fichero_AV_LD` (solo Camp de Tarragona), sin duplicados, un modelo por tren con su lista de paradas, ≤ ~150 KB comprimido | Hecho (`data/red.json`, 14 KB gzip; desde 3.3 la web lee de ahí todos los pueblos elegibles, no solo Sants ↔ Reus) |
 | P0-19 | Atribución | «Origen de los datos: Renfe Operadora» y la fecha de actualización visibles | Hecho (reverso del billete) |
@@ -171,7 +171,7 @@ Al generalizar: el paisaje es el mismo para todos los trayectos; el billete de R
 ## 12. Calendario y fases
 
 - **Fase 1 · Momento «guau» (hecha):** hero, «La repisa» y viaje de letras con Sants ↔ Reus.
-- **Fase 2 · Producto (ahora), en este orden:** trayectos (P0-14 a P0-19), nombre (P0-13, decidido: Capacasa), copy (P0-8, textos de la mesa).
+- **Fase 2 · Producto (ahora), en este orden:** trayectos (P0-14, P0-15, P0-17 a P0-19; P0-16 descartado), nombre (P0-13, decidido: Capacasa), copy (P0-8, textos de la mesa).
 - **Fase 3 · Lanzamiento:** vídeo para X y LinkedIn y publicación en el portfolio.
 
 ## Historial de cambios
@@ -180,3 +180,4 @@ Al generalizar: el paisaje es el mismo para todos los trayectos; el billete de R
 |---|---|---|
 | 0.1 | 26/09/2026 | Primera versión, a partir de la entrevista de objetivos, el plan de proyecto y el hero aprobado |
 | 0.2 | 28/09/2026 | El problema se centra en quien vuelve a casa desde Barcelona; Barcelona fija y el usuario elige su pueblo; estación de Barcelona cambiable; alternativa AVE para el Baix Camp y el Tarragonès; sin elegir día; recordar el trayecto sube a P0; estado real (La repisa, horarios diarios, Vercel); licencia resuelta; portfolio como objetivo de negocio |
+| 0.3 | 05/10/2026 | Recordar el trayecto (P0-16) descartado para esta fase; estación de Barcelona solo Sants, Passeig de Gràcia y França (fuera El Clot) |
