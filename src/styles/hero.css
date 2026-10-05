@@ -44,6 +44,13 @@
 .trip .arr{ color:var(--soft); font-size:1.3rem; white-space:nowrap; }
 #dep{ font-size:4.6rem; line-height:.9; letter-spacing:-.02em; text-shadow:.05em .05em 0 var(--shadow); }
 .big .arr{ color:var(--paper); font-size:1.8rem; }
+/* the big train is the door to Renfe: its time and «comprar ↗», in the same dotted language as everything you
+   can press */
+.big a{ color:inherit; text-decoration:underline dotted; text-decoration-thickness:1.5px; text-underline-offset:.2em; }
+.big a:hover{ text-decoration-style:solid; }
+.big a:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
+#dep{ text-decoration-thickness:3px; text-underline-offset:.12em; }
+.big .buy{ font-weight:700; color:var(--paper); white-space:nowrap; margin-left:.35em; }
 /* the other trips are doors to them: the whole row presses, its time carries the dotted underline */
 .tt{ font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; text-align:left; cursor:pointer; text-shadow:inherit; }
 .tt .t:not(.arr){ text-decoration:underline dotted; text-decoration-thickness:1.5px; text-underline-offset:.22em; }

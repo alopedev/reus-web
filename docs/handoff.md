@@ -1,4 +1,4 @@
-# Handoff · 2 de octubre de 2026
+# Handoff · 5 de octubre de 2026
 
 Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md` (registro estético). Producto: `docs/PRD.md` v0.2.
 
@@ -12,15 +12,18 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 **Selector de pueblo (paso 3.3, hecho):** el pueblo del billete (`.tk .town`, subrayado punteado) abre `#selp`, un `<dialog>` nativo (foco atrapado, Esc y fondo inerte del navegador) en dos pasos: corredor (4 grupos `R11` · `R13` · `R14+R15` · `R16+R17`, con las etiquetas de `docs/plan.md`, en orden de número de línea) y tira de estaciones en orden de parada de la línea (fusión topológica de las secuencias de paradas de cada tren de esa línea, Barcelona → fuera, con el ramal al final en su color; `src/towns.ts`). Tres toques como máximo. `state.town` (stop_id, Reus por defecto) sustituye a la constante fija y `state.dir` pasa de `'reus'|'bcn'` a `'casa'|'bcn'`. Quedan fuera del selector las estaciones del área de Barcelona (El Prat de Llobregat, El Prat Aeroport, Bellvitge - Gornal) y Camp de Tarragona (solo AVE); 71 pueblos elegibles en el horario actual (62 en el congelado de la paridad). El tablero, la regla y el AVE (Baix Camp/Tarragonès) siguen al pueblo elegido; si no hay tren directo hoy ni mañana en ese sentido (red de seguridad, no se da con los datos congelados), el tablero queda vacío y `#lbl`/`#aviso` lo dicen. Elegir pueblo re-renderiza, devuelve el foco al billete y `#aviso` anuncia el nuevo tren; Sants sigue siendo texto hasta 3.5. Objetivos táctiles ≥ 44 px. Check 15 de `check.py hero` (los checks del selector están dentro).
 
+**Enlace de compra (05-10, hecho):** el tren grande del tablero enlaza a Renfe: su hora (punteada) y «comprar ↗» abren en otra pestaña `venta.renfe.com/vol/buscarTren.do` con origen, destino y día (`src/buy.ts`, único sitio que conoce la URL). Los códigos de Renfe son los stop_id del GTFS (`0071,<id>,<id>`; todas las estaciones de `red.json` están en la lista de Renfe). Renfe no deja preseleccionar el tren: abre la lista del día. Trenes que salen pasadas las 24:00 buscan el día siguiente. Check 15 lo comprueba (`buy_link`).
+
+**Apertura en el hero (02-10, comprobado el 05-10 en Chromium escritorio y móvil):** `history.scrollRestoration = 'manual'` y, si la dirección trae un ancla (`#repisa`), se quita al arrancar y la página vuelve arriba; «Qué es y cómo se hizo» baja a la mesa sin escribir el ancla (`src/main.ts`, `36a9ebd`/`340b1cf`/`2a5815f`). Falta confirmarlo en Safari de iOS.
+
 **Transición hero → mesa y viaje de letras:** hechos (`src/shelf.ts`, `src/letters.ts`). Con «Capacasa», tres letras se funden en el hueco de «Qué es».
 
 ## Siguiente paso
 
-1. **3.4 · recordar el trayecto + URL:** la web abre con el último pueblo, estación de Barcelona y sentido elegidos; la URL los refleja y se puede compartir. La primera visita sigue abriendo Sants → Reus
-2. **3.5 · estación de Barcelona** (Sants, Passeig de Gràcia, El Clot, França) desde el billete: hasta entonces el extremo de Barcelona sigue siendo texto
-3. Generalizar la mesa: folleto «Cómo leerla» (aún habla de dos billetes), cuaderno «Barcelona ↔ Reus», billete de Rodalies, «Qué es»
-4. Grabar el vídeo para X y LinkedIn
-5. Pendiente técnico: subir Three.js desde r128, con la paridad visual como red
+1. **3.5 · estación de Barcelona** (Sants, Passeig de Gràcia, França) desde el billete: hasta entonces el extremo de Barcelona sigue siendo texto. El Clot queda fuera (Àlex, 05-10: nadie la pide). Ojo: França no tiene R11 y con los datos del 05-10 deja sin tren directo a 28 de los pueblos que sí lo tienen desde Sants; Passeig de Gràcia, solo a 1. La web debe decirlo (P0-15)
+2. Generalizar la mesa: folleto «Cómo leerla» (aún habla de dos billetes), cuaderno «Barcelona ↔ Reus», billete de Rodalies, «Qué es»
+3. Grabar el vídeo para X y LinkedIn
+4. Pendiente técnico: subir Three.js desde r128, con la paridad visual como red
 
 ## Lecciones técnicas
 
@@ -58,6 +61,8 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 ## Pendiente y riesgos
 
+- Enlace de compra: Àlex lo probó a mano el 05-10 con Sants → Reus y L'Aldea → Sants, solo con códigos y fecha (sin nombres de estación, que Renfe y el GTFS escriben distinto). Si Renfe cambia la URL, el enlace se rompe sin avisar: solo hay que tocar `src/buy.ts`
+
 - El 30-09 el feed de Renfe trajo un tren repetido (Sants → Reus 09:03 → 10:33, del 30-09 al 04-10): `check_datos.py` lo paró y el robot no publicó; el 01-10 ya no salía. Si se repite a menudo, valorar deduplicarlo en `extract_red.py` en vez de parar la publicación
 
 - La mesa se pinta al cargar, tapada por el hero, no «la primera vez que se ve» como dice `table.ts`: la intersección de borde de `.escena` (a 100svh) cuenta como visible. El pintado en acuarela no se llega a ver en escritorio. Sin tocar: cambia lo que se ve
@@ -66,7 +71,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 - En el tablero, pulsar un trayecto de mañana muestra el de hoy a esa hora (heredado del hero anterior); con la vista de mañana la bolita se queda en «ahora»
 - En móvil, «Camp de Tarragona, en 47 min» ocupa tres líneas en la fila grande del AVE nocturno
 - La mesa sigue hablando de Reus (folleto «Cómo leerla», cuaderno «Barcelona ↔ Reus», billete de Rodalies, «Qué es»): generalizar a cualquier pueblo es la tarea 3 de «Siguiente paso»
-- El pueblo elegido no se recuerda al recargar la página (3.4)
+- El pueblo elegido no se recuerda al recargar la página: el 3.4 (recordar trayecto + URL) se descartó el 05-10 para esta fase
 - El caso «sin tren directo hoy ni mañana» (decisión 3 de `spec-3.3.md`) no tiene test con datos reales: con la exclusión del área de Barcelona y Camp de Tarragona, no se da con el horario congelado. Queda como red de seguridad sin ejercitar
 
 ## Cómo verificar
