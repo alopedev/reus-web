@@ -56,14 +56,15 @@ Rules checked:
   15. The hero B (docs/plan.md, 28-09): the site is called «Capacasa» (title and h1) with the subtitle «El tren a
      casa, y de vuelta a Barcelona». One ticket, «Billete · Sants ⇄ Reus»: ⇄ turns the trip around (the
      route reads «Reus ⇄ Sants», the live region names the new train, the focus stays on ⇄). A board of
-     three trips, two regionals and the next AVE from Camp de Tarragona (Reus is in the Baix Camp), in order of
-     departure: «R15 10:03 en 3 min → 11:33», «en X min» only on the train shown (the first regional while live), no
-     headings and no «Luego»/«Anterior»; the other trips are buttons, and choosing one, AVE included, makes it the
+     two trips, the first to leave and the one after it, regional or AVE (from Camp de Tarragona: Reus is in the Baix
+     Camp): «R15 10:03 el próximo, en 3 min → 11:33», «R15 11:03 el siguiente → 12:33», «en X min» only on the train
+     shown while live, the AVE says «desde/hasta Camp de Tarragona» under its arrival, no
+     headings and no «Luego»/«Anterior»; the other trip is a button, and choosing one, AVE included, makes it the
      train shown. With no trains left today it shows tomorrow's first ones under «Hoy ya no quedan · mañana». The ruler of the day has one
      mark: every train is a tick, the AVE like the rest; the knob always stands on the train shown; «ahora» is a
      thin line with its word, with no «Son las HH:MM» heading; «Volver a ahora» never covers that word; the arrow
      keys step through every train, AVE included. From Reus in the evening, when no regional is left but an AVE
-     from Camp de Tarragona is, that AVE is the train shown and tomorrow's first regionals follow it, marked «mañana».
+     from Camp de Tarragona is, that AVE is the train shown and tomorrow's first regional follows it, marked «mañana».
      The ticket's town (`.tk .town`) opens a native `#selp` dialog (docs/spec-3.3.md): step 1 lists the four
      corridor groups (R11, R13, R14, R16) with their line pills; step 2 lists a group's stops in real order, the
      ramal after the main line's; choosing a stop closes the dialog, moves the board and ruler to it, and returns
@@ -829,8 +830,8 @@ async def check_hero(browser):
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     b = await page.evaluate(BOARD); r = await page.evaluate(RULER)
-    want = ["AVE 22:17 Camp de Tarragona, en 47 min → 22:59", "R15 05:36 mañana → 07:07", "R15 06:06 mañana → 07:37"]
-    if b["rows"] != want: errs.append(f"at 21:30 from Reus the board reads {b['rows']}, expected today's AVE and tomorrow's first regionals {want}")
+    want = ["AVE 22:17 el próximo, en 47 min → 22:59 desde Camp de Tarragona", "R15 05:36 mañana → 07:07"]
+    if b["rows"] != want: errs.append(f"at 21:30 from Reus the board reads {b['rows']}, expected today's AVE and tomorrow's first regional {want}")
     if b["dep"] != "22:17" or r["knob"] != 1337: errs.append(f"at 21:30 from Reus the train shown is {b['dep']} with the knob at {r['knob']}, expected the 22:17 AVE (1337)")
     if b["soon"] != "en 47 min": errs.append(f"at 21:30 from Reus .soon reads «{b['soon']}», expected «en 47 min»")
     if "Hoy ya no quedan regionales" not in b["info"]: errs.append("at 21:30 from Reus the board does not say «Hoy ya no quedan regionales»")
@@ -856,10 +857,10 @@ async def check_hero(browser):
     # at 23:30 no train is left today: tomorrow's first ones, and the board says so
     page = await hero_page(browser, at="2026-09-28T21:30:00Z")
     b = await page.evaluate(BOARD)
-    want = ["AVE 05:50 Camp de Tarragona → 06:22", "R15 06:33 → 08:03", "R15 07:03 → 08:33"]
+    want = ["AVE 05:50 el próximo → 06:22 hasta Camp de Tarragona", "R15 06:33 el siguiente → 08:03"]
     if b["rows"] != want: errs.append(f"at 23:30 the board reads {b['rows']}, expected tomorrow's first trips {want}")
     if "Hoy ya no quedan" not in b["info"]: errs.append("at 23:30 the board does not say «Hoy ya no quedan · mañana»")
-    errs += [f"at 23:30: {e}" for e in buy_link(b, "71801", "71400", "29/09/2026")]
+    errs += [f"at 23:30: {e}" for e in buy_link(b, "71801", CAMP_ID, "29/09/2026")]
     await page.close()
     return errs
 
@@ -901,8 +902,10 @@ async def check_hero_ruler(page):
     return errs
 
 async def check_hero_board(page):
-    """Three trips at 10:00 on the frozen timetable (Sants → Reus: R15 10:03, R15 11:03, AVE 12:00; Reus → Sants:
-    AVE 10:30, R15 10:36, R15 11:36); choosing a trip, AVE included, makes it the train shown."""
+    """Two trips at 10:00 on the frozen timetable, the train shown and the one after it, regional or AVE (Sants → Reus:
+    R15 10:03, R15 11:03; Reus → Sants: AVE 10:30 from Camp de Tarragona, R15 10:36: the big train is the first to
+    leave, AVE included); choosing a trip, AVE included,
+    makes it the train shown."""
     errs = []
     async def expect(when, rows, dep, soon, buy=("71801", "71400", "28/09/2026")):
         b = await page.evaluate(BOARD)
@@ -913,20 +916,24 @@ async def check_hero_board(page):
         big = [r.split()[1] for r, btn in zip(b["rows"], b["buttons"]) if not btn]
         if big != [dep]: errs.append(f"{when}: the trips that are not buttons are {big}, expected only the train shown, {dep}")
         return b
-    b = await expect("at 10:00", ["R15 10:03 en 3 min → 11:33", "R15 11:03 → 12:33", "AVE 12:00 Camp de Tarragona → 12:31"], "10:03", "en 3 min")
+    b = await expect("at 10:00", ["R15 10:03 el próximo, en 3 min → 11:33", "R15 11:03 el siguiente → 12:33"], "10:03", "en 3 min")
     for word in ("Próximo", "Luego", "Anterior", "Tren elegido"):
         if word in b["info"]: errs.append(f"the board still says «{word}»")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
-    await expect("at 10:00, Reus → Sants", ["AVE 10:30 Camp de Tarragona → 11:11", "R15 10:36 en 36 min → 12:07", "R15 11:36 → 13:07"], "10:36", "en 36 min", ("71400", "71801", "28/09/2026"))
-    await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    # the big train is the first to leave, AVE included
+    await expect("at 10:00, Reus → Sants", ["AVE 10:30 el próximo, en 30 min → 11:11 desde Camp de Tarragona", "R15 10:36 el siguiente → 12:07"], "10:30", "en 30 min", ("04104", "71801", "28/09/2026"))
     async def choose(time):
         ok = await page.evaluate(f"(() => {{ const b = [...document.querySelectorAll('#board button.tt')].find(b => b.querySelector('.t').textContent === '{time}'); if(b) b.click(); return !!b; }})()")
         await page.wait_for_timeout(300); return ok
+    if not await choose("10:36"): return errs + ["the R15 at 10:36 is not a button"]
+    await expect("after choosing the 10:36", ["R15 10:36 el próximo → 12:07", "AVE 11:00 el siguiente → 11:44 desde Camp de Tarragona"], "10:36", "", ("71400", "71801", "28/09/2026"))
+    await page.click("#nowBtn"); await page.wait_for_timeout(300)
+    await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    if not await choose("11:03"): return errs + ["the R15 at 11:03 is not a button"]
+    await expect("after choosing the 11:03", ["R15 11:03 el próximo → 12:33", "AVE 12:00 el siguiente → 12:31 hasta Camp de Tarragona"], "11:03", "")
     if not await choose("12:00"): return errs + ["the AVE at 12:00 is not a button"]
-    b = await expect("after choosing the AVE", ["AVE 12:00 Camp de Tarragona → 12:31", "R14 12:03 → 13:33", "R15 13:03 → 14:35"], "12:00", None, ("71801", "04104", "28/09/2026"))
+    b = await expect("after choosing the AVE", ["AVE 12:00 el próximo → 12:31 hasta Camp de Tarragona", "R14 12:03 el siguiente → 13:33"], "12:00", "", ("71801", "04104", "28/09/2026"))
     if "AVE" not in b["aviso"] or "Camp de Tarragona" not in b["aviso"]: errs.append(f"choosing the AVE, the live region does not say it is an AVE to Camp de Tarragona («{b['aviso']}»)")
-    if not await choose("12:03"): return errs + ["the R14 at 12:03 is not a button"]
-    await expect("after choosing the 12:03", ["R14 12:03 → 13:33", "AVE 12:50 Camp de Tarragona → 13:22", "R15 13:03 → 14:35"], "12:03", "")
     await page.click("#nowBtn"); await page.wait_for_timeout(300)
     return errs
 
@@ -959,7 +966,7 @@ async def check_hero_ticket(page):
     t = await page.evaluate(TICKET)
     if t["route"] != "Reus ⇄ Sants": errs.append(f"after ⇄ the route reads «{t['route']}», expected «Reus ⇄ Sants»")
     if not t["focus"]: errs.append("after ⇄ the focus is not on ⇄ any more")
-    if "de Reus a" not in t["aviso"]: errs.append(f"after ⇄ the live region does not name the new trip («{t['aviso'][:80]}»)")
+    if "a Barcelona Sants" not in t["aviso"]: errs.append(f"after ⇄ the live region does not name the new trip («{t['aviso'][:80]}»)")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     t = await page.evaluate(TICKET)
     if t["route"] != "Sants ⇄ Reus": errs.append(f"⇄ twice does not bring the trip back («{t['route']}»)")
@@ -1014,14 +1021,18 @@ def hhmm(m):
     m = m % 1440
     return f"{m // 60:02d}:{m % 60:02d}"
 
-def board_row(line, dep, arr, soon=None, place=None):
-    """Text of one #board .trip once whitespace is collapsed (mirrors timetable.ts's trip())."""
-    bits = [line, hhmm(dep)]
-    if place and soon: bits.append(f"{place}, {soon}")
-    elif place: bits.append(place)
-    elif soon: bits.append(soon)
-    bits.append(f"→ {hhmm(arr)}")
+def board_row(line, dep, arr, which, soon=None, camp=None):
+    """Text of one #board .trip once whitespace is collapsed (mirrors timetable.ts's trip()): «el próximo» (with its
+    countdown) or «el siguiente», and under an AVE's arrival «hasta/desde Camp de Tarragona»."""
+    bits = [line, hhmm(dep), which + (f", {soon}" if soon else ""), f"→ {hhmm(arr)}"]
+    if camp: bits.append(f"{camp} Camp de Tarragona")
     return " ".join(bits)
+
+def two_rows(trains, now, camp=None):
+    """The board for a list of trains in order of departure: the first is «el próximo» with its countdown, the
+    second «el siguiente»."""
+    return [board_row(t[2], t[0], t[1], "el próximo" if i == 0 else "el siguiente", soon=(f"en {t[0] - now} min" if i == 0 else None),
+                      camp=(camp if t[2] == "AVE" else None)) for i, t in enumerate(trains[:2])]
 
 def _direct(net, day, frm, to):
     """The direct trains of a day between two stops, straight from the frozen network (mirrors src/time.ts's
@@ -1182,7 +1193,7 @@ async def check_town_groups(browser):
     return errs
 
 async def check_town_choose_girona(browser):
-    """Choosing Girona (R11, Gironès, no AVE) in three taps: the board becomes the 3 next R11 direct trains
+    """Choosing Girona (R11, Gironès, no AVE) in three taps: the board becomes the 2 next R11 direct trains
     Sants -> Girona after 10:00 (+2 min margin, as the live board does), no AVE; the ruler has as many ticks as
     that day's direct R11 trains; the live region names Girona. Swapping flips the board to Girona -> Sants."""
     net, day, now, margin = _net(), "2026-09-28", 600, 2
@@ -1195,8 +1206,7 @@ async def check_town_choose_girona(browser):
     if route != "Sants ⇄ Girona": errs.append(f"after choosing Girona the route reads «{route}», expected «Sants ⇄ Girona»")
     if not await page.evaluate("document.activeElement === document.querySelector('.tk .town')"): errs.append("the focus is not on .tk .town after choosing Girona")
     b = await page.evaluate(BOARD); r = await page.evaluate(RULER)
-    trains = [t for t in _direct(net, day, SANTS_ID, GIRONA_TOWN) if t[0] >= now + margin][:3]
-    want = [board_row(t[2], t[0], t[1], soon=(f"en {t[0] - now} min" if i == 0 else None)) for i, t in enumerate(trains)]
+    want = two_rows([t for t in _direct(net, day, SANTS_ID, GIRONA_TOWN) if t[0] >= now + margin], now)
     if b["rows"] != want: errs.append(f"after choosing Girona the board reads {b['rows']}, expected {want}")
     if any("AVE" in row for row in b["rows"]): errs.append("Girona has no AVE, but the board shows one")
     total = len(_direct(net, day, SANTS_ID, GIRONA_TOWN))
@@ -1207,15 +1217,14 @@ async def check_town_choose_girona(browser):
     route = await page.evaluate("document.querySelector('.tk .route')?.textContent.replace(/\\s+/g, ' ').trim()")
     if route != "Girona ⇄ Sants": errs.append(f"after ⇄ the route reads «{route}», expected «Girona ⇄ Sants»")
     b = await page.evaluate(BOARD)
-    trains = [t for t in _direct(net, day, GIRONA_TOWN, SANTS_ID) if t[0] >= now + margin][:3]
-    want = [board_row(t[2], t[0], t[1], soon=(f"en {t[0] - now} min" if i == 0 else None)) for i, t in enumerate(trains)]
+    want = two_rows([t for t in _direct(net, day, GIRONA_TOWN, SANTS_ID) if t[0] >= now + margin], now)
     if b["rows"] != want: errs.append(f"Girona ⇄ Sants: the board reads {b['rows']}, expected {want}")
     await page.close()
     return errs
 
 async def check_town_choose_tarragona(browser):
-    """Choosing Tarragona (Tarragonès): the board includes an AVE row to Camp de Tarragona plus 2 regionals,
-    all computed from the frozen network."""
+    """Choosing Tarragona (Tarragonès): the first two trains to leave, regional or AVE to Camp de Tarragona, all
+    computed from the frozen network."""
     net, day, now, margin = _net(), "2026-09-28", 600, 2
     page = await hero_page(browser)
     errs = await choose_town(page, "R14", TARRAGONA_TOWN)
@@ -1225,11 +1234,8 @@ async def check_town_choose_tarragona(browser):
     regs = [t for t in _direct(net, day, SANTS_ID, TARRAGONA_TOWN) if t[0] >= now + margin]
     aves = [t for t in _direct(net, day, SANTS_ID, CAMP_ID) if t[0] >= now + margin]
     if not aves: await page.close(); return ["no AVE Sants→Camp de Tarragona after 10:00 in the frozen data: the test's assumption is wrong"]
-    ave, shown = aves[0], regs[0]
-    trips = sorted(regs[:2] + [ave])
-    want = [board_row(t[2], t[0], t[1], soon=(f"en {t[0] - now} min" if t == shown else None), place=("Camp de Tarragona" if t[2] == "AVE" else None)) for t in trips]
+    want = two_rows(sorted(regs[:2] + aves[:2]), now, camp="hasta")
     if b["rows"] != want: errs.append(f"choosing Tarragona the board reads {b['rows']}, expected {want}")
-    if not any("Camp de Tarragona" in row for row in b["rows"]): errs.append("choosing Tarragona (Tarragonès) the board has no AVE row")
     await page.close()
     return errs
 
