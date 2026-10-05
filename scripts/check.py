@@ -1017,11 +1017,12 @@ def _direct(net, day, frm, to):
 
 TOWN = """(() => { const b = document.querySelector('.tk .town'); if(!b) return null;
   return {tag: b.tagName, text: b.textContent.trim(), haspopup: b.getAttribute('aria-haspopup'),
-          style: getComputedStyle(b).textDecorationStyle, label: b.getAttribute('aria-label') || '',
+          style: getComputedStyle(b).textDecorationLine, raised: getComputedStyle(b).textShadow, label: b.getAttribute('aria-label') || '',
           route: document.querySelector('.tk .route')?.textContent.replace(/\\s+/g, ' ').trim()}; })()"""
 
 async def check_town_ticket(page):
-    """The town on the ticket: a button that opens the selector, underlined like every interactive text, with an
+    """The town on the ticket: a button that opens the selector, raised like every interactive text (an offset
+    shadow, no underline), with an
     accessible name starting with the town's own name; the route still reads «Sants ⇄ Reus»."""
     t = await page.evaluate(TOWN)
     if not t: return ["'.tk .town' is missing"]
@@ -1029,7 +1030,8 @@ async def check_town_ticket(page):
     if t["tag"] != "BUTTON": errs.append(f".tk .town is a {t['tag']}, expected a button")
     if t["text"] != "Reus": errs.append(f".tk .town reads «{t['text']}», expected «Reus»")
     if t["haspopup"] != "dialog": errs.append(f".tk .town aria-haspopup is «{t['haspopup']}», expected «dialog»")
-    if t["style"] != "dotted": errs.append(f".tk .town underline is {t['style']}, expected dotted")
+    if t["style"] != "none": errs.append(f".tk .town is underlined ({t['style']}): what you can press is raised, not underlined")
+    if t["raised"] in ("", "none"): errs.append(".tk .town has no offset shadow: what you can press stands off the paper")
     if not t["label"].startswith("Reus"): errs.append(f".tk .town accessible name is «{t['label']}», expected to start with «Reus»")
     if t["route"] != "Sants ⇄ Reus": errs.append(f".tk .route reads «{t['route']}», expected «Sants ⇄ Reus»")
     return errs

@@ -14,6 +14,8 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 **Apertura en el hero (02-10, comprobado el 05-10 en Chromium escritorio y móvil):** `history.scrollRestoration = 'manual'` y, si la dirección trae un ancla (`#repisa`), se quita al arrancar y la página vuelve arriba; «Qué es y cómo se hizo» baja a la mesa sin escribir el ancla (`src/main.ts`, `36a9ebd`/`340b1cf`/`2a5815f`). Falta confirmarlo en Safari de iOS.
 
+**Señal de «se puede pulsar» (05-10):** el subrayado punteado se sustituye por el «levantado»: lo que se puede pulsar lleva la sombra dura desplazada del billete (`--alzado-papel`/`--alzado-pared` en `base.css`) y al pulsarlo se aplasta; lo pulsado (el tren grande, el pueblo elegido en el selector) va plano y sellado (`--grano-sello`). Dentro del selector las filas no van levantadas. Fotogramas de referencia de la paridad renovados (hero y mesa: cambia el folleto «Cómo leerla»).
+
 **Transición hero → mesa y viaje de letras:** hechos (`src/shelf.ts`, `src/letters.ts`). Con «Capacasa», tres letras se funden en el hueco de «Qué es».
 
 ## Siguiente paso

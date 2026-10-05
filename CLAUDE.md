@@ -35,10 +35,10 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 - Máximo dos fuentes: Young Serif (nombre, horas, trayectos) y Karla 500/700 (resto). Todas las horas en Young Serif
 - Sin bloques de color blanco ni cajas que tapen la pintura; la legibilidad sale del contraste con la pared
 - El nombre de la web nunca pisa la ventanilla (lo verifica `check.py`)
-- Texto grande en formato cartel: color papel `#F1EADC` con sombra desplazada `#2D241C`
-- Subrayado punteado = «esto se puede pulsar». Úsalo igual en todos los textos interactivos
+- Texto grande en formato cartel: color papel `#F1EADC` con sombra desplazada `#2D241C` (salvo la hora del tren grande, que está pulsada: plana y sellada)
+- Lo que se puede pulsar está «levantado»: lleva la sombra dura desplazada del billete (`--alzado-papel` sobre papel, `--alzado-pared` sobre la pared) y al pulsarlo se aplasta. Lo pulsado (el tren grande, el pueblo elegido en el selector) queda plano y sellado: un marco de tinta con grano, algo torcido (`--grano-sello`). Sin subrayados. Dentro del selector las filas no van levantadas: cada fila ya es una opción
 - Sentido del viaje: un único billete de tren recortado en papel, «Billete · Sants ⇄ Reus»; ⇄ cambia el sentido. El pueblo se pulsa y abre el selector (hecho en 3.3); Barcelona sigue siendo texto hasta que sus estaciones se puedan elegir (3.5)
-- Salidas: tablero de 3 trayectos (2 regionales + el próximo AVE para Baix Camp y Tarragonès; si no, 3 regionales), «R15 18:33 en 13 min → 20:03», sin cabeceras; el tren mostrado va grande y los demás se pulsan. Regla del día con una sola marca: la bolita siempre sobre el tren grande, «ahora» es una rayita naranja; el AVE, con la misma raya que los regionales
+- Salidas: tablero de 3 trayectos (2 regionales + el próximo AVE para Baix Camp y Tarragonès; si no, 3 regionales), «R15 18:33 en 13 min → 20:03», sin cabeceras; el tren mostrado va grande y sellado, y los demás se pulsan. Regla del día con una sola marca: la bolita siempre sobre el tren grande, «ahora» es una rayita naranja; el AVE, con la misma raya que los regionales
 - Sin controles de pausa ni «volver a pintar» para el público. Atajos solo para grabar, activos con `?grabar` en la URL: R repinta, P pausa (el espacio queda para hacer scroll)
 - La luz del paisaje y del vagón sigue la hora elegida (amanecer, día, atardecer, noche)
 - La estética manda sobre la rapidez, pero la animación no puede ir a tirones

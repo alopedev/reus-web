@@ -12,8 +12,9 @@ dialog#selp:not([open]){ display:none; }
 .sheet .x{ position:absolute; top:.6rem; right:.7rem; min-width:max(2.75rem, 44px); min-height:max(2.75rem, 44px); font-size:1.2rem;
   background:none; border:0; cursor:pointer; color:inherit; }
 .sheet .back{ display:block; font:700 .95rem var(--sans); background:none; border:0; padding:.6rem 0; margin-bottom:.2rem;
-  min-height:max(2.75rem, 44px); cursor:pointer; color:inherit; text-decoration:underline dotted; text-decoration-thickness:1.5px; text-underline-offset:.25em; }
-.sheet .back:hover{ text-decoration-style:solid; }
+  min-height:max(2.75rem, 44px); cursor:pointer; color:inherit; text-shadow:var(--alzado-papel); }
+.sheet .back:hover{ text-shadow:var(--alzado-papel-hover); }
+.sheet .back:active{ text-shadow:none; transform:translate(.05em,.05em); }
 .sheet .x:focus-visible, .sheet .back:focus-visible, .ln:focus-visible, .opt:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; border-radius:.2rem; }
 
 /* step 1: the four corridors, each line's colour as a pill */
@@ -36,7 +37,11 @@ dialog#selp:not([open]){ display:none; }
 .strip .opt{ all:unset; box-sizing:border-box; display:block; width:100%; min-height:max(2.75rem, 44px); padding:.5rem .3rem;
   cursor:pointer; font:500 1rem var(--sans); color:inherit; }
 .strip .opt:hover{ background:rgba(45,36,28,.07); }
-.strip .opt[aria-current="true"]{ font-weight:700; text-decoration:underline; text-underline-offset:.2em; }
+/* inside the sheet every row is a choice, so the rows go unraised (an offset shadow on each small sans line read as
+   a smudge); the town already chosen is the pressed one: stamped, like the train shown on the board */
+.strip .opt[aria-current="true"]{ position:relative; font-weight:700; }
+.strip .opt[aria-current="true"]::after{ content:""; position:absolute; inset:.2rem 0; border:3px solid #6E2A1C; border-radius:.25em; transform:rotate(-1deg);
+  -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:160px; mask-size:160px; pointer-events:none; }
 
 @media (max-width:700px), (max-aspect-ratio:4/5){
   .sheet{ padding:1.1rem 1rem 1rem; max-height:min(88vh, 42rem); }
