@@ -56,7 +56,7 @@ Rules checked:
   15. The hero B (docs/plan.md, 28-09): the site is called «Capacasa» (title and h1) with the subtitle «El tren a
      casa, y de vuelta a Barcelona». One ticket, «Billete · Sants ⇄ Reus»: ⇄ turns the trip around (the
      route reads «Reus ⇄ Sants», the live region names the new train, the focus stays on ⇄). A board of
-     two trips, the train shown and the one after it, regional or AVE (from Camp de Tarragona: Reus is in the Baix
+     two trips, the first to leave and the one after it, regional or AVE (from Camp de Tarragona: Reus is in the Baix
      Camp): «R15 10:03 el próximo, en 3 min → 11:33», «R15 11:03 el siguiente → 12:33», «en X min» only on the train
      shown while live, the AVE says «desde/hasta Camp de Tarragona» under its arrival, no
      headings and no «Luego»/«Anterior»; the other trip is a button, and choosing one, AVE included, makes it the
@@ -857,10 +857,10 @@ async def check_hero(browser):
     # at 23:30 no train is left today: tomorrow's first ones, and the board says so
     page = await hero_page(browser, at="2026-09-28T21:30:00Z")
     b = await page.evaluate(BOARD)
-    want = ["R15 06:33 el próximo → 08:03", "R15 07:03 el siguiente → 08:33"]
+    want = ["AVE 05:50 el próximo → 06:22 hasta Camp de Tarragona", "R15 06:33 el siguiente → 08:03"]
     if b["rows"] != want: errs.append(f"at 23:30 the board reads {b['rows']}, expected tomorrow's first trips {want}")
     if "Hoy ya no quedan" not in b["info"]: errs.append("at 23:30 the board does not say «Hoy ya no quedan · mañana»")
-    errs += [f"at 23:30: {e}" for e in buy_link(b, "71801", "71400", "29/09/2026")]
+    errs += [f"at 23:30: {e}" for e in buy_link(b, "71801", CAMP_ID, "29/09/2026")]
     await page.close()
     return errs
 
@@ -903,7 +903,8 @@ async def check_hero_ruler(page):
 
 async def check_hero_board(page):
     """Two trips at 10:00 on the frozen timetable, the train shown and the one after it, regional or AVE (Sants → Reus:
-    R15 10:03, R15 11:03; Reus → Sants: R15 10:36, AVE 11:00 from Camp de Tarragona); choosing a trip, AVE included,
+    R15 10:03, R15 11:03; Reus → Sants: AVE 10:30 from Camp de Tarragona, R15 10:36: the big train is the first to
+    leave, AVE included); choosing a trip, AVE included,
     makes it the train shown."""
     errs = []
     async def expect(when, rows, dep, soon, buy=("71801", "71400", "28/09/2026")):
@@ -919,17 +920,20 @@ async def check_hero_board(page):
     for word in ("Próximo", "Luego", "Anterior", "Tren elegido"):
         if word in b["info"]: errs.append(f"the board still says «{word}»")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
-    await expect("at 10:00, Reus → Sants", ["R15 10:36 el próximo, en 36 min → 12:07", "AVE 11:00 el siguiente → 11:44 desde Camp de Tarragona"], "10:36", "en 36 min", ("71400", "71801", "28/09/2026"))
+    # the big train is the first to leave, AVE included
+    await expect("at 10:00, Reus → Sants", ["AVE 10:30 el próximo, en 30 min → 11:11 desde Camp de Tarragona", "R15 10:36 el siguiente → 12:07"], "10:30", "en 30 min", ("04104", "71801", "28/09/2026"))
     async def choose(time):
         ok = await page.evaluate(f"(() => {{ const b = [...document.querySelectorAll('#board button.tt')].find(b => b.querySelector('.t').textContent === '{time}'); if(b) b.click(); return !!b; }})()")
         await page.wait_for_timeout(300); return ok
-    if not await choose("11:00"): return errs + ["the AVE at 11:00 is not a button"]
-    b = await expect("after choosing the AVE", ["AVE 11:00 el próximo → 11:44 desde Camp de Tarragona", "AVE 11:27 el siguiente → 12:06 desde Camp de Tarragona"], "11:00", "", ("04104", "71801", "28/09/2026"))
-    if "AVE" not in b["aviso"] or "Camp de Tarragona" not in b["aviso"]: errs.append(f"choosing the AVE, the live region does not say it is an AVE from Camp de Tarragona («{b['aviso']}»)")
+    if not await choose("10:36"): return errs + ["the R15 at 10:36 is not a button"]
+    await expect("after choosing the 10:36", ["R15 10:36 el próximo → 12:07", "AVE 11:00 el siguiente → 11:44 desde Camp de Tarragona"], "10:36", "", ("71400", "71801", "28/09/2026"))
     await page.click("#nowBtn"); await page.wait_for_timeout(300)
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     if not await choose("11:03"): return errs + ["the R15 at 11:03 is not a button"]
     await expect("after choosing the 11:03", ["R15 11:03 el próximo → 12:33", "AVE 12:00 el siguiente → 12:31 hasta Camp de Tarragona"], "11:03", "")
+    if not await choose("12:00"): return errs + ["the AVE at 12:00 is not a button"]
+    b = await expect("after choosing the AVE", ["AVE 12:00 el próximo → 12:31 hasta Camp de Tarragona", "R14 12:03 el siguiente → 13:33"], "12:00", "", ("71801", "04104", "28/09/2026"))
+    if "AVE" not in b["aviso"] or "Camp de Tarragona" not in b["aviso"]: errs.append(f"choosing the AVE, the live region does not say it is an AVE to Camp de Tarragona («{b['aviso']}»)")
     await page.click("#nowBtn"); await page.wait_for_timeout(300)
     return errs
 
@@ -962,7 +966,7 @@ async def check_hero_ticket(page):
     t = await page.evaluate(TICKET)
     if t["route"] != "Reus ⇄ Sants": errs.append(f"after ⇄ the route reads «{t['route']}», expected «Reus ⇄ Sants»")
     if not t["focus"]: errs.append("after ⇄ the focus is not on ⇄ any more")
-    if "de Reus a" not in t["aviso"]: errs.append(f"after ⇄ the live region does not name the new trip («{t['aviso'][:80]}»)")
+    if "a Barcelona Sants" not in t["aviso"]: errs.append(f"after ⇄ the live region does not name the new trip («{t['aviso'][:80]}»)")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     t = await page.evaluate(TICKET)
     if t["route"] != "Sants ⇄ Reus": errs.append(f"⇄ twice does not bring the trip back («{t['route']}»)")
@@ -1217,8 +1221,8 @@ async def check_town_choose_girona(browser):
     return errs
 
 async def check_town_choose_tarragona(browser):
-    """Choosing Tarragona (Tarragonès): the next regional and the train after it, an AVE to Camp de Tarragona when it
-    leaves before the second regional, all computed from the frozen network."""
+    """Choosing Tarragona (Tarragonès): the first two trains to leave, regional or AVE to Camp de Tarragona, all
+    computed from the frozen network."""
     net, day, now, margin = _net(), "2026-09-28", 600, 2
     page = await hero_page(browser)
     errs = await choose_town(page, "R14", TARRAGONA_TOWN)
@@ -1228,9 +1232,7 @@ async def check_town_choose_tarragona(browser):
     regs = [t for t in _direct(net, day, SANTS_ID, TARRAGONA_TOWN) if t[0] >= now + margin]
     aves = [t for t in _direct(net, day, SANTS_ID, CAMP_ID) if t[0] >= now + margin]
     if not aves: await page.close(); return ["no AVE Sants→Camp de Tarragona after 10:00 in the frozen data: the test's assumption is wrong"]
-    shown = regs[0]
-    after = min((t for t in regs[1:] + aves if t[0] >= shown[0]), key=lambda t: t[0])
-    want = two_rows([shown, after], now, camp="hasta")
+    want = two_rows(sorted(regs[:2] + aves[:2]), now, camp="hasta")
     if b["rows"] != want: errs.append(f"choosing Tarragona the board reads {b['rows']}, expected {want}")
     await page.close()
     return errs

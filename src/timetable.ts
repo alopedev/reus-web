@@ -47,9 +47,10 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
       if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
       return;
     }
-    // the train shown: the one chosen, or the next regional (today's last AVE when none is left); the board adds
-    // the next ones and the next AVE
-    const ave = lastAve ?? aves[0], isAve = lastAve ? true : !state.useNow && !tomorrow && state.ave && ave?.[0] === start;
+    // the train shown: the one chosen, or the first to leave, regional or AVE (today's last AVE when no regional is
+    // left); the board adds the one after it
+    const ave = lastAve ?? aves[0];
+    const isAve = !!lastAve || (!!ave && (!regs.length || ave[0] < regs[0][0] || (!state.useNow && !tomorrow && state.ave && ave[0] === start)));
     const a = isAve ? ave : regs[0];
     const live = state.useNow && !tomorrow;
     byId('lbl').textContent = lastAve ? 'Hoy ya no quedan regionales' : tomorrow ? 'Hoy ya no quedan · mañana' : '';
