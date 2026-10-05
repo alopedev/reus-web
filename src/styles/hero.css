@@ -42,6 +42,8 @@
 .trip .t{ font-family:var(--serif); font-weight:400; font-size:1.5rem; }
 .trip .w{ font-size:1rem; line-height:1.15; color:var(--soft); }
 .trip .arr{ color:var(--soft); font-size:1.3rem; white-space:nowrap; }
+/* the AVE leaves from (or goes to) Camp de Tarragona, not the town: said under its arrival, on a line of its own */
+.trip .st{ grid-column:3 / -1; justify-self:end; font-size:.93rem; line-height:1.1; color:var(--soft); white-space:nowrap; }
 #dep{ font-size:4.6rem; line-height:.9; letter-spacing:-.02em; text-shadow:.05em .05em 0 var(--shadow); }
 .big .arr{ color:var(--paper); font-size:1.8rem; }
 /* the big train is the door to Renfe: its time and «comprar ↗», in the same dotted language as everything you
@@ -109,7 +111,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   /* a compact departure leaves the height to the window */
   .info{ row-gap:.3rem; }
   .board{ column-gap:.6rem; }
-  #dep{ font-size:3.2rem; } .trip .t{ font-size:1.2rem; } .trip .w{ font-size:.85rem; }
+  #dep{ font-size:3.2rem; } .trip .t{ font-size:1.2rem; } .trip .w, .trip .st{ font-size:.85rem; }
   .ruler{ margin-top:.4rem; }
 }
 .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
