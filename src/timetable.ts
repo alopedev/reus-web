@@ -1,5 +1,6 @@
 import { reduce, state } from './state';
-import { madridNow, addDays, hhmm, dur, dayData, lastDay, source, NET, type Train } from './time';
+import { madridNow, addDays, hhmm, dur, dayData, lastDay, source, NET, SANTS, CAMP, type Train } from './time';
+import { buyUrl } from './buy';
 import { LINE } from './towns';
 import { setupChooser } from './chooser';
 import { byId } from './dom';
@@ -64,7 +65,10 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     if(world) world.setTime(tomorrow ? a[0] : start);
     table.setTime(tomorrow ? a[0] : start);
     const trips = lastAve ? [lastAve, ...regs.slice(0, 2)] : [...regs.slice(0, ave ? 2 : 3), ...(ave ? [ave] : [])].sort((x, y) => x[0]-y[0]);
-    const html = trips.map(t => trip(t, t === a, t === ave, live ? dur(t[0]-now.min) : '', !!lastAve && t !== lastAve)).join('');
+    // the big train links to Renfe's search for its trip and day (the AVE's trip ends at Camp de Tarragona)
+    const ends = isAve ? (ida ? [SANTS, CAMP] : [CAMP, SANTS]) : ida ? [SANTS, state.town] : [state.town, SANTS];
+    const buy = buyUrl(ends[0], ends[1], tomorrow ? addDays(now.date, 1) : now.date, a[0]);
+    const html = trips.map(t => trip(t, t === a, t === ave, live ? dur(t[0]-now.min) : '', !!lastAve && t !== lastAve, buy)).join('');
     const key = a[0] + state.dir + isAve + state.town;
     const turn = shown !== null && shown !== key;
     if(html !== drawn || turn){ byId('board').innerHTML = drawn = html; if(turn && !reduce) byId('dep').classList.add('swap'); }
@@ -91,11 +95,15 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
   }
   // one trip of the board: line, departure, where (the countdown, Camp de Tarragona for the AVE, «mañana» after
   // today's last AVE), arrival. The train shown is big; the others are buttons that show them
-  function trip(t: Train, big: boolean, isAve: boolean, until: string, morrow: boolean){
+  function trip(t: Train, big: boolean, isAve: boolean, until: string, morrow: boolean, buy: string){
+    // the big train's time and «comprar ↗» open Renfe in a new tab; the word repeats the link for the eye only
+    const to = ` href="${buy.replace(/&/g, '&amp;')}" target="_blank" rel="noopener"`;
     const soon = big ? `<span class="soon">${until && 'en ' + until}</span>` : '';
-    const where = isAve ? (big && until ? `Camp de Tarragona, ${soon}` : 'Camp de Tarragona') : morrow ? 'mañana' : soon;
+    const word = big ? ` <a class="buy"${to} tabindex="-1" aria-hidden="true">comprar ↗</a>` : '';
+    const where = (isAve ? (big && until ? `Camp de Tarragona, ${soon}` : 'Camp de Tarragona') : morrow ? 'mañana' : soon) + word;
     // spaces between the cells: the grid ignores them, but the text (and a screen reader) keeps its words apart
-    const cells = `<span class="pill" style="--c:${LINE[t[3]] ?? 'var(--shadow)'}">${t[3]}</span> <span class="t"${big ? ' id="dep"' : ''}>${hhmm(t[0])}</span> `
+    const dep = big ? `<a class="t" id="dep"${to} aria-label="${hhmm(t[0])}, comprar en Renfe (abre otra pestaña)">${hhmm(t[0])}</a>` : `<span class="t">${hhmm(t[0])}</span>`;
+    const cells = `<span class="pill" style="--c:${LINE[t[3]] ?? 'var(--shadow)'}">${t[3]}</span> ${dep} `
       + `<span class="w">${where}</span> <span class="t arr">→ ${hhmm(t[1])}</span>`;
     if(big) return `<div class="trip big">${cells}</div>`;
     const label = `${isAve ? 'AVE' : t[3]} de las ${hhmm(t[0])}${isAve ? (state.dir==='casa' ? ' a' : ' desde') + ' Camp de Tarragona' : ''}, llega a las ${hhmm(t[1])}`;

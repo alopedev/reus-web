@@ -1,4 +1,4 @@
-# Handoff · 2 de octubre de 2026
+# Handoff · 5 de octubre de 2026
 
 Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md` (registro estético). Producto: `docs/PRD.md` v0.2.
 
@@ -11,6 +11,8 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 **Hero (paso 3.2, hecho):** «Capacasa» · «El tren a casa, y de vuelta a Barcelona». Un único billete «Billete · Sants ⇄ Reus» (⇄ cambia el sentido). Tablero de 3 trayectos: 2 regionales + el próximo AVE, «R15 10:03 en 3 min → 11:33», todos pulsables; elegido, el AVE pasa a ser el tren grande. Regla con una marca: la bolita sobre el tren grande, «ahora» es una rayita naranja; el AVE en la regla con la misma raya que los regionales. De Reus por la noche, sin regionales pero con AVE, ese AVE va primero y detrás los regionales de mañana. Check 15 de `check.py` (`python3 scripts/check.py hero`).
 
 **Selector de pueblo (paso 3.3, hecho):** el pueblo del billete (`.tk .town`, subrayado punteado) abre `#selp`, un `<dialog>` nativo (foco atrapado, Esc y fondo inerte del navegador) en dos pasos: corredor (4 grupos `R11` · `R13` · `R14+R15` · `R16+R17`, con las etiquetas de `docs/plan.md`, en orden de número de línea) y tira de estaciones en orden de parada de la línea (fusión topológica de las secuencias de paradas de cada tren de esa línea, Barcelona → fuera, con el ramal al final en su color; `src/towns.ts`). Tres toques como máximo. `state.town` (stop_id, Reus por defecto) sustituye a la constante fija y `state.dir` pasa de `'reus'|'bcn'` a `'casa'|'bcn'`. Quedan fuera del selector las estaciones del área de Barcelona (El Prat de Llobregat, El Prat Aeroport, Bellvitge - Gornal) y Camp de Tarragona (solo AVE); 71 pueblos elegibles en el horario actual (62 en el congelado de la paridad). El tablero, la regla y el AVE (Baix Camp/Tarragonès) siguen al pueblo elegido; si no hay tren directo hoy ni mañana en ese sentido (red de seguridad, no se da con los datos congelados), el tablero queda vacío y `#lbl`/`#aviso` lo dicen. Elegir pueblo re-renderiza, devuelve el foco al billete y `#aviso` anuncia el nuevo tren; Sants sigue siendo texto hasta 3.5. Objetivos táctiles ≥ 44 px. Check 15 de `check.py hero` (los checks del selector están dentro).
+
+**Enlace de compra (05-10, hecho):** el tren grande del tablero enlaza a Renfe: su hora (punteada) y «comprar ↗» abren en otra pestaña `venta.renfe.com/vol/buscarTren.do` con origen, destino y día (`src/buy.ts`, único sitio que conoce la URL). Los códigos de Renfe son los stop_id del GTFS (`0071,<id>,<id>`; las 79 estaciones de `red.json` están en la lista de Renfe). Renfe no deja preseleccionar el tren: abre la lista del día. Trenes que salen pasadas las 24:00 buscan el día siguiente. Check 15 lo comprueba (`buy_link`).
 
 **Transición hero → mesa y viaje de letras:** hechos (`src/shelf.ts`, `src/letters.ts`). Con «Capacasa», tres letras se funden en el hueco de «Qué es».
 
@@ -57,6 +59,8 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 - El orden de la tira de un corredor no es «el orden de paradas de un tren», sino la fusión topológica de las paradas de *todos* los trenes de la línea: un tren que cruza Barcelona (El Prat → Sants → Girona) da dos tramos hacia fuera, no uno, y hay que tratarlo como dos secuencias independientes (`outward()` en `src/towns.ts`). Cuando dos trenes discrepan en el orden de dos paradas se forma un ciclo en el grafo de «va antes que»: esos nodos deben ir al final (por el tren más rápido desde Sants), nunca desaparecer del selector
 
 ## Pendiente y riesgos
+
+- Enlace de compra: Àlex lo probó a mano el 05-10 con Sants → Reus y L'Aldea → Sants, solo con códigos y fecha (sin nombres de estación, que Renfe y el GTFS escriben distinto). Si Renfe cambia la URL, el enlace se rompe sin avisar: solo hay que tocar `src/buy.ts`
 
 - El 30-09 el feed de Renfe trajo un tren repetido (Sants → Reus 09:03 → 10:33, del 30-09 al 04-10): `check_datos.py` lo paró y el robot no publicó; el 01-10 ya no salía. Si se repite a menudo, valorar deduplicarlo en `extract_red.py` en vez de parar la publicación
 
