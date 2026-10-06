@@ -84,6 +84,8 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 ## Pendiente y riesgos
 
+- Repo público (06-10, decisión de Àlex: opción A frente a repo nuevo sin historial o seguir en privado con menos CI). Se hizo porque el repo privado agotó los minutos de Actions: la CI y el robot de horarios no arrancaban. En el historial quedan el correo personal de Àlex en 76 commits y la captura de referencias del hero (`docs/referencias/referencias-hero.jpg`, quitada de la rama y sustituida por `referencias-hero.md`); se aceptó así, porque reescribir la historia no lo borra de los PR antiguos de GitHub. Desde el 06-10, commits con el correo noreply de GitHub
+
 - «Avisar a casa» va solo a WhatsApp: quien use Telegram o Mensajes no lo tiene (el menú de compartir del sistema los cubriría; Àlex eligió WhatsApp directo el 06-10)
 
 - Enlace de compra: va sin nombres de estación (Renfe y el GTFS los escriben distinto). Si Renfe cambia la URL o los campos que pide su buscador, el enlace se rompe sin avisar: solo hay que tocar `src/buy.ts`. La referencia `scripts/baseline/darwin/movil-hero.png` aún retrata el tablero sin «comprar ↗»: bórrala y vuelve a pasar `check.py paridad` en el Mac para renovarla (la de Linux ya está renovada)
