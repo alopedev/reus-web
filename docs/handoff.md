@@ -14,9 +14,9 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 **Enlace de compra (05-10, hecho):** el tren grande del tablero enlaza a Renfe: su hora (punteada) y «comprar ↗» abren en otra pestaña `venta.renfe.com/vol/buscarTren.do` con origen, destino y día (`src/buy.ts`, único sitio que conoce la URL). Los códigos de Renfe son los stop_id del GTFS (`0071,<id>,<id>`; todas las estaciones de `red.json` están en la lista de Renfe). Renfe no deja preseleccionar el tren: abre la lista del día. Trenes que salen pasadas las 24:00 buscan el día siguiente. Check 15 lo comprueba (`buy_link`).
 
-**Tablero móvil 6B (06-10, en PR):** en móvil (la misma media query del hero apilado) cada fila del tablero es un botón con sus horas, «en 13 min» solo en el grande, «mañana» donde toca y «›» al final; pulsarla la hace el tren mostrado y abre `#detalle`, un `<dialog>` nativo con una hoja de papel que sube desde abajo (`src/detail.ts`, `src/styles/detail.css`): línea y trayecto, horas, cuánto falta, duración y paradas (`stopsBetween` en `src/time.ts`), el aviso del AVE y «Comprar en Renfe ↗». En escritorio el tablero no cambia. Check `check_phone_board` dentro de `check.py hero`. En móvil las horas no van levantadas: «›» es la señal.
+**Tablero móvil 6B (06-10, hecho, PR #11):** en móvil (la misma media query del hero apilado) cada fila del tablero es un botón con sus horas, «en 13 min» solo en el grande, «mañana» donde toca y «›» al final; pulsarla la hace el tren mostrado y abre `#detalle`, un `<dialog>` nativo con una hoja de papel que sube desde abajo (`src/detail.ts`, `src/styles/detail.css`): línea y trayecto, horas, cuánto falta, duración y paradas (`stopsBetween` en `src/time.ts`), el aviso del AVE y «Comprar en Renfe ↗». En escritorio el tablero no cambia. Check `check_phone_board` dentro de `check.py hero`. En móvil las horas no van levantadas: «›» es la señal.
 
-**Sin conexión (06-10, en PR):** `src/sw.js`, un service worker escrito a mano (sin dependencias). Al instalarse guarda la página, el JS y el CSS de esa compilación (`vite.config.js` le escribe la lista y una versión; cada compilación nueva borra la caché anterior) y las fuentes de Google (caché aparte, que sobrevive a las compilaciones). La página va primero a la red y, si falla o tarda más de 3 s, abre la guardada; el horario va dentro del JS, así que sin red se ve el último descargado (14 días) y, pasados esos días, el aviso de «horario aproximado» que ya existía. Nada visible cambia. Check 17 (`check.py sinred`). Solo `npm run build`/Vercel lo llevan; `npm run dev` no lo registra.
+**Sin conexión (06-10, hecho, PR #12):** `src/sw.js`, un service worker escrito a mano (sin dependencias). Al instalarse guarda la página, el JS y el CSS de esa compilación (`vite.config.js` le escribe la lista y una versión; cada compilación nueva borra la caché anterior) y las fuentes de Google (caché aparte, que sobrevive a las compilaciones). La página va primero a la red y, si falla o tarda más de 3 s, abre la guardada; el horario va dentro del JS, así que sin red se ve el último descargado (14 días) y, pasados esos días, el aviso de «horario aproximado» que ya existía. Nada visible cambia. Check 17 (`check.py sinred`). Solo `npm run build`/Vercel lo llevan; `npm run dev` no lo registra.
 
 **Apertura en el hero (02-10, comprobado el 05-10 en Chromium escritorio y móvil):** `history.scrollRestoration = 'manual'` y, si la dirección trae un ancla (`#repisa`), se quita al arrancar y la página vuelve arriba; «Qué es y cómo se hizo» baja a la mesa sin escribir el ancla (`src/main.ts`, `36a9ebd`/`340b1cf`/`2a5815f`). Falta confirmarlo en Safari de iOS.
 
@@ -28,9 +28,14 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 ## Siguiente paso
 
-1. Generalizar la mesa: folleto «Cómo leerla» (aún habla de dos billetes), cuaderno «Barcelona ↔ Reus», billete de Rodalies, «Qué es»
-2. Grabar el vídeo para X y LinkedIn
-3. Pendiente técnico: subir Three.js desde r128, con la paridad visual como red
+1. Features del benchmark que quedan (decisiones de Àlex del 06-10; antes de construir, 3 opciones visuales):
+   - Recorrido del tren grande, solo en escritorio: las paradas del tren a su hora en el hueco de la fila grande (prototipo 1 del benchmark; en móvil no, por espacio)
+   - «Avisar a casa»: en móvil abre WhatsApp con el mensaje ya escrito («Cojo el R15 de las 18:33 en Sants. Llego a Reus a las 20:03»); en escritorio, copiar. El enlace `wa.me` está sin verificar; el menú de compartir del sistema cubre más apps
+   - Quizá: sello «último de hoy» (en móvil, encima de la hora)
+   - Benchmark: https://claude.ai/code/artifact/03d4ea6e-983f-4fd4-a53c-274c8fa23d77
+2. Generalizar la mesa: folleto «Cómo leerla» (aún habla de dos billetes), cuaderno «Barcelona ↔ Reus», billete de Rodalies, «Qué es»
+3. Grabar el vídeo para X y LinkedIn
+4. Pendiente técnico: subir Three.js desde r128, con la paridad visual como red
 
 ## Lecciones técnicas
 
@@ -83,7 +88,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 - En móvil, la fila grande con «el próximo, en 36 min» y «comprar ↗» ocupa tres líneas (375 px)
 - Pantallas bajas (iPhone SE con las barras de Safari, ~375 × 548, estimado en Chromium): la ventanilla queda en una rendija (≈ 90 px de alto con 2 trayectos, 58 px con 3). El nombre, el subtítulo y el billete (144 px) y la regla (75 px) son lo que ocupa el sitio, no el tablero
 - Con 2 trayectos, el AVE solo aparece cuando es uno de los dos primeros en salir: ya no está siempre a la vista
-- La mesa sigue hablando de Reus (folleto «Cómo leerla», cuaderno «Barcelona ↔ Reus», billete de Rodalies, «Qué es»): generalizar a cualquier pueblo es la tarea 3 de «Siguiente paso»
+- La mesa sigue hablando de Reus (folleto «Cómo leerla», cuaderno «Barcelona ↔ Reus», billete de Rodalies, «Qué es»): generalizar a cualquier pueblo es la tarea 2 de «Siguiente paso»
 - El pueblo elegido no se recuerda al recargar la página: el 3.4 (recordar trayecto + URL) se descartó el 05-10 para esta fase
 - El caso «sin tren directo hoy ni mañana» (decisión 3 de `spec-3.3.md`) no tiene test con datos reales: con la exclusión del área de Barcelona y Camp de Tarragona, no se da con el horario congelado. Queda como red de seguridad sin ejercitar
 
