@@ -1,6 +1,11 @@
 :root{
   --grain:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' seed='4'/><feColorMatrix values='0 0 0 0 .3  0 0 0 0 .24  0 0 0 0 .16  0 0 0 .09 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
   --paper:#F1EADC; --shadow:#2D241C; --soft:#E2D6C2;
+  /* what you can press stands off the page with the ticket's hard offset shadow; pressing flattens it, and what is
+     pressed (the train shown, the town chosen) is stamped in ink, --grano-sello being the ink's grain */
+  --alzado-papel:.07em .07em 0 rgba(45,36,28,.4); --alzado-papel-hover:.1em .1em 0 rgba(45,36,28,.45);
+  --alzado-pared:.08em .08em 0 var(--shadow); --alzado-pared-hover:.11em .11em 0 var(--shadow);
+  --grano-sello:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.4 1.5'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
   --serif:'Young Serif', 'Iowan Old Style', Georgia, serif;
   --sans:'Karla', system-ui, -apple-system, 'Segoe UI', sans-serif;
   box-sizing:border-box;
