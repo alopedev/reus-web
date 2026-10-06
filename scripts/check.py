@@ -827,6 +827,8 @@ async def check_hero(browser):
     errs += [f"town: {e}" for e in await check_town_close(browser)]
     errs += [f"town: {e}" for e in await check_town_fit(browser)]
     errs += [f"phone: {e}" for e in await check_phone_board(browser)]
+    # 3.5 · the Barcelona station
+    errs += [f"station: {e}" for e in await check_station(browser)]
     # 21:30, from Reus: no regional left today, but two AVE from Camp de Tarragona (22:17, 22:39)
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
@@ -1347,6 +1349,92 @@ async def check_phone_board(browser):
     await tap("#board button.big", "the backdrop")
     await page.mouse.click(195, 40); await page.wait_for_timeout(300)
     if (await page.evaluate(PHONE))["open"]: errs.append("the backdrop does not close the sheet")
+    await page.close()
+    return errs
+
+# --- 3.5 · the Barcelona station ------------------------------------------------------------------------------
+PDG_ID, FRANCA_ID = "71802", "79400"
+STATIONS = [SANTS_ID, PDG_ID, FRANCA_ID]
+ROUTE = "document.querySelector('.tk .route')?.textContent.replace(/\\s+/g, ' ').trim()"
+
+async def choose_station(page, station, timeout=CLICK_MS):
+    """The two taps that choose the Barcelona station: the ticket's Barcelona end, then the station."""
+    try: await page.click(".tk .bcn", timeout=timeout)
+    except Exception: return ["'.tk .bcn' is not a clickable button that opens #selp"]
+    try: await page.click(f'#selp .est[data-station="{station}"]', timeout=timeout)
+    except Exception: return [f"'.est[data-station={station}]' is not clickable"]
+    await page.wait_for_timeout(300)
+    return []
+
+async def check_station(browser):
+    """3.5. Barcelona's end of the ticket is a raised button that opens the same sheet with the three stations
+    (Sants, Passeig de Gràcia, França), the chosen one stamped and focused, each saying which lines it misses; the
+    sheet's paper is cut ragged like the ticket. Choosing one rebuilds the route, the board and the buy link from
+    that station; Esc changes nothing; França has no R11, so to Girona the board names the stations that have one."""
+    net, day, now, margin = _net(), "2026-09-28", 600, 2
+    errs = []
+    page = await hero_page(browser)
+    t = await page.evaluate("""(() => { const b = document.querySelector('.tk .bcn'); if(!b) return null; const c = getComputedStyle(b);
+      return {tag: b.tagName, text: b.textContent.trim(), haspopup: b.getAttribute('aria-haspopup'), label: b.getAttribute('aria-label') || '',
+              line: c.textDecorationLine, raised: c.textShadow}; })()""")
+    if not t: await page.close(); return ["'.tk .bcn' is missing: Barcelona's end of the ticket is not a button"]
+    if t["tag"] != "BUTTON" or t["text"] != "Sants" or t["haspopup"] != "dialog": errs.append(f".tk .bcn is a {t['tag']} reading «{t['text']}» (aria-haspopup {t['haspopup']}), expected a dialog button «Sants»")
+    if not t["label"].startswith("Sants"): errs.append(f".tk .bcn accessible name is «{t['label']}», expected to start with «Sants»")
+    if t["line"] != "none" or t["raised"] in ("", "none"): errs.append(".tk .bcn is not raised like the other ends of the ticket")
+    try: await page.click(".tk .bcn", timeout=CLICK_MS)
+    except Exception: await page.close(); return errs + ["'.tk .bcn' is not clickable"]
+    await page.wait_for_timeout(300)
+    got = await page.evaluate("""(() => { const d = document.getElementById('selp'), pp = d.querySelector('.sheet .pp');
+      return {open: d.open, h3: d.querySelector('h3')?.textContent.trim(), cut: pp ? getComputedStyle(pp).clipPath : '',
+              rows: [...d.querySelectorAll('.est')].map(b => ({id: b.dataset.station, d: b.querySelector('.d')?.textContent.trim(),
+                current: b.getAttribute('aria-current'), focused: document.activeElement === b, h: b.getBoundingClientRect().height}))}; })()""")
+    if not got["open"]: errs.append("#selp does not open from .tk .bcn")
+    if got["h3"] != "¿Desde qué estación de Barcelona sales?": errs.append(f"the station sheet asks «{got['h3']}»")
+    if not got["cut"].startswith("polygon"): errs.append(f"the sheet's paper is not cut like the ticket (clip-path {got['cut'][:40]})")
+    ids = [r["id"] for r in got["rows"]]
+    if ids != STATIONS: errs.append(f"the station sheet lists {ids}, expected {STATIONS}")
+    else:
+        if got["rows"][0]["current"] != "true" or not got["rows"][0]["focused"]: errs.append("Sants is not marked as the current station and focused")
+        if "R11" not in (got["rows"][2]["d"] or ""): errs.append(f"França does not say it misses the R11 («{got['rows'][2]['d']}»)")
+        if "R11" in (got["rows"][1]["d"] or ""): errs.append(f"Passeig de Gràcia says it misses the R11 («{got['rows'][1]['d']}»)")
+    await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
+    if await page.evaluate(ROUTE) != "Sants ⇄ Reus": errs.append("Esc in the station sheet changed the route")
+    if not await page.evaluate("document.activeElement === document.querySelector('.tk .bcn')"): errs.append("after Esc the focus is not back on .tk .bcn")
+    e = await choose_station(page, PDG_ID)
+    if e: await page.close(); return errs + e
+    if await page.evaluate(ROUTE) != "Gràcia ⇄ Reus": errs.append(f"after choosing Passeig de Gràcia the route reads «{await page.evaluate(ROUTE)}»")
+    if not await page.evaluate("document.activeElement === document.querySelector('.tk .bcn')"): errs.append("the focus is not on .tk .bcn after choosing a station")
+    b = await page.evaluate(BOARD)
+    want = two_rows([t for t in _direct(net, day, PDG_ID, REUS_TOWN) if t[0] >= now + margin], now)
+    if b["rows"] != want: errs.append(f"from Passeig de Gràcia the board reads {b['rows']}, expected {want}")
+    errs += buy_link(b, PDG_ID, REUS_TOWN, "28/09/2026")
+    await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    if await page.evaluate(ROUTE) != "Reus ⇄ Gràcia": errs.append(f"after ⇄ the route reads «{await page.evaluate(ROUTE)}»")
+    await page.click(".tk .bcn", timeout=CLICK_MS); await page.wait_for_timeout(300)
+    h3 = await page.evaluate("document.querySelector('#selp h3')?.textContent.trim()")
+    if h3 != "¿A qué estación de Barcelona llegas?": errs.append(f"coming back, the station sheet asks «{h3}»")
+    await page.keyboard.press("Escape")
+    await page.close()
+    # França has no R11: to Girona the board is empty and says where the train does leave from
+    page = await hero_page(browser)
+    e = await choose_station(page, FRANCA_ID) or await choose_town(page, "R11", GIRONA_TOWN)
+    if e: await page.close(); return errs + e
+    await page.wait_for_timeout(300)
+    b = await page.evaluate(BOARD); lbl = await page.evaluate("document.getElementById('lbl').textContent.trim()")
+    if b["rows"]: errs.append(f"França → Girona has no direct train, but the board reads {b['rows']}")
+    say = "Desde França no hay tren directo a Girona. Sale de Sants o de Passeig de Gràcia."
+    if lbl != say: errs.append(f"França → Girona: #lbl reads «{lbl}», expected «{say}»")
+    if say not in b["aviso"]: errs.append(f"França → Girona: the live region does not say where to go («{b['aviso'][:90]}»)")
+    await page.close()
+    # a finger fits each station on the smallest phone
+    page = await hero_page(browser, 360, 740)
+    try:
+        await page.click(".tk .bcn", timeout=CLICK_MS); await page.wait_for_timeout(300)
+        short = [x for x in await page.evaluate("[...document.querySelectorAll('#selp .est')].map(el => el.getBoundingClientRect().height)") if x < 43.5]
+        if short: errs.append(f"360x740: a station is only {min(short):.0f} px tall")
+        sheet = await page.evaluate("(() => { const b = document.querySelector('#selp .sheet').getBoundingClientRect(); return [b.left, b.right]; })()")
+        if sheet[0] < -1 or sheet[1] > 361: errs.append(f"360x740: the station sheet ({sheet[0]:.0f}–{sheet[1]:.0f}) does not fit")
+    except Exception: errs.append("360x740: '.tk .bcn' is not clickable")
     await page.close()
     return errs
 
