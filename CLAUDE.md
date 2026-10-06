@@ -33,7 +33,7 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 
 ## Reglas de diseño (aprobadas; no cambiarlas sin preguntar)
 
-- Máximo dos fuentes: Young Serif (nombre, horas, trayectos) y Karla 500/700 (resto). Todas las horas en Young Serif
+- Máximo dos fuentes: Young Serif (nombre, horas, trayectos) y Literata 500/700 (resto, variable CSS `--texto`). Todas las horas en Young Serif
 - Sin bloques de color blanco ni cajas que tapen la pintura; la legibilidad sale del contraste con la pared
 - El nombre de la web nunca pisa la ventanilla (lo verifica `check.py`)
 - Texto grande en formato cartel: color papel `#F1EADC` con sombra desplazada `#2D241C` (salvo la hora del tren grande, que está pulsada: plana, sin marco)

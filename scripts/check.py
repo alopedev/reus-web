@@ -4,7 +4,7 @@ Rules checked:
   1. The site name never overlaps the window (name bottom < window top).
   2. The departure block starts below the window (window bottom < info top).
   3. No JavaScript errors on load.
-  4. Small text uses Karla; times use Young Serif.
+  4. Small text uses Literata; times use Young Serif.
   5. The hero shows a scroll hint; below it, the shelf holds its three paper objects,
      uses the same two fonts and nothing sticks out sideways. The notebook opens onto a single page
      («Cómo se hizo»): four concepts, each with the technology behind it.
@@ -142,7 +142,7 @@ async def check_shelf(page, name):
         errs.append("the table never gets painted")
     if shelf["wide"]: errs.append(f"shelf sticks out sideways: {', '.join(shelf['wide'])}")
     if shelf["heading"] and shelf["heading"] != "Young Serif": errs.append(f"shelf heading font is {shelf['heading']}")
-    if shelf["body"] and shelf["body"] != "Karla": errs.append(f"shelf text font is {shelf['body']}")
+    if shelf["body"] and shelf["body"] != "Literata": errs.append(f"shelf text font is {shelf['body']}")
     await page.screenshot(path=str(shots / f"{name}-repisa.png"))
     return errs
 
@@ -1500,11 +1500,11 @@ async def main():
               const r = s => document.querySelector(s).getBoundingClientRect();
               const f = s => { const c = getComputedStyle(document.querySelector(s)); return c.fontFamily.split(',')[0].replace(/"/g,''); };
               return {name: r('.brand').bottom, winTop: r('#win').top, winBottom: r('#win').bottom, info: r('#info').top,
-                      sans: f('.soon'), serif: f('#dep')};
+                      texto: f('.soon'), serif: f('#dep')};
             })()""")
             if not box["name"] < box["winTop"]: failures.append(f"{name}: name overlaps window ({box['name']:.0f} ≥ {box['winTop']:.0f})")
             if not box["winBottom"] < box["info"]: failures.append(f"{name}: departure block overlaps window")
-            if box["sans"] != "Karla": failures.append(f"{name}: small text font is {box['sans']}")
+            if box["texto"] != "Literata": failures.append(f"{name}: small text font is {box['texto']}")
             if box["serif"] != "Young Serif": failures.append(f"{name}: time font is {box['serif']}")
             # the landscape's brush strokes are sized in the render target's pixels: a small window (phones) is
             # painted twice as fine as the desktop one, or each stroke covers too much of it and reads as pixels

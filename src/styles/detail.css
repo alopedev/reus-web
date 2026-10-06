@@ -6,7 +6,7 @@ dialog#detalle::backdrop{ background:rgba(30,22,16,.45); }
 dialog#detalle:not([open]){ display:none; }
 
 .pliego{ position:relative; box-sizing:border-box; margin:0 .6rem; padding:1.6rem 1.15rem calc(1.2rem + env(safe-area-inset-bottom));
-  background:#EFE6D2 var(--grain); font-family:var(--sans); filter:drop-shadow(.3rem -.1rem 0 var(--shadow));
+  background:#EFE6D2 var(--grain); font-family:var(--texto); filter:drop-shadow(.3rem -.1rem 0 var(--shadow));
   border-radius:.5rem .5rem 0 0; animation:pliego .35s cubic-bezier(.2,.8,.3,1); }
 /* the handle: it says the paper came up from below */
 .pliego::before{ content:""; position:absolute; top:.6rem; left:50%; width:2.6rem; height:.25rem; margin-left:-1.3rem;
@@ -14,7 +14,7 @@ dialog#detalle:not([open]){ display:none; }
 @keyframes pliego{ from{ transform:translateY(100%); } to{ transform:none; } }
 @media (prefers-reduced-motion: reduce){ .pliego{ animation:none; } }
 
-.pliego h3{ display:flex; align-items:center; gap:.5rem; margin:0 2.6rem .6rem 0; font:500 1rem/1.25 var(--sans); }
+.pliego h3{ display:flex; align-items:center; gap:.5rem; margin:0 2.6rem .6rem 0; font:500 1rem/1.25 var(--texto); }
 .pliego .pill{ flex:none; }
 .pliego .horas{ margin:0; font:400 2.4rem/1.1 var(--serif); letter-spacing:-.01em; }
 .pliego .flecha{ font-size:.8em; opacity:.75; }
@@ -26,7 +26,7 @@ dialog#detalle:not([open]){ display:none; }
    pressing flattens it */
 .pliego .comprar{ display:inline-flex; align-items:center; min-height:max(2.75rem, 44px); box-sizing:border-box; margin-top:1rem;
   padding:.5rem 1rem; border:1.5px solid var(--shadow); border-radius:.3rem; color:inherit; text-decoration:none;
-  font:700 1.05rem var(--sans); box-shadow:.18rem .18rem 0 var(--shadow); }
+  font:700 1.05rem var(--texto); box-shadow:.18rem .18rem 0 var(--shadow); }
 .pliego .comprar:active{ box-shadow:none; transform:translate(.18rem,.18rem); }
 .pliego:focus{ outline:none; }
 .pliego .x:focus-visible, .pliego .comprar:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; }

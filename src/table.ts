@@ -69,7 +69,7 @@ export function createTable(): Table {
       byId('gafas').hidden = true;
     } else {
       put('cafe', mesaR - cupW - .6 * rem, intro.y - .4 * rem); put('boli', cua.x + cua.w - 1.75 * penW, cua.y - 2.75 * rem, -7);
-      put('rodalies', fol.x + 3.75 * rem, fol.y + fol.h - 1.1 * rem, 8);
+      put('rodalies', fol.x + 3.75 * rem, fol.y + fol.h - .9 * rem, 8);
       const g = byId('gafas'); g.hidden = rev.x + rev.w + 12.5 * rem > W - G.tbl[3]; put('gafas', rev.x + rev.w + 1.4 * rem, rev.y + 1.5 * rem, -9);
     }
     const cafe = byId('cafe');

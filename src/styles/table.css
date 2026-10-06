@@ -43,7 +43,8 @@
 .intro{ grid-area:intro; }
 .intro h2{ margin:0 0 .35em; font-family:var(--serif); font-weight:400; line-height:.95; letter-spacing:-.02em;
   font-size:4.8rem; color:var(--paper); text-shadow:.05em .05em 0 var(--shadow); }
-.intro p{ margin:0; max-width:34em; font-size:1.18rem; line-height:1.45; text-shadow:0 1px 2px rgba(0,0,0,.35); }
+/* Literata runs wider than a sans: 37em keeps the intro in three lines, or the pinned table no longer fits */
+.intro p{ margin:0; max-width:37em; font-size:1.18rem; line-height:1.45; text-shadow:0 1px 2px rgba(0,0,0,.35); }
 /* --alto: how high a paper still is above the table (0 at rest); its shadow lies farther and lighter the higher it is */
 .papel, .tapa, .reverso{ --lejos:calc(1 + 3.2 * var(--alto, 0)); --caida:calc(1 + 3.7 * var(--alto, 0)); --tinta:rgb(45 36 28 / calc(1 - .55 * var(--alto, 0))); }
 .papel{ background:#EFE6D2 var(--grain); color:var(--shadow); padding:1.5rem 1.75rem; box-shadow:calc(.375rem * var(--lejos)) calc(.375rem * var(--caida)) 0 var(--tinta); }
@@ -51,7 +52,7 @@
 .papel p, .papel li{ margin:0; font-size:.98rem; line-height:1.6; }
 .papel ol, .papel ul{ margin:0; padding:0; list-style:none; }
 .papel b{ font-weight:700; }
-.kicker{ display:block; font-size:.76rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; opacity:.72; }
+.kicker{ display:block; font-size:.76rem; line-height:1.17; font-weight:700; letter-spacing:.08em; text-transform:uppercase; opacity:.72; }
 /* under each concept, the technology behind it; each pair apart from the next */
 .tec{ display:block; font-size:.93rem; line-height:1.35; opacity:.68; }
 .cuaderno li{ line-height:1.35; }
