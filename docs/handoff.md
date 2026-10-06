@@ -30,13 +30,14 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 **Skills de Matt Pocock (06-10, en PR):** copia de las 27 del plugin `mattpocock-skills` en `.claude/skills/`, con el commit de origen en `.claude/skills/README.md`. Son de un tercero: no se editan aquí y se actualizan copiando de nuevo. `code-review` coincide con una skill propia de Claude Code (no está comprobado cuál gana), y `pr` se activa sola al escribir el cuerpo de un PR.
 
+**Avisar a casa (06-10, en PR):** solo en móvil. La hoja del tren (`#detalle`) lleva, bajo «Comprar en Renfe ↗», un segundo botón levantado, «Avisar a casa» (`.avisa`), que abre WhatsApp con el mensaje ya escrito: «Cojo el R15 de las 18:33 en Sants. Llego a Reus a las 20:03.» (el AVE dice Camp de Tarragona; el primero de mañana, «Mañana cojo…»). Es un enlace `https://wa.me/?text=…` sin número: WhatsApp pide el chat. `src/home.ts` escribe el mensaje y es el único sitio que conoce el enlace. Àlex eligió la opción A de tres (maquetas en `avisar-casa/` de los archivos del proyecto) y WhatsApp directo frente al menú de compartir del sistema; en escritorio no hay «avisar» («no tiene sentido»). Check dentro de `check_phone_board` (`check.py hero`). **Falta probarlo en un móvil real**: desde la nube no se llega a whatsapp.com.
+
 **Transición hero → mesa y viaje de letras:** hechos (`src/shelf.ts`, `src/letters.ts`). Con «Capacasa», tres letras se funden en el hueco de «Qué es».
 
 ## Siguiente paso
 
 1. Features del benchmark que quedan (decisiones de Àlex del 06-10; antes de construir, 3 opciones visuales):
    - Recorrido del tren grande, solo en escritorio: las paradas del tren a su hora en el hueco de la fila grande (prototipo 1 del benchmark; en móvil no, por espacio)
-   - «Avisar a casa»: en móvil abre WhatsApp con el mensaje ya escrito («Cojo el R15 de las 18:33 en Sants. Llego a Reus a las 20:03»); en escritorio, copiar. El enlace `wa.me` está sin verificar; el menú de compartir del sistema cubre más apps
    - Quizá: sello «último de hoy» (en móvil, encima de la hora)
    - Benchmark: https://claude.ai/code/artifact/03d4ea6e-983f-4fd4-a53c-274c8fa23d77
 2. Generalizar la mesa: folleto «Cómo leerla» (aún habla de dos billetes), cuaderno «Barcelona ↔ Reus», billete de Rodalies, «Qué es»
@@ -82,6 +83,8 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 - El orden de la tira de un corredor no es «el orden de paradas de un tren», sino la fusión topológica de las paradas de *todos* los trenes de la línea: un tren que cruza Barcelona (El Prat → Sants → Girona) da dos tramos hacia fuera, no uno, y hay que tratarlo como dos secuencias independientes (`outward()` en `src/towns.ts`). Cuando dos trenes discrepan en el orden de dos paradas se forma un ciclo en el grafo de «va antes que»: esos nodos deben ir al final (por el tren más rápido desde Sants), nunca desaparecer del selector
 
 ## Pendiente y riesgos
+
+- «Avisar a casa» va solo a WhatsApp: quien use Telegram o Mensajes no lo tiene (el menú de compartir del sistema los cubriría; Àlex eligió WhatsApp directo el 06-10). El formato `wa.me/?text=` sin número está sin probar en un móvil real
 
 - Enlace de compra: Àlex lo probó a mano el 05-10 con Sants → Reus y L'Aldea → Sants, solo con códigos y fecha (sin nombres de estación, que Renfe y el GTFS escriben distinto). Si Renfe cambia la URL, el enlace se rompe sin avisar: solo hay que tocar `src/buy.ts`. La referencia `scripts/baseline/darwin/movil-hero.png` aún retrata el tablero sin «comprar ↗»: bórrala y vuelve a pasar `check.py paridad` en el Mac para renovarla (la de Linux ya está renovada)
 
