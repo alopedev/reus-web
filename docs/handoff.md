@@ -32,6 +32,8 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 **Avisar a casa (06-10, en PR):** solo en móvil. La hoja del tren (`#detalle`) lleva, bajo «Comprar en Renfe ↗», un segundo botón levantado, «Avisar a casa» (`.avisa`), que abre WhatsApp con el mensaje ya escrito: «Cojo el R15 de las 18:33 en Sants. Llego a Reus a las 20:03.» (el AVE dice Camp de Tarragona; el primero de mañana, «Mañana cojo…»). Es un enlace `https://wa.me/?text=…` sin número: WhatsApp pide el chat. `src/home.ts` escribe el mensaje y es el único sitio que conoce el enlace. Àlex eligió la opción A de tres (maquetas en `avisar-casa/` de los archivos del proyecto) y WhatsApp directo frente al menú de compartir del sistema; en escritorio no hay «avisar» («no tiene sentido»). Check dentro de `check_phone_board` (`check.py hero`). Àlex lo probó en su móvil el 06-10 (URL de prueba de Vercel): funciona.
 
+**Textos de la mesa (06-10, en PR):** opción C «corta y cercana» con los ajustes de Àlex (fila en `docs/plan.md`; propuestas en `textos-mesa/` de los archivos del proyecto). Corrige lo que era falso desde 3.3–3.5 (dos billetes, solo Sants y Reus, «no vende billetes») y añade el AVE de Camp de Tarragona y «comprar». El reverso va justo: una línea más y la mesa fija no cabe en 1440 × 900 (`check.py`, «pinned table does not fit»). El reverso termina en «Horarios hasta el …» (`src/timetable.ts`). Referencia de Linux `escritorio-mesa` renovada en la nube (con las fuentes servidas por `urllib`).
+
 **Transición hero → mesa y viaje de letras:** hechos (`src/shelf.ts`, `src/letters.ts`). Con «Capacasa», tres letras se funden en el hueco de «Qué es».
 
 ## Siguiente paso
@@ -40,7 +42,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
    - Recorrido del tren grande, solo en escritorio: las paradas del tren a su hora en el hueco de la fila grande (prototipo 1 del benchmark; en móvil no, por espacio)
    - Quizá: sello «último de hoy» (en móvil, encima de la hora)
    - Benchmark: https://claude.ai/code/artifact/03d4ea6e-983f-4fd4-a53c-274c8fa23d77
-2. Generalizar la mesa: folleto «Cómo leerla» (aún habla de dos billetes), cuaderno «Barcelona ↔ Reus», billete de Rodalies, «Qué es»
+2. Generalizar la mesa: solo queda el billete de Rodalies («BCN SANTS → REUS»); los textos ya están (06-10). Propuesta pendiente: que copie el trayecto elegido
 3. Grabar el vídeo para X y LinkedIn
 4. Pendiente técnico: subir Three.js desde r128, con la paridad visual como red
 
@@ -97,7 +99,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 - En móvil, la fila grande con «el próximo, en 36 min» y «comprar ↗» ocupa tres líneas (375 px)
 - Pantallas bajas (iPhone SE con las barras de Safari, ~375 × 548, estimado en Chromium): la ventanilla queda en una rendija (≈ 90 px de alto con 2 trayectos, 58 px con 3). El nombre, el subtítulo y el billete (144 px) y la regla (75 px) son lo que ocupa el sitio, no el tablero
 - Con 2 trayectos, el AVE solo aparece cuando es uno de los dos primeros en salir: ya no está siempre a la vista
-- La mesa sigue hablando de Reus (folleto «Cómo leerla», cuaderno «Barcelona ↔ Reus», billete de Rodalies, «Qué es»): generalizar a cualquier pueblo es la tarea 2 de «Siguiente paso»
+- En la mesa, solo el billete de Rodalies sigue diciendo Reus: es la tarea 2 de «Siguiente paso»
 - El pueblo elegido no se recuerda al recargar la página: el 3.4 (recordar trayecto + URL) se descartó el 05-10 para esta fase
 - El caso «sin tren directo hoy ni mañana» (decisión 3 de `spec-3.3.md`) no tiene test con datos reales: con la exclusión del área de Barcelona y Camp de Tarragona, no se da con el horario congelado. Queda como red de seguridad sin ejercitar
 

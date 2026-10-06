@@ -88,7 +88,7 @@
   <div class="mesa">
     <header class="intro">
       <h2 id="qe">Qué es</h2>
-      <p>Una sola pregunta: ¿cuándo sale el próximo tren directo entre Barcelona y Reus? La respuesta aparece al abrir, sin escribir origen, destino ni fecha. Para quien repite el trayecto y solo quiere saber si llega.</p>
+      <p>¿A qué hora sale el próximo tren a casa? Capacasa te lo dice sin complicaciones, sin mil opciones en que perderse. Toca tu pueblo en el billete y ya está: sin buscador, sin fechas, sin registro.</p>
     </header>
 
     <article class="papel folleto vib" id="folleto" aria-labelledby="h-leer">
@@ -98,22 +98,22 @@
         <span class="n" style="left:8px;top:84px">1</span><span class="n" style="right:8px;top:8px">2</span>
         <span class="n" style="left:40%;top:88px">3</span><span class="n" style="left:66%;top:88px">4</span></div>
       <ol>
-        <li><b>1</b> · La hora grande es el próximo tren.</li>
-        <li><b>2</b> · El billete impreso es tu sentido; pulsa el otro para cambiarlo.</li>
-        <li><b>3</b> · Lo que sobresale se puede pulsar; lo sellado es lo elegido.</li>
-        <li><b>4</b> · La regla es el día: cada raya, un tren. La luz sigue la hora.</li>
+        <li><b>1</b> · La hora grande: tu tren. «comprar» te lleva a Renfe.</li>
+        <li><b>2</b> · El billete: toca tu pueblo o tu estación; ⇄ da la vuelta.</li>
+        <li><b>3</b> · Pulsa un horario para elegirlo. En la lista, el sello marca el tuyo.</li>
+        <li><b>4</b> · La línea de abajo es el día y las líneas transversales, los trenes.</li>
       </ol>
     </article>
 
     <article class="cuaderno vib b" id="cuaderno" aria-labelledby="h-hizo">
-      <div class="hoja izq"><div class="papel cara guarda" aria-hidden="true"><b>Cuaderno de viaje</b><span>Barcelona ↔ Reus</span></div><div class="tapa" aria-hidden="true"><b>Cuaderno<br>de viaje</b><span>Barcelona ↔ Reus</span></div></div>
+      <div class="hoja izq"><div class="papel cara guarda" aria-hidden="true"><b>Cuaderno de viaje</b><span>De Barcelona a casa</span></div><div class="tapa" aria-hidden="true"><b>Cuaderno<br>de viaje</b><span>De Barcelona a casa</span></div></div>
       <div class="papel hoja der">
         <span class="kicker">Cuaderno · técnica</span>
         <h2 id="h-hizo">Cómo se hizo</h2>
         <ul>
-          <li>Paisaje en 3D, no un vídeo <span class="tec">Three.js: escena 3D generada por código</span></li>
-          <li>Cada fotograma, en acuarela <span class="tec">Shader WebGL: filtro Kuwahara y pigmento</span></li>
-          <li>Elige el sentido con un billete <span class="tec">HTML y CSS: papel recortado con clip-path</span></li>
+          <li>Un paisaje en 3D, no un vídeo <span class="tec">Three.js: escena 3D generada por código</span></li>
+          <li>Pintado en acuarela, en directo <span class="tec">Shader WebGL: filtro Kuwahara y pigmento</span></li>
+          <li>Un billete que se pulsa <span class="tec">HTML y CSS: papel recortado con clip-path</span></li>
           <li>La mirada baja a la mesa <span class="tec">CSS 3D y GSAP ScrollTrigger</span></li>
         </ul>
       </div>
@@ -123,7 +123,7 @@
       <div class="papel">
         <span class="kicker">Reverso del billete</span>
         <h2 id="h-datos">Datos y límites</h2>
-        <p>Horario teórico: no refleja retrasos ni incidencias. Solo regionales directos entre Sants y Reus. No vende billetes. <span id="hasta"></span></p>
+        <p>Es el horario previsto: los retrasos no salen aquí. Solo trenes directos, regionales y el AVE de Camp de Tarragona. El billete se compra en Renfe. <span id="hasta"></span></p>
         <p class="fuente" id="fuente"></p>
       </div>
     </article>
