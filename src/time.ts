@@ -12,11 +12,14 @@ export interface Network {
 export const NET = red as unknown as Network;
 export const SANTS = '71801', REUS = '71400', CAMP = '04104';
 // the Barcelona end of the trip (3.5): Sants first, the default. El Clot left out (Àlex, 05-10: nobody asks for it)
-export const BCN: {id: string, name: string}[] = [{id:SANTS, name:'Sants'}, {id:'71802', name:'Passeig de Gràcia'}, {id:'79400', name:'França'}];
+// `short` is the name on the ticket, where «Passeig de Gràcia» does not fit (Àlex, 06-10); everywhere else, `name`
+export const BCN: {id: string, name: string, short: string}[] = [{id:SANTS, name:'Sants', short:'Sants'},
+  {id:'71802', name:'Passeig de Gràcia', short:'Gràcia'}, {id:'79400', name:'França', short:'França'}];
 export const bcnName = (id: string): string => BCN.find(s => s.id === id)?.name ?? 'Sants';
+export const bcnShort = (id: string): string => BCN.find(s => s.id === id)?.short ?? 'Sants';
 // towns for which the AVE from Camp de Tarragona is a real alternative to the regional (about 35 min instead of 1 h 40 min)
 const AVE_COMARCAS = new Set(['Baix Camp', 'Tarragonès']);
-const hasAve = (town: string): boolean => AVE_COMARCAS.has(NET.estaciones[town]?.comarca ?? '');
+export const hasAve = (town: string): boolean => AVE_COMARCAS.has(NET.estaciones[town]?.comarca ?? '');
 // who the data comes from and when it was updated: Renfe's licence asks for both
 export const source = { fuente: NET.fuente, actualizado: NET.actualizado };
 
@@ -34,6 +37,18 @@ export function direct(iso: string, from: string, to: string): Train[] {
     if(a >= 0 && b > a) out.push([t.s[a][2], t.s[b][1], t.n, t.p]);
   }
   return out.sort((x, y) => x[0]-y[0]);
+}
+
+// the stops a direct train makes between two stations, both left out (the trip's detail on a phone): the first train
+// of the day with that number that calls at `from` and later at `to`, as direct() found it (any day's, for a day
+// beyond the timetable, which borrows another day's trains)
+export function stopsBetween(iso: string, id: string, from: string, to: string): number | null {
+  for(const i of [...(NET.dias[iso] ?? []), ...NET.trenes.keys()]){
+    const t = NET.trenes[i]; if(t.n !== id) continue;
+    const a = t.s.findIndex(x => x[0]===from), b = t.s.findIndex(x => x[0]===to);
+    if(a >= 0 && b > a) return b - a - 1;
+  }
+  return null;
 }
 
 // times are minutes after midnight, always in Madrid

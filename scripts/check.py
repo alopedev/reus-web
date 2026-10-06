@@ -4,7 +4,7 @@ Rules checked:
   1. The site name never overlaps the window (name bottom < window top).
   2. The departure block starts below the window (window bottom < info top).
   3. No JavaScript errors on load.
-  4. Small text uses Karla; times use Young Serif.
+  4. Small text uses Literata; times use Young Serif.
   5. The hero shows a scroll hint; below it, the shelf holds its three paper objects,
      uses the same two fonts and nothing sticks out sideways. The notebook opens onto a single page
      («Cómo se hizo»): four concepts, each with the technology behind it.
@@ -72,14 +72,17 @@ Rules checked:
   16. The travel things and the painted table follow the papers when these settle after the table was first
      measured (the web fonts arriving late): once the papers' text reflows, everything sits where measuring afresh
      puts it, on desktop and mobile. Modo rápido: `python3 scripts/check.py mesa`.
+  17. Sharing the link shows a preview (LinkedIn, X, WhatsApp): dist/index.html carries a description, the Open Graph
+     tags and a large X card; og:image is an absolute URL on the published site whose file ships in dist/, its size
+     matches og:image:width/height (1200 × 630) and it stays light (< 1 MB). Modo rápido: `python3 scripts/check.py compartir`.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
 Usage: npm run build && npm run build:paridad && python3 scripts/check.py [paridad|letras|a11y|red|hero|mesa]   (or: npm run check)
        (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute; a11y: only check 13; red: only check 14;
-        hero: only check 15; mesa: only check 16)
+        hero: only check 15; mesa: only check 16; compartir: only check 17, in a second)
 """
-import asyncio, functools, http.server, io, os, pathlib, sys, threading
+import asyncio, functools, html.parser, http.server, io, os, pathlib, sys, threading
 from PIL import Image, ImageChops, ImageStat
 from playwright.async_api import async_playwright
 
@@ -142,7 +145,7 @@ async def check_shelf(page, name):
         errs.append("the table never gets painted")
     if shelf["wide"]: errs.append(f"shelf sticks out sideways: {', '.join(shelf['wide'])}")
     if shelf["heading"] and shelf["heading"] != "Young Serif": errs.append(f"shelf heading font is {shelf['heading']}")
-    if shelf["body"] and shelf["body"] != "Karla": errs.append(f"shelf text font is {shelf['body']}")
+    if shelf["body"] and shelf["body"] != "Literata": errs.append(f"shelf text font is {shelf['body']}")
     await page.screenshot(path=str(shots / f"{name}-repisa.png"))
     return errs
 
@@ -826,6 +829,9 @@ async def check_hero(browser):
     errs += [f"town: {e}" for e in await check_town_choose_tarragona(browser)]
     errs += [f"town: {e}" for e in await check_town_close(browser)]
     errs += [f"town: {e}" for e in await check_town_fit(browser)]
+    errs += [f"phone: {e}" for e in await check_phone_board(browser)]
+    # 3.5 · the Barcelona station
+    errs += [f"station: {e}" for e in await check_station(browser)]
     # 21:30, from Reus: no regional left today, but two AVE from Camp de Tarragona (22:17, 22:39)
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
@@ -1303,8 +1309,192 @@ async def check_town_fit(browser):
         await page.close()
     return failures
 
+SITE = "https://reus-web.vercel.app/"
+def check_share(folder="dist"):
+    """Check 17: the link preview's tags and image, read from the build (no browser needed)."""
+    class Metas(html.parser.HTMLParser):
+        def __init__(self): super().__init__(); self.tags = {}
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag == "meta" and (a.get("property") or a.get("name")): self.tags[a.get("property") or a.get("name")] = a.get("content") or ""
+    m = Metas(); m.feed((root / folder / "index.html").read_text(encoding="utf-8")); t = m.tags
+    out = [f"<meta> {k} is missing or empty" for k in ("description", "og:type", "og:title", "og:description", "og:url",
+           "og:image", "og:image:width", "og:image:height", "og:image:alt", "twitter:card") if not t.get(k)]
+    if t.get("twitter:card") and t["twitter:card"] != "summary_large_image": out.append(f"twitter:card is {t['twitter:card']}, expected summary_large_image")
+    img = t.get("og:image", "")
+    if img and not img.startswith(SITE): out.append(f"og:image must be an absolute URL on {SITE} (crawlers don't resolve relative ones): {img}")
+    elif img:
+        f = root / folder / img[len(SITE):]
+        if not f.is_file(): out.append(f"og:image {img} is not in {folder}/ (put it in src/public/)")
+        else:
+            w, h = Image.open(f).size
+            if (str(w), str(h)) != (t.get("og:image:width"), t.get("og:image:height")): out.append(f"og:image is {w}×{h}, the tags say {t.get('og:image:width')}×{t.get('og:image:height')}")
+            if (w, h) != (1200, 630): out.append(f"og:image is {w}×{h}, expected 1200×630")
+            if f.stat().st_size >= 1_000_000: out.append(f"og:image weighs {f.stat().st_size // 1000} kB, keep it under 1 MB")
+    return out
+
+PHONE = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), d = document.getElementById('detalle'), a = d.querySelector('.comprar');
+  const q = a ? new URL(a.href).searchParams : null;
+  return {rows: [...document.querySelectorAll('#board .trip')].map(r => n(r.textContent)), buttons: [...document.querySelectorAll('#board .trip')].map(r => r.matches('button')),
+          buy: document.querySelectorAll('#board a').length, dep: document.getElementById('dep')?.textContent, open: d.open, sheet: n(d.textContent),
+          link: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), tab: a.target === '_blank'},
+          focus: document.activeElement?.matches('#board button.big') ?? false}; })()"""
+
+async def check_phone_board(browser):
+    """6B (Àlex, 06-10): on a phone the board keeps only the times, the countdown on the big train and a «›» on every
+    trip; every trip is a button (the big one too) that opens a paper sheet with its detail and «Comprar en Renfe ↗».
+    Tapping another trip makes it the train shown first. Esc, ✕ and the backdrop close the sheet and hand the focus
+    back to the big train. On a wide screen the board is unchanged (check_hero_board)."""
+    errs = []
+    page = await hero_page(browser, 390, 844)
+    b = await page.evaluate(PHONE)
+    want = ["R15 10:03 en 3 min → 11:33 ›", "R15 11:03 → 12:33 ›"]
+    if b["rows"] != want: errs.append(f"at 10:00 the phone board reads {b['rows']}, expected {want}")
+    if b["buttons"] != [True, True]: errs.append(f"on a phone every trip should be a button, got {b['buttons']}")
+    if b["buy"]: errs.append("on a phone the board still holds a link (the way to Renfe belongs to the sheet)")
+    async def tap(sel, when):
+        try: await page.click(sel, timeout=CLICK_MS)
+        except Exception: errs.append(f"{when}: {sel} is not clickable"); return None
+        await page.wait_for_timeout(500); return await page.evaluate(PHONE)
+    async def sheet(when, dep, arr, said, link):
+        b = await tap("#board button.big", when) if when != "after tapping the 11:03" else await tap("#board .tt", when)
+        if not b: return
+        if not b["open"]: errs.append(f"{when}: the sheet does not open"); return
+        for word in (f"{dep} → {arr}", said, "de viaje", "Comprar en Renfe"):
+            if word not in b["sheet"]: errs.append(f"{when}: the sheet does not say «{word}» («{b['sheet']}»)")
+        if b["dep"] != dep: errs.append(f"{when}: the train shown is {b['dep']}, expected {dep}")
+        k = b["link"]
+        if not k: errs.append(f"{when}: the sheet has no link to Renfe")
+        elif (k["from"], k["to"], k["day"]) != link or not k["tab"]: errs.append(f"{when}: «Comprar en Renfe» searches {k}, expected {link} in a new tab")
+    await sheet("tapping the big train", "10:03", "11:33", "Sale en 3 min", ("0071,71801,71801", "0071,71400,71400", "28/09/2026"))
+    await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
+    b = await page.evaluate(PHONE)
+    if b["open"]: errs.append("Esc does not close the sheet")
+    elif not b["focus"]: errs.append("after Esc the focus is not back on the big train")
+    await sheet("after tapping the 11:03", "11:03", "12:33", "Sale en 1 h 3 min", ("0071,71801,71801", "0071,71400,71400", "28/09/2026"))
+    if await tap("#detalle .x", "✕") and (await page.evaluate(PHONE))["open"]: errs.append("✕ does not close the sheet")
+    await tap("#board button.big", "the backdrop")
+    await page.mouse.click(195, 40); await page.wait_for_timeout(300)
+    if (await page.evaluate(PHONE))["open"]: errs.append("the backdrop does not close the sheet")
+    await page.close()
+    return errs
+
+# --- 3.5 · the Barcelona station ------------------------------------------------------------------------------
+PDG_ID, FRANCA_ID = "71802", "79400"
+STATIONS = [SANTS_ID, PDG_ID, FRANCA_ID]
+ROUTE = "document.querySelector('.tk .route')?.textContent.replace(/\\s+/g, ' ').trim()"
+
+async def choose_station(page, station, timeout=CLICK_MS):
+    """The two taps that choose the Barcelona station: the ticket's Barcelona end, then the station."""
+    try: await page.click(".tk .bcn", timeout=timeout)
+    except Exception: return ["'.tk .bcn' is not a clickable button that opens #selp"]
+    try: await page.click(f'#selp .est[data-station="{station}"]', timeout=timeout)
+    except Exception: return [f"'.est[data-station={station}]' is not clickable"]
+    await page.wait_for_timeout(300)
+    return []
+
+async def check_station(browser):
+    """3.5. Barcelona's end of the ticket is a raised button that opens the same sheet with the three stations
+    (Sants, Passeig de Gràcia, França), the chosen one stamped and focused, each saying which lines it misses; the
+    sheet's paper is cut ragged like the ticket. Choosing one rebuilds the route, the board and the buy link from
+    that station; Esc changes nothing; França has no R11, so to Girona the board names the stations that have one."""
+    net, day, now, margin = _net(), "2026-09-28", 600, 2
+    errs = []
+    page = await hero_page(browser)
+    t = await page.evaluate("""(() => { const b = document.querySelector('.tk .bcn'); if(!b) return null; const c = getComputedStyle(b);
+      return {tag: b.tagName, text: b.textContent.trim(), haspopup: b.getAttribute('aria-haspopup'), label: b.getAttribute('aria-label') || '',
+              line: c.textDecorationLine, raised: c.textShadow}; })()""")
+    if not t: await page.close(); return ["'.tk .bcn' is missing: Barcelona's end of the ticket is not a button"]
+    if t["tag"] != "BUTTON" or t["text"] != "Sants" or t["haspopup"] != "dialog": errs.append(f".tk .bcn is a {t['tag']} reading «{t['text']}» (aria-haspopup {t['haspopup']}), expected a dialog button «Sants»")
+    if not t["label"].startswith("Sants"): errs.append(f".tk .bcn accessible name is «{t['label']}», expected to start with «Sants»")
+    if t["line"] != "none" or t["raised"] in ("", "none"): errs.append(".tk .bcn is not raised like the other ends of the ticket")
+    try: await page.click(".tk .bcn", timeout=CLICK_MS)
+    except Exception: await page.close(); return errs + ["'.tk .bcn' is not clickable"]
+    await page.wait_for_timeout(300)
+    got = await page.evaluate("""(() => { const d = document.getElementById('selp'), pp = d.querySelector('.sheet .pp');
+      return {open: d.open, h3: d.querySelector('h3')?.textContent.trim(), cut: pp ? getComputedStyle(pp).clipPath : '',
+              rows: [...d.querySelectorAll('.est')].map(b => ({id: b.dataset.station, d: b.querySelector('.d')?.textContent.trim(),
+                current: b.getAttribute('aria-current'), focused: document.activeElement === b, h: b.getBoundingClientRect().height}))}; })()""")
+    if not got["open"]: errs.append("#selp does not open from .tk .bcn")
+    if got["h3"] != "¿Desde qué estación de Barcelona sales?": errs.append(f"the station sheet asks «{got['h3']}»")
+    if not got["cut"].startswith("polygon"): errs.append(f"the sheet's paper is not cut like the ticket (clip-path {got['cut'][:40]})")
+    ids = [r["id"] for r in got["rows"]]
+    if ids != STATIONS: errs.append(f"the station sheet lists {ids}, expected {STATIONS}")
+    else:
+        if got["rows"][0]["current"] != "true" or not got["rows"][0]["focused"]: errs.append("Sants is not marked as the current station and focused")
+        if "R11" not in (got["rows"][2]["d"] or ""): errs.append(f"França does not say it misses the R11 («{got['rows'][2]['d']}»)")
+        if "R11" in (got["rows"][1]["d"] or ""): errs.append(f"Passeig de Gràcia says it misses the R11 («{got['rows'][1]['d']}»)")
+    await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
+    if await page.evaluate(ROUTE) != "Sants ⇄ Reus": errs.append("Esc in the station sheet changed the route")
+    if not await page.evaluate("document.activeElement === document.querySelector('.tk .bcn')"): errs.append("after Esc the focus is not back on .tk .bcn")
+    e = await choose_station(page, PDG_ID)
+    if e: await page.close(); return errs + e
+    if await page.evaluate(ROUTE) != "Gràcia ⇄ Reus": errs.append(f"after choosing Passeig de Gràcia the route reads «{await page.evaluate(ROUTE)}»")
+    if not await page.evaluate("document.activeElement === document.querySelector('.tk .bcn')"): errs.append("the focus is not on .tk .bcn after choosing a station")
+    b = await page.evaluate(BOARD)
+    want = two_rows([t for t in _direct(net, day, PDG_ID, REUS_TOWN) if t[0] >= now + margin], now)
+    if b["rows"] != want: errs.append(f"from Passeig de Gràcia the board reads {b['rows']}, expected {want}")
+    errs += buy_link(b, PDG_ID, REUS_TOWN, "28/09/2026")
+    await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    if await page.evaluate(ROUTE) != "Reus ⇄ Gràcia": errs.append(f"after ⇄ the route reads «{await page.evaluate(ROUTE)}»")
+    await page.click(".tk .bcn", timeout=CLICK_MS); await page.wait_for_timeout(300)
+    h3 = await page.evaluate("document.querySelector('#selp h3')?.textContent.trim()")
+    if h3 != "¿A qué estación de Barcelona llegas?": errs.append(f"coming back, the station sheet asks «{h3}»")
+    await page.keyboard.press("Escape")
+    await page.close()
+    # França has no R11: to Girona the board is empty and says where the train does leave from
+    page = await hero_page(browser)
+    e = await choose_station(page, FRANCA_ID) or await choose_town(page, "R11", GIRONA_TOWN)
+    if e: await page.close(); return errs + e
+    await page.wait_for_timeout(300)
+    b = await page.evaluate(BOARD); lbl = await page.evaluate("document.getElementById('lbl').textContent.trim()")
+    if b["rows"]: errs.append(f"França → Girona has no direct train, but the board reads {b['rows']}")
+    say = "Desde França no hay tren directo a Girona. Sale de Sants o de Passeig de Gràcia."
+    if lbl != say: errs.append(f"França → Girona: #lbl reads «{lbl}», expected «{say}»")
+    if say not in b["aviso"]: errs.append(f"França → Girona: the live region does not say where to go («{b['aviso'][:90]}»)")
+    await page.close()
+    # a finger fits each station on the smallest phone
+    page = await hero_page(browser, 360, 740)
+    try:
+        await page.click(".tk .bcn", timeout=CLICK_MS); await page.wait_for_timeout(300)
+        short = [x for x in await page.evaluate("[...document.querySelectorAll('#selp .est')].map(el => el.getBoundingClientRect().height)") if x < 43.5]
+        if short: errs.append(f"360x740: a station is only {min(short):.0f} px tall")
+        sheet = await page.evaluate("(() => { const b = document.querySelector('#selp .sheet').getBoundingClientRect(); return [b.left, b.right]; })()")
+        if sheet[0] < -1 or sheet[1] > 361: errs.append(f"360x740: the station sheet ({sheet[0]:.0f}–{sheet[1]:.0f}) does not fit")
+    except Exception: errs.append("360x740: '.tk .bcn' is not clickable")
+    await page.close()
+    return errs
+
+async def check_offline(browser):
+    """17. Without a connection the site opens again, from what the first visit kept (src/sw.js)."""
+    errs = []
+    ctx = await browser.new_context(viewport={"width": 390, "height": 844}, reduced_motion="reduce")
+    page = await ctx.new_page(); page.set_default_timeout(120000)
+    errors = []; page.on("pageerror", lambda e: errors.append(str(e)))
+    await page.clock.set_fixed_time("2026-09-28T08:00:00Z")   # 10:00 in Madrid
+    await page.goto(parity_url)
+    try: await page.wait_for_function("navigator.serviceWorker && navigator.serviceWorker.controller !== null", timeout=60000)
+    except Exception:
+        errs.append("no offline worker takes over the page after the first visit"); await ctx.close(); return errs
+    kept = await page.evaluate("""(async () => { const k = (await caches.keys()).find(k => k.startsWith('capacasa-') && k !== 'capacasa-fuentes');
+      return k ? (await (await caches.open(k)).keys()).map(r => new URL(r.url).pathname) : []; })()""")
+    for f in ["/"] + [p for p in await page.evaluate("[...document.querySelectorAll('script[src], link[rel=stylesheet][href^=\"/\"]')].map(e => new URL(e.src || e.href).pathname)")]:
+        if f not in kept: errs.append(f"the offline worker does not keep {f} (keeps {kept})")
+    await ctx.set_offline(True)
+    try:
+        await page.reload(); await page.wait_for_timeout(1500)
+        board = await page.evaluate("(() => ({dep: document.getElementById('dep')?.textContent || '', worker: !!navigator.serviceWorker.controller}))()")
+        if board["dep"] != "10:03": errs.append(f"offline the board shows «{board['dep']}», expected the 10:03")
+    except Exception as e: errs.append(f"offline the page does not open again ({str(e)[:80]})")
+    errs += [f"JS error offline: {e}" for e in errors]
+    await ctx.close()
+    return errs
+
 async def main():
     failures = []
+    if sys.argv[1:] == ["compartir"]:
+        failures += check_share()
+        print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · compartir"); sys.exit(1 if failures else 0)
     async with async_playwright() as p:
         # software WebGL so it also runs on machines without a GPU (slow but faithful)
         browser = await p.chromium.launch(args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
@@ -1320,6 +1510,9 @@ async def main():
         if sys.argv[1:] == ["mesa"]:
             failures += await check_table_follows(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · mesa"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["sinred"]:
+            failures += await check_offline(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · sinred"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["a11y"]:
             failures += await check_a11y(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · a11y"); sys.exit(1 if failures else 0)
@@ -1337,11 +1530,11 @@ async def main():
               const r = s => document.querySelector(s).getBoundingClientRect();
               const f = s => { const c = getComputedStyle(document.querySelector(s)); return c.fontFamily.split(',')[0].replace(/"/g,''); };
               return {name: r('.brand').bottom, winTop: r('#win').top, winBottom: r('#win').bottom, info: r('#info').top,
-                      sans: f('.soon'), serif: f('#dep')};
+                      texto: f('.soon'), serif: f('#dep')};
             })()""")
             if not box["name"] < box["winTop"]: failures.append(f"{name}: name overlaps window ({box['name']:.0f} ≥ {box['winTop']:.0f})")
             if not box["winBottom"] < box["info"]: failures.append(f"{name}: departure block overlaps window")
-            if box["sans"] != "Karla": failures.append(f"{name}: small text font is {box['sans']}")
+            if box["texto"] != "Literata": failures.append(f"{name}: small text font is {box['texto']}")
             if box["serif"] != "Young Serif": failures.append(f"{name}: time font is {box['serif']}")
             # the landscape's brush strokes are sized in the render target's pixels: a small window (phones) is
             # painted twice as fine as the desktop one, or each stroke covers too much of it and reads as pixels
@@ -1365,7 +1558,9 @@ async def main():
             failures += [f"{name}: {e}" for e in await check_letters(page, name)]
             await page.close()
         failures += await check_sizes(browser)
+        failures += [f"compartir: {e}" for e in check_share()]
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
+        failures += [f"sinred: {e}" for e in await check_offline(browser)]
         failures += [f"red: {e}" for e in await check_red(browser)]
         failures += [f"hero: {e}" for e in await check_hero(browser)]
         failures += [f"mesa: {e}" for e in await check_table_follows(browser)]

@@ -5,13 +5,15 @@ dialog#selp{ border:0; padding:0; margin:auto; background:transparent; max-width
 dialog#selp::backdrop{ background:rgba(30,22,16,.45); }
 dialog#selp:not([open]){ display:none; }
 
-.sheet{ position:relative; width:min(44rem, 92vw); max-height:min(86vh, 48rem); overflow:auto;
-  background:#EFE6D2 var(--grain); color:var(--shadow); font-family:var(--sans);
-  padding:1.4rem 1.4rem 1.2rem; filter:drop-shadow(.35rem .35rem 0 var(--shadow)); transform:rotate(-.6deg); }
+/* the sheet carries the shadow and the tilt; its paper (.pp) is cut with scissors like the ticket (--cut, rag() in
+   paper.ts), so the shadow follows the ragged edge */
+.sheet{ position:relative; width:min(44rem, 92vw); filter:drop-shadow(.35rem .35rem 0 var(--shadow)); transform:rotate(-.6deg); }
+.sheet .pp{ position:relative; max-height:min(86vh, 48rem); overflow:auto; clip-path:var(--cut);
+  background:#EFE6D2 var(--grain); color:var(--shadow); font-family:var(--texto); padding:1.5rem 1.5rem 1.3rem; }
 .sheet h3{ font:400 1.6rem/1.15 var(--serif); margin:.1rem 2.2rem .8rem 0; }
 .sheet .x{ position:absolute; top:.6rem; right:.7rem; min-width:max(2.75rem, 44px); min-height:max(2.75rem, 44px); font-size:1.2rem;
   background:none; border:0; cursor:pointer; color:inherit; }
-.sheet .back{ display:block; font:700 .95rem var(--sans); background:none; border:0; padding:.6rem 0; margin-bottom:.2rem;
+.sheet .back{ display:block; font:700 .95rem var(--texto); background:none; border:0; padding:.6rem 0; margin-bottom:.2rem;
   min-height:max(2.75rem, 44px); cursor:pointer; color:inherit; text-shadow:var(--alzado-papel); }
 .sheet .back:hover{ text-shadow:var(--alzado-papel-hover); }
 .sheet .back:active{ text-shadow:none; transform:translate(.05em,.05em); }
@@ -20,7 +22,7 @@ dialog#selp:not([open]){ display:none; }
 /* step 1: the four corridors, each line's colour as a pill */
 .lns{ display:grid; gap:.3rem; }
 .ln{ all:unset; box-sizing:border-box; display:flex; gap:.8rem; align-items:center; padding:.65rem .5rem;
-  min-height:max(2.75rem, 44px); cursor:pointer; border-bottom:1.5px dashed rgba(45,36,28,.35); font:700 1.1rem var(--sans); }
+  min-height:max(2.75rem, 44px); cursor:pointer; border-bottom:1.5px dashed rgba(45,36,28,.35); font:700 1.1rem var(--texto); }
 .ln:hover{ background:rgba(45,36,28,.07); }
 .pills{ display:flex; flex-direction:column; gap:.2rem; min-width:2.9rem; }
 
@@ -35,7 +37,7 @@ dialog#selp:not([open]){ display:none; }
   border-radius:50%; background:#EFE6D2; border:3px solid var(--c); z-index:1; }
 .strip li.branch::before{ background:var(--c); }
 .strip .opt{ all:unset; box-sizing:border-box; display:block; width:100%; min-height:max(2.75rem, 44px); padding:.5rem .3rem;
-  cursor:pointer; font:500 1rem var(--sans); color:inherit; }
+  cursor:pointer; font:500 1rem var(--texto); color:inherit; }
 .strip .opt:hover{ background:rgba(45,36,28,.07); }
 /* inside the sheet every row is a choice, so the rows go unraised (an offset shadow on each small sans line read as
    a smudge); the town already chosen is the pressed one: stamped, like the train shown on the board */
@@ -43,7 +45,19 @@ dialog#selp:not([open]){ display:none; }
 .strip .opt[aria-current="true"]::after{ content:""; position:absolute; inset:.2rem 0; border:3px solid #6E2A1C; border-radius:.25em; transform:rotate(-1deg);
   -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:160px; mask-size:160px; pointer-events:none; }
 
+/* the Barcelona station (3.5): one step, three stations, each with the lines it misses; the one chosen is stamped */
+.ests{ display:grid; }
+.est{ all:unset; box-sizing:border-box; position:relative; display:block; padding:.7rem .5rem; min-height:max(2.75rem, 44px);
+  cursor:pointer; border-bottom:1.5px dashed rgba(45,36,28,.35); }
+.est:hover{ background:rgba(45,36,28,.07); }
+.est .n{ display:block; font:400 1.5rem/1.15 var(--serif); }
+.est .d{ display:block; font:500 .95rem/1.3 var(--texto); opacity:.8; margin-top:.15rem; }
+.est:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; border-radius:.2rem; }
+.est[aria-current="true"] .n{ position:relative; display:inline-block; }
+.est[aria-current="true"] .n::after{ content:""; position:absolute; inset:-.08em -.22em -.06em; border:3px solid #6E2A1C; border-radius:.2em; transform:rotate(-1.2deg);
+  -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:160px; mask-size:160px; pointer-events:none; }
+
 @media (max-width:700px), (max-aspect-ratio:4/5){
-  .sheet{ padding:1.1rem 1rem 1rem; max-height:min(88vh, 42rem); }
+  .sheet .pp{ padding:1.2rem 1.1rem 1.1rem; max-height:min(88vh, 42rem); }
   .strip{ columns:1; }
 }

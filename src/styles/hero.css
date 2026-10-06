@@ -22,11 +22,11 @@
 .tk .swap:active{ text-shadow:none; transform:translate(.05em,.05em); }
 .tk .swap:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; border-radius:3px; }
 /* the town's end opens the chooser; Barcelona's stays plain text until 3.5 */
-.tk .end.town{ font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer; text-shadow:var(--alzado-papel); }
-.tk .end.town:hover{ text-shadow:var(--alzado-papel-hover); }
-.tk .end.town:active{ text-shadow:none; transform:translate(.05em,.05em); }
-.tk .end.town:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; border-radius:3px; }
-.label{ margin:0 0 .2rem; font-family:var(--sans); font-weight:700; font-size:1.05rem; color:var(--soft); text-shadow:0 1px 2px rgba(0,0,0,.35); grid-column:1 / -1; }
+.tk button.end{ font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer; text-shadow:var(--alzado-papel); text-align:inherit; }
+.tk button.end:hover{ text-shadow:var(--alzado-papel-hover); }
+.tk button.end:active{ text-shadow:none; transform:translate(.05em,.05em); }
+.tk button.end:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; border-radius:3px; }
+.label{ margin:0 0 .2rem; font-family:var(--texto); font-weight:700; font-size:1.05rem; color:var(--soft); text-shadow:0 1px 2px rgba(0,0,0,.35); grid-column:1 / -1; }
 
 /* the window: an empty frame; the painting shows through from the canvas behind */
 .winCell{ display:grid; place-items:center; min-height:0; container-type:size; }
@@ -38,20 +38,18 @@
 .board{ display:grid; grid-template-columns:auto auto minmax(0,1fr) auto; align-items:baseline; column-gap:1.1rem; row-gap:.25rem;
   color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.35); }
 .trip{ display:grid; grid-column:1 / -1; grid-template-columns:subgrid; align-items:baseline; }
-.pill{ display:inline-block; font:700 .93rem/1 var(--sans); color:#fff; background:var(--c); padding:.28em .45em; border-radius:.3em;
+.pill{ display:inline-block; font:700 .93rem/1 var(--texto); color:#fff; background:var(--c); padding:.28em .45em; border-radius:.3em;
   letter-spacing:.02em; text-shadow:none; }
 .trip .t{ font-family:var(--serif); font-weight:400; font-size:1.5rem; }
 .trip .w{ font-size:1rem; line-height:1.15; color:var(--soft); }
 .trip .arr{ color:var(--soft); font-size:1.3rem; white-space:nowrap; }
 /* the AVE leaves from (or goes to) Camp de Tarragona, not the town: said under its arrival, on a line of its own */
 .trip .st{ grid-column:3 / -1; justify-self:end; font-size:.93rem; line-height:1.1; color:var(--soft); white-space:nowrap; }
-/* the train shown is the one pressed: flat on the wall (no offset shadow) and stamped, an inked frame slightly askew;
-   the margin leaves room for the frame, which overhangs the time, so it never touches «en 3 min» */
-#dep{ font-size:4.6rem; line-height:.9; letter-spacing:-.02em; text-shadow:0 1px 2px rgba(0,0,0,.35); position:relative; justify-self:start; margin-right:.16em; --tinta:var(--paper); }
-#dep::after{ content:""; position:absolute; inset:-.06em -.16em -.02em; border:3px solid var(--tinta); border-radius:.16em; transform:rotate(-1.6deg);
-  -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:160px; mask-size:160px; pointer-events:none; }
+/* the train shown is the one pressed: flat on the wall, no offset shadow and no frame (the inked stamp around it was
+   dropped, Àlex 06-10) */
+#dep{ font-size:4.6rem; line-height:.9; letter-spacing:-.02em; text-shadow:0 1px 2px rgba(0,0,0,.35); justify-self:start; }
 .big .arr{ color:var(--paper); font-size:1.8rem; }
-/* the big train is the door to Renfe: its time (stamped, the train chosen) and «comprar ↗», raised like everything
+/* the big train is the door to Renfe: its time (flat, the train chosen) and «comprar ↗», raised like everything
    you can press */
 .big a{ color:inherit; text-decoration:none; }
 .big a:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
@@ -75,7 +73,7 @@
 /* room above the track for «ahora»; «Volver a ahora» on the side away from it */
 .rulerHead{ display:flex; justify-content:flex-end; align-items:baseline; min-height:1.5rem; margin-bottom:.35rem; text-shadow:0 1px 2px rgba(0,0,0,.35); }
 .rulerHead.left{ justify-content:flex-start; }
-.now{ font:inherit; font-family:var(--sans); font-weight:500; font-size:.95rem; color:var(--paper); background:none; border:0; padding:.1em 0; cursor:pointer;
+.now{ font:inherit; font-family:var(--texto); font-weight:500; font-size:.95rem; color:var(--paper); background:none; border:0; padding:.1em 0; cursor:pointer;
   text-shadow:var(--alzado-pared); }
 .now:hover{ text-shadow:var(--alzado-pared-hover); }
 .now:active{ text-shadow:none; transform:translate(.06em,.06em); }
@@ -87,7 +85,7 @@
 /* now: a thin orange line with its word, never a second knob */
 .ticks .nowline{ position:absolute; top:-.55rem; width:2px; height:1.85rem; background:#E8A35C; transform:translateX(-50%); box-shadow:1px 1px 0 var(--shadow); }
 .ticks .nowline span{ position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:.15rem; white-space:nowrap;
-  font:500 .93rem var(--sans); color:#F3C38F; text-shadow:0 1px 2px rgba(0,0,0,.4); }
+  font:500 .93rem var(--texto); color:#F3C38F; text-shadow:0 1px 2px rgba(0,0,0,.4); }
 /* at either end of the day the word leans inwards, or it would leave the screen */
 .ticks .nowline.start span{ left:0; transform:none; }
 .ticks .nowline.end span{ left:auto; right:0; transform:none; }
@@ -120,8 +118,19 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .info{ row-gap:.3rem; }
   .board{ column-gap:.6rem; }
   #dep{ font-size:3.2rem; } .trip .t{ font-size:1.2rem; } .trip .w{ font-size:.85rem; }
-  /* on a phone the AVE's station and «el próximo» take too much room: hidden from sight, still read aloud (as .sr) */
-  .trip .st, .trip .nx{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+  /* on a phone the board keeps only the times (6B, Àlex 06-10): every trip is a button ending in «›», the big one
+     too, and opens its detail in a sheet (detail.ts). The «›» stands in a column of its own, so the arrivals still
+     line up */
+  .board{ grid-template-columns:auto auto minmax(0,1fr) auto auto; }
+  button.big{ font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; text-align:left; cursor:pointer; text-shadow:inherit; }
+  button.big:active #dep{ transform:translate(.04em,.04em); }
+  button.big:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
+  .mas{ font:700 1.35rem/1 var(--texto); color:var(--paper); padding-left:.15rem; }
+  /* «›» is the one sign a row presses (Àlex, 06-10): the times stay flat, like the arrivals */
+  #board .tt .t:not(.arr){ text-shadow:inherit; }
+  /* a finger needs about 44 px: the short rows reach further up and down than they show, without moving anything */
+  #board .tt{ position:relative; }
+  #board .tt::before{ content:""; position:absolute; left:0; right:0; top:50%; height:max(2.75rem, 44px); transform:translateY(-50%); }
   .ruler{ margin-top:.4rem; }
 }
 .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
