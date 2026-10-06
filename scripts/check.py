@@ -874,7 +874,7 @@ BOARD = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), rows = [...do
   // «comprar ↗» is the big row's link to Renfe, read on its own (buy) rather than as part of the row's text
   const text = r => { const c = r.cloneNode(true); c.querySelectorAll('.buy').forEach(x => x.remove()); return n(c.textContent); };
   const dep = document.getElementById('dep'), word = document.querySelector('#board .buy'), q = dep?.href ? new URL(dep.href).searchParams : null;
-  return {rows: rows.map(text), buy: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), host: new URL(dep.href).host,
+  return {rows: rows.map(text), buy: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), host: new URL(dep.href).host, query: Object.fromEntries(q),
             tab: dep.target === '_blank' && word?.target === '_blank', same: word?.href === dep.href, label: dep.getAttribute('aria-label')}, buttons: rows.map(r => r.matches('button.tt')), dep: document.getElementById('dep')?.textContent,
           soon: document.querySelector('.soon')?.textContent.trim(), info: n(document.getElementById('info').textContent),
           aviso: document.getElementById('aviso').textContent}; })()"""
@@ -943,6 +943,9 @@ async def check_hero_board(page):
     await page.click("#nowBtn"); await page.wait_for_timeout(300)
     return errs
 
+RENFE_FIELDS = {"adultos_": "1", "ninos_": "0", "ninosMenores": "0", "tipoBusqueda": "autocomplete",
+                "currenLocation": "menuBusqueda", "vengoderenfecom": "SI"}
+
 def buy_link(b, frm, to, day):
     """The big train's time and «comprar ↗» open Renfe's search for its trip and day, in a new tab (src/buy.ts)."""
     k = b.get("buy")
@@ -951,6 +954,9 @@ def buy_link(b, frm, to, day):
     if k["host"] != "venta.renfe.com": errs.append(f"the buy link goes to {k['host']}, expected venta.renfe.com")
     if (k["from"], k["to"], k["day"]) != (f"0071,{frm},{frm}", f"0071,{to},{to}", day):
         errs.append(f"the buy link searches {k['from']} → {k['to']} on {k['day']}, expected {frm} → {to} on {day}")
+    # without these renfe.com answers E500 to a first visit, or shows a returning visitor their previous search
+    missing = [f for f, v in RENFE_FIELDS.items() if k["query"].get(f) != v]
+    if missing: errs.append(f"the buy link lacks the fields Renfe needs to search ({', '.join(missing)}): «{k['query']}»")
     if not k["tab"]: errs.append("the buy links do not open in a new tab")
     if not k["same"]: errs.append("«comprar ↗» and the time do not open the same search")
     if "Renfe" not in (k["label"] or ""): errs.append(f"the time's label does not say it buys on Renfe («{k['label']}»)")
