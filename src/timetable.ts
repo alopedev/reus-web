@@ -34,10 +34,10 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     let {d, exact} = dayData(now.date, state.town, state.station);
     today = [...(ida ? d.r : d.b).map(t => ({t, ave:false})), ...(ida ? d.ar : d.ab).map(t => ({t, ave:true}))].sort((x, y) => x.t[0]-y.t[0]);
     const after = (list: Train[]) => list.filter(([dep]) => dep >= start + (state.useNow?2:0));
-    let regs = after(ida ? d.r : d.b), aves = after(ida ? d.ar : d.ab), tomorrow = false;
+    let regs = after(ida ? d.r : d.b), aves = after(ida ? d.ar : d.ab), tomorrow = false, nextDay = false;
     // no regional left today: tomorrow's first ones, after the AVE still to come today, if there is one
     const lastAve = regs.length ? undefined : aves[0];
-    if(!regs.length){ ({d, exact} = dayData(addDays(now.date,1), state.town, state.station)); regs = ida ? d.r : d.b; aves = ida ? d.ar : d.ab; tomorrow = !lastAve; }
+    if(!regs.length){ ({d, exact} = dayData(addDays(now.date,1), state.town, state.station)); nextDay = true; regs = ida ? d.r : d.b; aves = ida ? d.ar : d.ab; tomorrow = !lastAve; }
     // safety net (decision 3): no direct train at all today nor tomorrow in this direction. Only reachable for a
     // town whose only trains run on days the frozen or newly-generated timetable does not cover
     const none = !lastAve && !regs.length && !aves.length;
@@ -52,7 +52,7 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
       table.setTime(now.min);
       byId('board').innerHTML = drawn = ''; cur = null;
       if(shown !== 'none' + state.station + state.town + state.dir){ byId('aviso').textContent = noTrain(from, to, now.date); shown = 'none' + state.station + state.town + state.dir; }
-      byId('note').textContent = exact ? '' : 'Horari aproximat: encara no hi ha horari oficial d’aquest dia.';
+      byId('note').textContent = exact ? '' : `Horari aproximat: ${nextDay ? 'demà' : 'avui'} encara no hi ha horari oficial.`;
       if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
       return;
     }
@@ -85,7 +85,7 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     // the detail of the train shown, for the sheet a phone opens
     const there = isAve ? 'Camp de Tarragona' : townName;
     cur = { line: a[3], color: LINE[a[3]] ?? 'var(--shadow)', from: ida ? bcn : there, to: ida ? there : bcn, dep: hhmm(a[0]), arr: hhmm(a[1]),
-      when: tomorrow ? 'Demà' : a[0] < now.min ? 'Ja ha sortit' : a[0] === now.min ? 'Surt ara' : `Surt d’aquí a ${dur(a[0]-now.min)}`, length: dur(a[1]-a[0]),
+      when: tomorrow ? 'Demà' : a[0] < now.min ? 'Ja ha sortit' : a[0] === now.min ? 'Surt ara' : `Surt en ${dur(a[0]-now.min)}`, length: dur(a[1]-a[0]),
       stops: stopsBetween(tomorrow ? addDays(now.date, 1) : now.date, a[2], ends[0], ends[1]), buy,
       ave: isAve ? (ida ? `L’AVE no arriba ${atPlace(townName)}: baixa a Camp de Tarragona.` : `L’AVE no surt ${ofPlace(townName)}: surt de Camp de Tarragona.`) : '',
       home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(a[1]), tomorrow) };
@@ -93,7 +93,7 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     const turn = shown !== null && shown !== key;
     if(html !== drawn || turn){ byId('board').innerHTML = drawn = html; if(turn && !reduce) byId('dep').classList.add('swap'); }
     if(shown !== key){ say(tomorrow, isAve ? (ida ? bcn : 'Camp de Tarragona') : from, isAve ? (ida ? 'Camp de Tarragona' : `Barcelona ${bcn}`) : to, a, isAve); shown = key; }
-    byId('note').textContent = exact ? '' : 'Horari aproximat: encara no hi ha horari oficial d’aquest dia.';
+    byId('note').textContent = exact ? '' : `Horari aproximat: ${nextDay ? 'demà' : 'avui'} encara no hi ha horari oficial.`;
     if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
   }
   // the ticket's route: both ends are buttons, the town's opens the town chooser and Barcelona's the station
@@ -131,18 +131,18 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
   // is a button with a «›» that opens its detail, the big one included (its link to Renfe moves into the sheet)
   function trip(t: Train, big: boolean, isAve: boolean, until: string, morrow: boolean, buy: string, phone: boolean){
     if(phone){
-      const w = big ? `<span class="soon">${until && 'd’aquí a ' + until}</span>` : morrow ? 'demà' : '';
+      const w = big ? `<span class="soon">${until && 'en ' + until}</span>` : morrow ? 'demà' : '';
       const cells = `<span class="pill" style="--c:${LINE[t[3]] ?? 'var(--shadow)'}">${t[3]}</span> <span class="t"${big ? ' id="dep"' : ''}>${hhmm(t[0])}</span> `
         + `<span class="w">${w}</span> <span class="t arr">→ ${hhmm(t[1])}</span> <span class="mas" aria-hidden="true">›</span>`;
       const where = isAve ? (state.dir==='casa' ? ' a' : ' des de') + ' Camp de Tarragona' : '';
-      const label = `${isAve ? 'AVE' : t[3]} de les ${hhmm(t[0])}${where}${big && until ? ', surt d’aquí a ' + until : morrow ? ', demà' : ''}, arriba a les ${hhmm(t[1])}. Veure el detall i comprar`;
+      const label = `${isAve ? 'AVE' : t[3]} de les ${hhmm(t[0])}${where}${big && until ? ', surt en ' + until : morrow ? ', demà' : ''}, arriba a les ${hhmm(t[1])}. Veure el detall i comprar`;
       return `<button type="button" class="trip${big ? ' big' : ' tt'}" data-m="${t[0]}"${isAve ? ' data-ave' : ''} aria-haspopup="dialog" aria-label="${label}">${cells}</button>`;
     }
-    // the big train's time and «comprar ↗» open Renfe in a new tab; the word repeats the link for the eye only
+    // the big train's time and «compra’l ↗» open Renfe in a new tab; the word repeats the link for the eye only
     const to = ` href="${buy.replace(/&/g, '&amp;')}" target="_blank" rel="noopener"`;
-    const soon = big ? `<span class="soon">${until && 'd’aquí a ' + until}</span>` : '';
-    const word = big ? ` <a class="buy"${to} tabindex="-1" aria-hidden="true">comprar ↗</a>` : '';
-    const where = (big ? `<span class="nx">el pròxim${until ? ', ' : ''}</span>${soon}` : morrow ? 'demà' : 'el següent') + word;
+    const soon = big ? `<span class="soon">${until && 'en ' + until}</span>` : '';
+    const word = big ? ` <a class="buy"${to} tabindex="-1" aria-hidden="true">compra’l ↗</a>` : '';
+    const where = (big ? `<span class="nx">el pròxim${until ? ', ' : ''}</span>${soon}` : morrow ? 'demà' : 'després') + word;
     const camp = isAve ? ` <span class="st">${state.dir==='casa' ? 'fins a' : 'des de'} Camp de Tarragona</span>` : '';
     // spaces between the cells: the grid ignores them, but the text (and a screen reader) keeps its words apart
     const dep = big ? `<a class="t" id="dep"${to} aria-label="${hhmm(t[0])}, comprar a Renfe (s’obre en una altra pestanya)">${hhmm(t[0])}</a>` : `<span class="t">${hhmm(t[0])}</span>`;

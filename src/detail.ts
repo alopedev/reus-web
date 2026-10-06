@@ -24,7 +24,7 @@ export function setupDetail(): Detail {
       <p class="horas">${t.dep} <span class="flecha">→</span> ${t.arr}</p>
       <p class="datos"><span>${esc(t.when)}</span> <span>${t.length} de viatge${stops ? ' · ' + stops : ''}</span></p>
       ${t.ave ? `<p class="ave">${esc(t.ave)}</p>` : ''}
-      <div class="botones"><a class="comprar" href="${esc(t.buy)}" target="_blank" rel="noopener">Comprar a Renfe ↗<span class="sr"> (s’obre en una altra pestanya)</span></a>
+      <div class="botones"><a class="comprar" href="${esc(t.buy)}" target="_blank" rel="noopener">Compra a Renfe ↗<span class="sr"> (s’obre en una altra pestanya)</span></a>
       <a class="avisa" href="${esc(whatsappUrl(t.home))}" target="_blank" rel="noopener">Avisar a casa<span class="sr"> per WhatsApp</span></a></div></div>`;
     dialog.showModal();
     dialog.querySelector<HTMLElement>('.pliego')?.focus();   // the sheet itself: no ring on a control the finger did not choose
