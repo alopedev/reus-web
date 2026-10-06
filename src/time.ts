@@ -36,6 +36,18 @@ export function direct(iso: string, from: string, to: string): Train[] {
   return out.sort((x, y) => x[0]-y[0]);
 }
 
+// the stops a direct train makes between two stations, both left out (the trip's detail on a phone): the first train
+// of the day with that number that calls at `from` and later at `to`, as direct() found it (any day's, for a day
+// beyond the timetable, which borrows another day's trains)
+export function stopsBetween(iso: string, id: string, from: string, to: string): number | null {
+  for(const i of [...(NET.dias[iso] ?? []), ...NET.trenes.keys()]){
+    const t = NET.trenes[i]; if(t.n !== id) continue;
+    const a = t.s.findIndex(x => x[0]===from), b = t.s.findIndex(x => x[0]===to);
+    if(a >= 0 && b > a) return b - a - 1;
+  }
+  return null;
+}
+
 // times are minutes after midnight, always in Madrid
 export function madridNow(): {date: string, min: number} {
   const p = new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());

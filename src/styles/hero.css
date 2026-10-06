@@ -120,8 +120,17 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .info{ row-gap:.3rem; }
   .board{ column-gap:.6rem; }
   #dep{ font-size:3.2rem; } .trip .t{ font-size:1.2rem; } .trip .w{ font-size:.85rem; }
-  /* on a phone the AVE's station and «el próximo» take too much room: hidden from sight, still read aloud (as .sr) */
-  .trip .st, .trip .nx{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+  /* on a phone the board keeps only the times (6B, Àlex 06-10): every trip is a button ending in «›», the big one
+     too, and opens its detail in a sheet (detail.ts). The «›» stands in a column of its own, so the arrivals still
+     line up */
+  .board{ grid-template-columns:auto auto minmax(0,1fr) auto auto; }
+  button.big{ font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; text-align:left; cursor:pointer; text-shadow:inherit; }
+  button.big:active #dep{ transform:translate(.04em,.04em); }
+  button.big:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
+  .mas{ font:700 1.35rem/1 var(--sans); color:var(--paper); padding-left:.15rem; }
+  /* a finger needs about 44 px: the short rows reach further up and down than they show, without moving anything */
+  #board .tt{ position:relative; }
+  #board .tt::before{ content:""; position:absolute; left:0; right:0; top:50%; height:max(2.75rem, 44px); transform:translateY(-50%); }
   .ruler{ margin-top:.4rem; }
 }
 .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }

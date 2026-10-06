@@ -826,6 +826,7 @@ async def check_hero(browser):
     errs += [f"town: {e}" for e in await check_town_choose_tarragona(browser)]
     errs += [f"town: {e}" for e in await check_town_close(browser)]
     errs += [f"town: {e}" for e in await check_town_fit(browser)]
+    errs += [f"phone: {e}" for e in await check_phone_board(browser)]
     # 21:30, from Reus: no regional left today, but two AVE from Camp de Tarragona (22:17, 22:39)
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
@@ -1302,6 +1303,52 @@ async def check_town_fit(browser):
         failures += [f"{size}: {e}" for e in await page.evaluate(FIT)]
         await page.close()
     return failures
+
+PHONE = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), d = document.getElementById('detalle'), a = d.querySelector('.comprar');
+  const q = a ? new URL(a.href).searchParams : null;
+  return {rows: [...document.querySelectorAll('#board .trip')].map(r => n(r.textContent)), buttons: [...document.querySelectorAll('#board .trip')].map(r => r.matches('button')),
+          buy: document.querySelectorAll('#board a').length, dep: document.getElementById('dep')?.textContent, open: d.open, sheet: n(d.textContent),
+          link: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), tab: a.target === '_blank'},
+          focus: document.activeElement?.matches('#board button.big') ?? false}; })()"""
+
+async def check_phone_board(browser):
+    """6B (Àlex, 06-10): on a phone the board keeps only the times, the countdown on the big train and a «›» on every
+    trip; every trip is a button (the big one too) that opens a paper sheet with its detail and «Comprar en Renfe ↗».
+    Tapping another trip makes it the train shown first. Esc, ✕ and the backdrop close the sheet and hand the focus
+    back to the big train. On a wide screen the board is unchanged (check_hero_board)."""
+    errs = []
+    page = await hero_page(browser, 390, 844)
+    b = await page.evaluate(PHONE)
+    want = ["R15 10:03 en 3 min → 11:33 ›", "R15 11:03 → 12:33 ›"]
+    if b["rows"] != want: errs.append(f"at 10:00 the phone board reads {b['rows']}, expected {want}")
+    if b["buttons"] != [True, True]: errs.append(f"on a phone every trip should be a button, got {b['buttons']}")
+    if b["buy"]: errs.append("on a phone the board still holds a link (the way to Renfe belongs to the sheet)")
+    async def tap(sel, when):
+        try: await page.click(sel, timeout=CLICK_MS)
+        except Exception: errs.append(f"{when}: {sel} is not clickable"); return None
+        await page.wait_for_timeout(500); return await page.evaluate(PHONE)
+    async def sheet(when, dep, arr, said, link):
+        b = await tap("#board button.big", when) if when != "after tapping the 11:03" else await tap("#board .tt", when)
+        if not b: return
+        if not b["open"]: errs.append(f"{when}: the sheet does not open"); return
+        for word in (f"{dep} → {arr}", said, "de viaje", "Comprar en Renfe"):
+            if word not in b["sheet"]: errs.append(f"{when}: the sheet does not say «{word}» («{b['sheet']}»)")
+        if b["dep"] != dep: errs.append(f"{when}: the train shown is {b['dep']}, expected {dep}")
+        k = b["link"]
+        if not k: errs.append(f"{when}: the sheet has no link to Renfe")
+        elif (k["from"], k["to"], k["day"]) != link or not k["tab"]: errs.append(f"{when}: «Comprar en Renfe» searches {k}, expected {link} in a new tab")
+    await sheet("tapping the big train", "10:03", "11:33", "Sale en 3 min", ("0071,71801,71801", "0071,71400,71400", "28/09/2026"))
+    await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
+    b = await page.evaluate(PHONE)
+    if b["open"]: errs.append("Esc does not close the sheet")
+    elif not b["focus"]: errs.append("after Esc the focus is not back on the big train")
+    await sheet("after tapping the 11:03", "11:03", "12:33", "Sale en 1 h 3 min", ("0071,71801,71801", "0071,71400,71400", "28/09/2026"))
+    if await tap("#detalle .x", "✕") and (await page.evaluate(PHONE))["open"]: errs.append("✕ does not close the sheet")
+    await tap("#board button.big", "the backdrop")
+    await page.mouse.click(195, 40); await page.wait_for_timeout(300)
+    if (await page.evaluate(PHONE))["open"]: errs.append("the backdrop does not close the sheet")
+    await page.close()
+    return errs
 
 async def main():
     failures = []
