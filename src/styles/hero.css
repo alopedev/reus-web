@@ -45,13 +45,11 @@
 .trip .arr{ color:var(--soft); font-size:1.3rem; white-space:nowrap; }
 /* the AVE leaves from (or goes to) Camp de Tarragona, not the town: said under its arrival, on a line of its own */
 .trip .st{ grid-column:3 / -1; justify-self:end; font-size:.93rem; line-height:1.1; color:var(--soft); white-space:nowrap; }
-/* the train shown is the one pressed: flat on the wall (no offset shadow) and stamped, an inked frame slightly askew;
-   the margin leaves room for the frame, which overhangs the time, so it never touches «en 3 min» */
-#dep{ font-size:4.6rem; line-height:.9; letter-spacing:-.02em; text-shadow:0 1px 2px rgba(0,0,0,.35); position:relative; justify-self:start; margin-right:.16em; --tinta:var(--paper); }
-#dep::after{ content:""; position:absolute; inset:-.06em -.16em -.02em; border:3px solid var(--tinta); border-radius:.16em; transform:rotate(-1.6deg);
-  -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:160px; mask-size:160px; pointer-events:none; }
+/* the train shown is the one pressed: flat on the wall, no offset shadow and no frame (the inked stamp around it was
+   dropped, Àlex 06-10) */
+#dep{ font-size:4.6rem; line-height:.9; letter-spacing:-.02em; text-shadow:0 1px 2px rgba(0,0,0,.35); justify-self:start; }
 .big .arr{ color:var(--paper); font-size:1.8rem; }
-/* the big train is the door to Renfe: its time (stamped, the train chosen) and «comprar ↗», raised like everything
+/* the big train is the door to Renfe: its time (flat, the train chosen) and «comprar ↗», raised like everything
    you can press */
 .big a{ color:inherit; text-decoration:none; }
 .big a:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
