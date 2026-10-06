@@ -128,6 +128,8 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   button.big:active #dep{ transform:translate(.04em,.04em); }
   button.big:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
   .mas{ font:700 1.35rem/1 var(--sans); color:var(--paper); padding-left:.15rem; }
+  /* «›» is the one sign a row presses (Àlex, 06-10): the times stay flat, like the arrivals */
+  #board .tt .t:not(.arr){ text-shadow:inherit; }
   /* a finger needs about 44 px: the short rows reach further up and down than they show, without moving anything */
   #board .tt{ position:relative; }
   #board .tt::before{ content:""; position:absolute; left:0; right:0; top:50%; height:max(2.75rem, 44px); transform:translateY(-50%); }
