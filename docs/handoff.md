@@ -30,7 +30,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 **Skills de Matt Pocock (06-10, en PR):** copia de las 27 del plugin `mattpocock-skills` en `.claude/skills/`, con el commit de origen en `.claude/skills/README.md`. Son de un tercero: no se editan aquí y se actualizan copiando de nuevo. `code-review` coincide con una skill propia de Claude Code (no está comprobado cuál gana), y `pr` se activa sola al escribir el cuerpo de un PR.
 
-**Avisar a casa (06-10, en PR):** solo en móvil. La hoja del tren (`#detalle`) lleva, bajo «Comprar en Renfe ↗», un segundo botón levantado, «Avisar a casa» (`.avisa`), que abre WhatsApp con el mensaje ya escrito: «Cojo el R15 de las 18:33 en Sants. Llego a Reus a las 20:03.» (el AVE dice Camp de Tarragona; el primero de mañana, «Mañana cojo…»). Es un enlace `https://wa.me/?text=…` sin número: WhatsApp pide el chat. `src/home.ts` escribe el mensaje y es el único sitio que conoce el enlace. Àlex eligió la opción A de tres (maquetas en `avisar-casa/` de los archivos del proyecto) y WhatsApp directo frente al menú de compartir del sistema; en escritorio no hay «avisar» («no tiene sentido»). Check dentro de `check_phone_board` (`check.py hero`). **Falta probarlo en un móvil real**: desde la nube no se llega a whatsapp.com.
+**Avisar a casa (06-10, en PR):** solo en móvil. La hoja del tren (`#detalle`) lleva, bajo «Comprar en Renfe ↗», un segundo botón levantado, «Avisar a casa» (`.avisa`), que abre WhatsApp con el mensaje ya escrito: «Cojo el R15 de las 18:33 en Sants. Llego a Reus a las 20:03.» (el AVE dice Camp de Tarragona; el primero de mañana, «Mañana cojo…»). Es un enlace `https://wa.me/?text=…` sin número: WhatsApp pide el chat. `src/home.ts` escribe el mensaje y es el único sitio que conoce el enlace. Àlex eligió la opción A de tres (maquetas en `avisar-casa/` de los archivos del proyecto) y WhatsApp directo frente al menú de compartir del sistema; en escritorio no hay «avisar» («no tiene sentido»). Check dentro de `check_phone_board` (`check.py hero`). Àlex lo probó en su móvil el 06-10 (URL de prueba de Vercel): funciona.
 
 **Transición hero → mesa y viaje de letras:** hechos (`src/shelf.ts`, `src/letters.ts`). Con «Capacasa», tres letras se funden en el hueco de «Qué es».
 
@@ -84,7 +84,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 ## Pendiente y riesgos
 
-- «Avisar a casa» va solo a WhatsApp: quien use Telegram o Mensajes no lo tiene (el menú de compartir del sistema los cubriría; Àlex eligió WhatsApp directo el 06-10). El formato `wa.me/?text=` sin número está sin probar en un móvil real
+- «Avisar a casa» va solo a WhatsApp: quien use Telegram o Mensajes no lo tiene (el menú de compartir del sistema los cubriría; Àlex eligió WhatsApp directo el 06-10)
 
 - Enlace de compra: Àlex lo probó a mano el 05-10 con Sants → Reus y L'Aldea → Sants, solo con códigos y fecha (sin nombres de estación, que Renfe y el GTFS escriben distinto). Si Renfe cambia la URL, el enlace se rompe sin avisar: solo hay que tocar `src/buy.ts`. La referencia `scripts/baseline/darwin/movil-hero.png` aún retrata el tablero sin «comprar ↗»: bórrala y vuelve a pasar `check.py paridad` en el Mac para renovarla (la de Linux ya está renovada)
 
