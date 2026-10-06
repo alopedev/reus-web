@@ -24,19 +24,36 @@ jobs:
       - run: npm run build
       - run: npm run build:paridad
       - run: python scripts/check.py paridad   # TEMP: only the parity frames, to fetch CI's own table and phone frames
-      - if: always()   # TEMP: CI's frames minus the committed ones, compressed, in the log (artifacts cannot be downloaded from the cloud session)
+      - if: always()   # TEMP: a sparse patch (CI's frame minus the committed one, only where it matters after the parity downscale), in the log
         run: |
           python - <<'PY'
           import zlib, base64, os
-          from PIL import Image
+          from PIL import Image, ImageChops, ImageStat, ImageFilter
+          def score(a, b, w, h):
+              size = (360, round(360 * h / w)); d = ImageChops.difference(a.resize(size), b.resize(size))
+              return sum(ImageStat.Stat(d).mean) / 3, sum(1 for px in d.getdata() if max(px) > 40) / (d.width * d.height), d
           for v in ["escritorio-mesa", "movil-hero"]:
               f = f"screenshots/{v}-distinto.png"
               if not os.path.exists(f): print("SAME", v); continue
-              a = Image.open(f).convert("RGB").tobytes()
-              b = Image.open(f"scripts/baseline/linux/{v}.png").convert("RGB").tobytes()
-              d = zlib.compress(bytes((x - y) & 255 for x, y in zip(a, b)), 9)
-              s = base64.b64encode(d).decode(); print("DIFF", v, len(s))
-              for i in range(0, len(s), 1000): print("D", v, s[i:i+1000])
+              ci = Image.open(f).convert("RGB"); ref = Image.open(f"scripts/baseline/linux/{v}.png").convert("RGB"); w, h = ci.size
+              m0, s0, d = score(ci, ref, w, h); print("BEFORE", v, w, h, round(m0, 3), round(s0, 5))
+              best = None
+              for t in [40, 30, 20, 12, 6]:
+                  mask = Image.eval(Image.merge("RGB", d.split()), lambda x: 255 if x > t else 0).convert("L").point(lambda x: 255 if x else 0)
+                  mask = mask.filter(ImageFilter.MaxFilter(5)).resize((w, h), Image.NEAREST)
+                  mb = mask.tobytes(); A = ci.tobytes(); B = ref.tobytes(); out = bytearray(len(A))
+                  for i in range(w * h):
+                      if mb[i]:
+                          for c in range(3):
+                              k = 3 * i + c; out[k] = (((A[k] - B[k]) + 2) // 4 * 4) & 255
+                  patched = bytes((B[k] + out[k]) & 255 for k in range(len(B)))
+                  m1, s1, _ = score(Image.frombytes("RGB", (w, h), patched), ci, w, h)
+                  z = base64.b64encode(zlib.compress(bytes(out), 9)).decode()
+                  print("TRY", v, t, "vs-ci", round(m1, 3), round(s1, 5), "len", len(z))
+                  if m1 < 1 and s1 < .002: best = (t, z); break
+              if best:
+                  t, z = best; print("PATCH", v, t, len(z))
+                  for i in range(0, len(z), 1000): print("P", v, z[i:i+1000])
           PY
       # the screenshots, and any reference frame written in this run, to review or commit
       - if: always()
