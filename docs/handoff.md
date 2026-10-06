@@ -26,6 +26,8 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 **Segunda letra: Literata (06-10, en PR):** Literata 500/700 sustituye a Karla en todo el texto que no es nombre, hora ni trayecto (variable CSS `--texto`, antes `--sans`; `index.html` la pide a Google Fonts como `Literata:wght@500;700`). Àlex la eligió entre tres finalistas (Cabin, Libre Franklin, Literata) de una criba de 20 letras sobre la web real; investigación y capturas en https://claude.ai/artifact/KNA8omkXnxGvuw2ruBFe55 y en `propuestas-fuente/` de los archivos del proyecto. `check.py` comprueba Literata (checks 4 y 5). Referencias de Linux renovadas con la letra nueva; las de macOS (PR #10) retratan Karla y hay que renovarlas en el Mac. La imagen al compartir (PR #8, `og.jpg`) también lleva Karla.
 
+**Skills de Matt Pocock (06-10, en PR):** copia de las 27 del plugin `mattpocock-skills` en `.claude/skills/`, con el commit de origen en `.claude/skills/README.md`. Son de un tercero: no se editan aquí y se actualizan copiando de nuevo. `code-review` coincide con una skill propia de Claude Code (no está comprobado cuál gana), y `pr` se activa sola al escribir el cuerpo de un PR.
+
 **Transición hero → mesa y viaje de letras:** hechos (`src/shelf.ts`, `src/letters.ts`). Con «Capacasa», tres letras se funden en el hueco de «Qué es».
 
 ## Siguiente paso
