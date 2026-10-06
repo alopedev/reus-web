@@ -16,7 +16,7 @@ export const BCN: {id: string, name: string}[] = [{id:SANTS, name:'Sants'}, {id:
 export const bcnName = (id: string): string => BCN.find(s => s.id === id)?.name ?? 'Sants';
 // towns for which the AVE from Camp de Tarragona is a real alternative to the regional (about 35 min instead of 1 h 40 min)
 const AVE_COMARCAS = new Set(['Baix Camp', 'Tarragonès']);
-const hasAve = (town: string): boolean => AVE_COMARCAS.has(NET.estaciones[town]?.comarca ?? '');
+export const hasAve = (town: string): boolean => AVE_COMARCAS.has(NET.estaciones[town]?.comarca ?? '');
 // who the data comes from and when it was updated: Renfe's licence asks for both
 export const source = { fuente: NET.fuente, actualizado: NET.actualizado };
 

@@ -22,10 +22,10 @@
 .tk .swap:active{ text-shadow:none; transform:translate(.05em,.05em); }
 .tk .swap:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; border-radius:3px; }
 /* the town's end opens the chooser; Barcelona's stays plain text until 3.5 */
-.tk .end.town{ font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer; text-shadow:var(--alzado-papel); }
-.tk .end.town:hover{ text-shadow:var(--alzado-papel-hover); }
-.tk .end.town:active{ text-shadow:none; transform:translate(.05em,.05em); }
-.tk .end.town:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; border-radius:3px; }
+.tk button.end{ font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer; text-shadow:var(--alzado-papel); text-align:inherit; }
+.tk button.end:hover{ text-shadow:var(--alzado-papel-hover); }
+.tk button.end:active{ text-shadow:none; transform:translate(.05em,.05em); }
+.tk button.end:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; border-radius:3px; }
 .label{ margin:0 0 .2rem; font-family:var(--sans); font-weight:700; font-size:1.05rem; color:var(--soft); text-shadow:0 1px 2px rgba(0,0,0,.35); grid-column:1 / -1; }
 
 /* the window: an empty frame; the painting shows through from the canvas behind */

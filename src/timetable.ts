@@ -1,6 +1,7 @@
 import { reduce, state } from './state';
 import { madridNow, addDays, hhmm, dur, dayData, lastDay, source, NET, BCN, bcnName, CAMP, type Train } from './time';
 import { buyUrl } from './buy';
+import { cut } from './paper';
 import { LINE } from './towns';
 import { setupChooser } from './chooser';
 import { byId } from './dom';
@@ -80,13 +81,14 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     byId('note').textContent = exact ? '' : 'Horario aproximado: aún no hay horario oficial de este día.';
     if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
   }
-  // the ticket's route: the town's end is a button (opens the chooser), Sants stays plain text until 3.5;
-  // ⇄ turns the order around, so the DOM order matches what is read: «Sants ⇄ Reus» / «Reus ⇄ Sants»
+  // the ticket's route: both ends are buttons, the town's opens the town chooser and Barcelona's the station
+  // chooser (3.5); ⇄ turns the order around, so the DOM order matches what is read: «Sants ⇄ Reus» / «Reus ⇄ Sants»
   function route(ida: boolean, townName: string): string {
     const swap = `<button type="button" class="swap" aria-label="Cambiar el sentido">⇄</button>`;
     const townBtn = `<button type="button" class="end town" aria-haspopup="dialog" aria-label="${townName}, cambiar de pueblo">${townName}</button>`;
-    const sants = `<span class="end">Sants</span>`;
-    return ida ? `${sants} ${swap} ${townBtn}` : `${townBtn} ${swap} ${sants}`;
+    const bcn = bcnName(state.station);
+    const bcnBtn = `<button type="button" class="end bcn" aria-haspopup="dialog" aria-label="${bcn}, cambiar de estación de Barcelona">${bcn}</button>`;
+    return ida ? `${bcnBtn} ${swap} ${townBtn}` : `${townBtn} ${swap} ${bcnBtn}`;
   }
   // the route is only rebuilt when it changes (⇄, a new town), never on the countdown's refresh; a rebuilt control
   // hands the focus to its new self, so ⇄ keeps it after turning the trip around
@@ -154,29 +156,22 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     else return;
     e.preventDefault(); if(next) pick(next.t[0], next.ave);
   });
-  // a ragged scissor cut, different for every ticket, with the two punch notches of the stub
-  function cut(seed: number){
-    let s = seed; const r = ()=> (s = (s*9301+49297)%233280)/233280;
-    const pts: string[] = [], n = 16, j = ()=> (r()*2.4).toFixed(2);
-    for(let i=0;i<=n;i++) pts.push(`${(i/n*100).toFixed(2)}% ${j()}%`);
-    for(let i=1;i<=4;i++){ const y = i*20; pts.push(`calc(100% - ${j()}%) ${y}%`); }
-    for(let i=n;i>=0;i--) pts.push(`${(i/n*100).toFixed(2)}% calc(100% - ${j()}%)`);
-    for(let i=4;i>=1;i--){ const y = i*20; pts.push(`${j()}% ${y}%`); }
-    return `polygon(${pts.join(',')})`;
-  }
-  // one ticket with both ends of the trip; ⇄ turns it around. The town end opens the chooser; Barcelona's end
-  // stays plain text until 3.5. Both the swap and the town button are rebuilt on every render() (route()), so
+  // one ticket with both ends of the trip; ⇄ turns it around. The town end opens the town chooser, Barcelona's
+  // end the station chooser. The swap and both ends are rebuilt on every render() (route()), so
   // their listeners are delegated on the container instead of attached to elements that get replaced
   byId('tickets').innerHTML = `
     <div class="tk" style="--cut:${cut(7)}">
       <span class="pp"><span class="k">Billete</span>
       <span class="route"></span></span><span class="stub" aria-hidden="true"></span>
     </div>`;
-  const chooser = setupChooser(id => { state.town = id; state.useNow = true; state.ave = false; render(); byId('tickets').querySelector<HTMLElement>('.end.town')?.focus(); });
+  const chooser = setupChooser(
+    id => { state.town = id; state.useNow = true; state.ave = false; render(); byId('tickets').querySelector<HTMLElement>('.end.town')?.focus(); },
+    id => { state.station = id; state.useNow = true; state.ave = false; render(); byId('tickets').querySelector<HTMLElement>('.end.bcn')?.focus(); });
   byId('tickets').addEventListener('click', e=>{
     const t = e.target as HTMLElement;
     if(t.closest('.swap')){ state.dir = state.dir==='casa' ? 'bcn' : 'casa'; render(); if(world) world.resize(); }
     else if(t.closest('.end.town')) chooser.open();
+    else if(t.closest('.end.bcn')) chooser.openStation();
   });
   setInterval(()=>{ if(state.useNow) render(); }, 30000);
   { const day = (iso: string) => new Date(iso+'T12:00:00Z').toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
