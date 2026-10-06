@@ -31,6 +31,12 @@ export function createScenery(world: World | null): Scenery {
   function kick(){ if(!rafId && world){ lastT = performance.now(); rafId = requestAnimationFrame(loop); } }
   document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && playing) kick(); });
   addEventListener('resize', ()=>{ if(!playing && world) world.frame(0,0,1); });
+  // the painted window follows #win, which also moves without a resize: the board grows a line at night
+  // («Hoy ya no quedan regionales»), another town, a trip of tomorrow. Read only on resize, the painting would
+  // keep the old window and paint it under the text. Its cell too: #win is centred in it, so it can move
+  // without changing size
+  if(world){ const ro = new ResizeObserver(()=>{ world.resize(); if(!playing) world.frame(0,0,1); });
+    ro.observe(byId('win')); ro.observe(byId('win').parentElement!); }
   if(new URLSearchParams(location.search).has('grabar')) addEventListener('keydown', e=>{
     if((e.target as Element).closest?.('input,button')) return;
     if(e.key==='r' || e.key==='R') repaint();
