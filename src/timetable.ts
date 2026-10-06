@@ -1,5 +1,5 @@
 import { reduce, state } from './state';
-import { madridNow, addDays, hhmm, dur, dayData, lastDay, source, NET, BCN, bcnName, CAMP, type Train } from './time';
+import { madridNow, addDays, hhmm, dur, dayData, lastDay, source, NET, BCN, bcnName, bcnShort, CAMP, type Train } from './time';
 import { buyUrl } from './buy';
 import { cut } from './paper';
 import { LINE } from './towns';
@@ -86,8 +86,7 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
   function route(ida: boolean, townName: string): string {
     const swap = `<button type="button" class="swap" aria-label="Cambiar el sentido">⇄</button>`;
     const townBtn = `<button type="button" class="end town" aria-haspopup="dialog" aria-label="${townName}, cambiar de pueblo">${townName}</button>`;
-    const bcn = bcnName(state.station);
-    const bcnBtn = `<button type="button" class="end bcn" aria-haspopup="dialog" aria-label="${bcn}, cambiar de estación de Barcelona">${bcn}</button>`;
+    const bcnBtn = `<button type="button" class="end bcn" aria-haspopup="dialog" aria-label="${bcnName(state.station)}, cambiar de estación de Barcelona">${bcnShort(state.station)}</button>`;
     return ida ? `${bcnBtn} ${swap} ${townBtn}` : `${townBtn} ${swap} ${bcnBtn}`;
   }
   // the route is only rebuilt when it changes (⇄, a new town), never on the countdown's refresh; a rebuilt control
