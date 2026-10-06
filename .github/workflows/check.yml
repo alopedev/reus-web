@@ -23,18 +23,7 @@ jobs:
       - run: pip install playwright pillow && python -m playwright install --with-deps chromium
       - run: npm run build
       - run: npm run build:paridad
-      - run: python scripts/check.py paridad   # TEMP: only the parity frames, to fetch CI's own phone frame
-      - if: always()   # TEMP: CI's frame minus the committed one, compressed, in the log (artifacts cannot be downloaded from the cloud session)
-        run: |
-          python - <<'PY'
-          import zlib, base64
-          from PIL import Image
-          a = Image.open("screenshots/movil-hero-distinto.png").convert("RGB").tobytes()
-          b = Image.open("scripts/baseline/linux/movil-hero.png").convert("RGB").tobytes()
-          d = zlib.compress(bytes((x - y) & 255 for x, y in zip(a, b)), 9)
-          s = base64.b64encode(d).decode(); print("DIFF", len(s))
-          for i in range(0, len(s), 1000): print("D", s[i:i+1000])
-          PY
+      - run: python scripts/check.py
       # the screenshots, and any reference frame written in this run, to review or commit
       - if: always()
         uses: actions/upload-artifact@v4
