@@ -1,11 +1,12 @@
 import './styles/detail.css';
 import { byId } from './dom';
+import { whatsappUrl } from './home';
 
 // what the sheet tells about the train shown: its line and trip, times, when it leaves, how long, how many stops,
-// and the way to buy it
+// the way to buy it and the message for home
 export interface Trip {
   line: string; color: string; from: string; to: string; dep: string; arr: string;
-  when: string; length: string; stops: number | null; buy: string; ave: string;
+  when: string; length: string; stops: number | null; buy: string; ave: string; home: string;
 }
 export interface Detail { open(t: Trip): void }
 
@@ -23,7 +24,8 @@ export function setupDetail(): Detail {
       <p class="horas">${t.dep} <span class="flecha">→</span> ${t.arr}</p>
       <p class="datos"><span>${esc(t.when)}</span> <span>${t.length} de viaje${stops ? ' · ' + stops : ''}</span></p>
       ${t.ave ? `<p class="ave">${esc(t.ave)}</p>` : ''}
-      <a class="comprar" href="${esc(t.buy)}" target="_blank" rel="noopener">Comprar en Renfe ↗<span class="sr"> (abre otra pestaña)</span></a></div>`;
+      <div class="botones"><a class="comprar" href="${esc(t.buy)}" target="_blank" rel="noopener">Comprar en Renfe ↗<span class="sr"> (abre otra pestaña)</span></a>
+      <a class="avisa" href="${esc(whatsappUrl(t.home))}" target="_blank" rel="noopener">Avisar a casa<span class="sr"> por WhatsApp</span></a></div></div>`;
     dialog.showModal();
     dialog.querySelector<HTMLElement>('.pliego')?.focus();   // the sheet itself: no ring on a control the finger did not choose
   }
