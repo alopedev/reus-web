@@ -32,7 +32,7 @@ async function saveFonts(){
   const sheet = await fetch(url);
   if(!sheet.ok) return;
   await cache.put(url, sheet.clone());
-  // Karla 500 and 700 are one variable file named twice: addAll refuses duplicates
+  // two weights of a variable font are one file named twice (Karla 500/700 did it): addAll refuses duplicates
   const files = [...new Set([...(await sheet.text()).matchAll(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+)\)/g)].map(m => m[1]))];
   await cache.addAll(files);
 }
