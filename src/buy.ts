@@ -14,6 +14,6 @@ export function buyUrl(from: string, to: string, iso: string, dep: number): stri
   const date = day(addDays(iso, Math.floor(dep / 1440)));
   // the fewest fields that open the day's list (tried by hand on 05-10-2026, Sants → Reus and L'Aldea → Sants): no
   // station names, which Renfe and the GTFS spell differently
-  const q = new URLSearchParams({ cdgoOrigen: code(from), cdgoDestino: code(to), FechaIdaSel: date, Idioma: 'es', Pais: 'ES' });
+  const q = new URLSearchParams({ cdgoOrigen: code(from), cdgoDestino: code(to), FechaIdaSel: date, Idioma: 'ca', Pais: 'ES' });
   return `${SEARCH}?${q}`;
 }
