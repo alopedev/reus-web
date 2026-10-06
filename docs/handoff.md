@@ -16,7 +16,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 **Apertura en el hero (02-10, comprobado el 05-10 en Chromium escritorio y móvil):** `history.scrollRestoration = 'manual'` y, si la dirección trae un ancla (`#repisa`), se quita al arrancar y la página vuelve arriba; «Qué es y cómo se hizo» baja a la mesa sin escribir el ancla (`src/main.ts`, `36a9ebd`/`340b1cf`/`2a5815f`). Falta confirmarlo en Safari de iOS.
 
-**Señal de «se puede pulsar» (05-10):** el subrayado punteado se sustituye por el «levantado»: lo que se puede pulsar lleva la sombra dura desplazada del billete (`--alzado-papel`/`--alzado-pared` en `base.css`) y al pulsarlo se aplasta; lo pulsado (el tren grande, el pueblo elegido en el selector) va plano y sellado (`--grano-sello`). Dentro del selector las filas no van levantadas. «comprar ↗» va levantado; la hora grande, aunque también es enlace, sigue sellada (es el tren elegido). Referencias de Linux renovadas sobre el tablero de 2 trayectos (06-10); las de macOS están borradas: la primera `check.py paridad` en el Mac las escribe (revísalas antes de subirlas).
+**Señal de «se puede pulsar» (05-10):** el subrayado punteado se sustituye por el «levantado»: lo que se puede pulsar lleva la sombra dura desplazada del billete (`--alzado-papel`/`--alzado-pared` en `base.css`) y al pulsarlo se aplasta; lo pulsado (el tren grande, el pueblo elegido en el selector) va plano y sellado (`--grano-sello`). Dentro del selector las filas no van levantadas. «comprar ↗» va levantado; la hora grande, aunque también es enlace, sigue sellada (es el tren elegido). Referencias de Linux renovadas sobre el tablero de 2 trayectos (06-10); las de macOS, también (06-10, con «comprar ↗»).
 
 **Transición hero → mesa y viaje de letras:** hechos (`src/shelf.ts`, `src/letters.ts`). Con «Capacasa», tres letras se funden en el hueco de «Qué es».
 
@@ -65,7 +65,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 ## Pendiente y riesgos
 
-- Enlace de compra: Àlex lo probó a mano el 05-10 con Sants → Reus y L'Aldea → Sants, solo con códigos y fecha (sin nombres de estación, que Renfe y el GTFS escriben distinto). Si Renfe cambia la URL, el enlace se rompe sin avisar: solo hay que tocar `src/buy.ts`. La referencia `scripts/baseline/darwin/movil-hero.png` aún retrata el tablero sin «comprar ↗»: bórrala y vuelve a pasar `check.py paridad` en el Mac para renovarla (la de Linux ya está renovada)
+- Enlace de compra: Àlex lo probó a mano el 05-10 con Sants → Reus y L'Aldea → Sants, solo con códigos y fecha (sin nombres de estación, que Renfe y el GTFS escriben distinto). Si Renfe cambia la URL, el enlace se rompe sin avisar: solo hay que tocar `src/buy.ts`.
 
 - El 30-09 el feed de Renfe trajo un tren repetido (Sants → Reus 09:03 → 10:33, del 30-09 al 04-10): `check_datos.py` lo paró y el robot no publicó; el 01-10 ya no salía. Si se repite a menudo, valorar deduplicarlo en `extract_red.py` en vez de parar la publicación
 
