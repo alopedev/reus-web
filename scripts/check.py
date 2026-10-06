@@ -72,14 +72,17 @@ Rules checked:
   16. The travel things and the painted table follow the papers when these settle after the table was first
      measured (the web fonts arriving late): once the papers' text reflows, everything sits where measuring afresh
      puts it, on desktop and mobile. Modo rápido: `python3 scripts/check.py mesa`.
+  17. Sharing the link shows a preview (LinkedIn, X, WhatsApp): dist/index.html carries a description, the Open Graph
+     tags and a large X card; og:image is an absolute URL on the published site whose file ships in dist/, its size
+     matches og:image:width/height (1200 × 630) and it stays light (< 1 MB). Modo rápido: `python3 scripts/check.py compartir`.
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
 Usage: npm run build && npm run build:paridad && python3 scripts/check.py [paridad|letras|a11y|red|hero|mesa]   (or: npm run check)
        (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute; a11y: only check 13; red: only check 14;
-        hero: only check 15; mesa: only check 16)
+        hero: only check 15; mesa: only check 16; compartir: only check 17, in a second)
 """
-import asyncio, functools, http.server, io, os, pathlib, sys, threading
+import asyncio, functools, html.parser, http.server, io, os, pathlib, sys, threading
 from PIL import Image, ImageChops, ImageStat
 from playwright.async_api import async_playwright
 
@@ -1301,8 +1304,35 @@ async def check_town_fit(browser):
         await page.close()
     return failures
 
+SITE = "https://reus-web.vercel.app/"
+def check_share(folder="dist"):
+    """Check 17: the link preview's tags and image, read from the build (no browser needed)."""
+    class Metas(html.parser.HTMLParser):
+        def __init__(self): super().__init__(); self.tags = {}
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag == "meta" and (a.get("property") or a.get("name")): self.tags[a.get("property") or a.get("name")] = a.get("content") or ""
+    m = Metas(); m.feed((root / folder / "index.html").read_text(encoding="utf-8")); t = m.tags
+    out = [f"<meta> {k} is missing or empty" for k in ("description", "og:type", "og:title", "og:description", "og:url",
+           "og:image", "og:image:width", "og:image:height", "og:image:alt", "twitter:card") if not t.get(k)]
+    if t.get("twitter:card") and t["twitter:card"] != "summary_large_image": out.append(f"twitter:card is {t['twitter:card']}, expected summary_large_image")
+    img = t.get("og:image", "")
+    if img and not img.startswith(SITE): out.append(f"og:image must be an absolute URL on {SITE} (crawlers don't resolve relative ones): {img}")
+    elif img:
+        f = root / folder / img[len(SITE):]
+        if not f.is_file(): out.append(f"og:image {img} is not in {folder}/ (put it in src/public/)")
+        else:
+            w, h = Image.open(f).size
+            if (str(w), str(h)) != (t.get("og:image:width"), t.get("og:image:height")): out.append(f"og:image is {w}×{h}, the tags say {t.get('og:image:width')}×{t.get('og:image:height')}")
+            if (w, h) != (1200, 630): out.append(f"og:image is {w}×{h}, expected 1200×630")
+            if f.stat().st_size >= 1_000_000: out.append(f"og:image weighs {f.stat().st_size // 1000} kB, keep it under 1 MB")
+    return out
+
 async def main():
     failures = []
+    if sys.argv[1:] == ["compartir"]:
+        failures += check_share()
+        print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · compartir"); sys.exit(1 if failures else 0)
     async with async_playwright() as p:
         # software WebGL so it also runs on machines without a GPU (slow but faithful)
         browser = await p.chromium.launch(args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
@@ -1363,6 +1393,7 @@ async def main():
             failures += [f"{name}: {e}" for e in await check_letters(page, name)]
             await page.close()
         failures += await check_sizes(browser)
+        failures += [f"compartir: {e}" for e in check_share()]
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
         failures += [f"red: {e}" for e in await check_red(browser)]
         failures += [f"hero: {e}" for e in await check_hero(browser)]
