@@ -12,11 +12,14 @@ export interface Network {
 export const NET = red as unknown as Network;
 export const SANTS = '71801', REUS = '71400', CAMP = '04104';
 // the Barcelona end of the trip (3.5): Sants first, the default. El Clot left out (Àlex, 05-10: nobody asks for it)
-export const BCN: {id: string, name: string}[] = [{id:SANTS, name:'Sants'}, {id:'71802', name:'Passeig de Gràcia'}, {id:'79400', name:'França'}];
+// `short` is the name on the ticket, where «Passeig de Gràcia» does not fit (Àlex, 06-10); everywhere else, `name`
+export const BCN: {id: string, name: string, short: string}[] = [{id:SANTS, name:'Sants', short:'Sants'},
+  {id:'71802', name:'Passeig de Gràcia', short:'Gràcia'}, {id:'79400', name:'França', short:'França'}];
 export const bcnName = (id: string): string => BCN.find(s => s.id === id)?.name ?? 'Sants';
+export const bcnShort = (id: string): string => BCN.find(s => s.id === id)?.short ?? 'Sants';
 // towns for which the AVE from Camp de Tarragona is a real alternative to the regional (about 35 min instead of 1 h 40 min)
 const AVE_COMARCAS = new Set(['Baix Camp', 'Tarragonès']);
-const hasAve = (town: string): boolean => AVE_COMARCAS.has(NET.estaciones[town]?.comarca ?? '');
+export const hasAve = (town: string): boolean => AVE_COMARCAS.has(NET.estaciones[town]?.comarca ?? '');
 // who the data comes from and when it was updated: Renfe's licence asks for both
 export const source = { fuente: NET.fuente, actualizado: NET.actualizado };
 
