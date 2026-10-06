@@ -12,8 +12,13 @@ const day = (iso: string) => iso.split('-').reverse().join('/');
 // on the next calendar day, which is the one Renfe searches
 export function buyUrl(from: string, to: string, iso: string, dep: number): string {
   const date = day(addDays(iso, Math.floor(dep / 1440)));
-  // the fewest fields that open the day's list (tried by hand on 05-10-2026, Sants → Reus and L'Aldea → Sants): no
-  // station names, which Renfe and the GTFS spell differently
-  const q = new URLSearchParams({ cdgoOrigen: code(from), cdgoDestino: code(to), FechaIdaSel: date, Idioma: 'ca', Pais: 'ES' });
+  // the fields renfe.com's own search box sends, minus the station names (Renfe and the GTFS spell them differently)
+  // and the empty ones. Without the passenger counts, tipoBusqueda and currenLocation Renfe answers E500 to a browser
+  // with no Renfe session, and without vengoderenfecom one that already has a session sees its previous search
+  // (tried on 06-10-2026 with fresh and reused browsers: Sants → Reus, L'Aldea → Sants, Passeig de Gràcia → Reus)
+  const q = new URLSearchParams({
+    cdgoOrigen: code(from), cdgoDestino: code(to), FechaIdaSel: date, adultos_: '1', ninos_: '0', ninosMenores: '0',
+    tipoBusqueda: 'autocomplete', currenLocation: 'menuBusqueda', vengoderenfecom: 'SI', Idioma: 'ca', Pais: 'ES',
+  });
   return `${SEARCH}?${q}`;
 }
