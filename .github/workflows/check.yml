@@ -23,24 +23,7 @@ jobs:
       - run: pip install playwright pillow && python -m playwright install --with-deps chromium
       - run: npm run build
       - run: npm run build:paridad
-      - run: python scripts/check.py paridad   # TEMP: only the parity frames, to fetch CI's own table frame
-      - if: always()   # TEMP: CI's frame minus the committed one, compressed, in the log (artifacts cannot be downloaded from the cloud session)
-        run: |
-          python - <<'PY'
-          import zlib, base64, os
-          from PIL import Image, ImageChops, ImageStat, ImageFilter
-          def score(a, b, w, h):
-              size = (360, round(360 * h / w)); d = ImageChops.difference(a.resize(size), b.resize(size))
-              return sum(ImageStat.Stat(d).mean) / 3, sum(1 for px in d.getdata() if max(px) > 40) / (d.width * d.height), d
-          for v in ["escritorio-mesa"]:
-              f = f"screenshots/{v}-distinto.png"
-              if not os.path.exists(f): print("SAME", v); continue
-              ci = Image.open(f).convert("RGB"); ref = Image.open(f"scripts/baseline/linux/{v}.png").convert("RGB"); w, h = ci.size
-              m0, s0, d = score(ci, ref, w, h); print("BEFORE", v, w, h, round(m0, 3), round(s0, 5))
-              d = zlib.compress(bytes((x - y) & 255 for x, y in zip(ci.tobytes(), ref.tobytes())), 9)
-              z = base64.b64encode(d).decode(); print("FULL", v, len(z))
-              for i in range(0, len(z), 1000): print("P", v, z[i:i+1000])
-          PY
+      - run: python scripts/check.py
       # the screenshots, and any reference frame written in this run, to review or commit
       - if: always()
         uses: actions/upload-artifact@v4
