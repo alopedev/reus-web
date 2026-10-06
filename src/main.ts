@@ -39,3 +39,8 @@ setupShelf(world);
 // what check.py reads from the page (modules keep everything else private)
 declare global { interface Window { reus: { hingeAt: typeof hingeAt, dropped: typeof dropped, ScrollTrigger: typeof ScrollTrigger, paisaje: () => number | null, playing: () => boolean, letras: { pair: typeof pair, state: typeof state } } } }
 window.reus = { hingeAt, dropped, ScrollTrigger, paisaje: () => world ? world.grain() : null, playing: scenery.isPlaying, letras: { pair, state } };
+
+// without a connection the site still opens, with the timetable it was built with (src/sw.js); only the built site
+// has the worker, not `npm run dev`
+if(import.meta.env.PROD && 'serviceWorker' in navigator)
+  addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); }, {once: true});

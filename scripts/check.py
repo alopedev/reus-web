@@ -1438,6 +1438,31 @@ async def check_station(browser):
     await page.close()
     return errs
 
+async def check_offline(browser):
+    """17. Without a connection the site opens again, from what the first visit kept (src/sw.js)."""
+    errs = []
+    ctx = await browser.new_context(viewport={"width": 390, "height": 844}, reduced_motion="reduce")
+    page = await ctx.new_page(); page.set_default_timeout(120000)
+    errors = []; page.on("pageerror", lambda e: errors.append(str(e)))
+    await page.clock.set_fixed_time("2026-09-28T08:00:00Z")   # 10:00 in Madrid
+    await page.goto(parity_url)
+    try: await page.wait_for_function("navigator.serviceWorker && navigator.serviceWorker.controller !== null", timeout=60000)
+    except Exception:
+        errs.append("no offline worker takes over the page after the first visit"); await ctx.close(); return errs
+    kept = await page.evaluate("""(async () => { const k = (await caches.keys()).find(k => k.startsWith('capacasa-') && k !== 'capacasa-fuentes');
+      return k ? (await (await caches.open(k)).keys()).map(r => new URL(r.url).pathname) : []; })()""")
+    for f in ["/"] + [p for p in await page.evaluate("[...document.querySelectorAll('script[src], link[rel=stylesheet][href^=\"/\"]')].map(e => new URL(e.src || e.href).pathname)")]:
+        if f not in kept: errs.append(f"the offline worker does not keep {f} (keeps {kept})")
+    await ctx.set_offline(True)
+    try:
+        await page.reload(); await page.wait_for_timeout(1500)
+        board = await page.evaluate("(() => ({dep: document.getElementById('dep')?.textContent || '', worker: !!navigator.serviceWorker.controller}))()")
+        if board["dep"] != "10:03": errs.append(f"offline the board shows «{board['dep']}», expected the 10:03")
+    except Exception as e: errs.append(f"offline the page does not open again ({str(e)[:80]})")
+    errs += [f"JS error offline: {e}" for e in errors]
+    await ctx.close()
+    return errs
+
 async def main():
     failures = []
     async with async_playwright() as p:
@@ -1455,6 +1480,9 @@ async def main():
         if sys.argv[1:] == ["mesa"]:
             failures += await check_table_follows(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · mesa"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["sinred"]:
+            failures += await check_offline(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · sinred"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["a11y"]:
             failures += await check_a11y(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · a11y"); sys.exit(1 if failures else 0)
@@ -1501,6 +1529,7 @@ async def main():
             await page.close()
         failures += await check_sizes(browser)
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
+        failures += [f"sinred: {e}" for e in await check_offline(browser)]
         failures += [f"red: {e}" for e in await check_red(browser)]
         failures += [f"hero: {e}" for e in await check_hero(browser)]
         failures += [f"mesa: {e}" for e in await check_table_follows(browser)]
