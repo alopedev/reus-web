@@ -7,7 +7,8 @@
   --alzado-pared:.08em .08em 0 var(--shadow); --alzado-pared-hover:.11em .11em 0 var(--shadow);
   --grano-sello:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.4 1.5'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
   --serif:'Young Serif', 'Iowan Old Style', Georgia, serif;
-  --sans:'Karla', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Google's Literata has no arrows (→ ↗ ↔): they come from the system sans, as they did with Karla */
+  --texto:'Literata', system-ui, -apple-system, 'Segoe UI', sans-serif;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
 }
@@ -16,7 +17,7 @@ html,body{ margin:0; }
 html{ height:100%; font-size:clamp(14px, min(1.111vw, 1.778vh), 40px); }
 /* portrait screens scale with their width */
 @media (max-aspect-ratio:1/1){ html{ font-size:clamp(15px, calc(10px + 1.5vw), 22px); } }
-body{ min-height:100%; background:#7d6650; color:var(--paper); font-family:var(--sans); font-weight:500; }
+body{ min-height:100%; background:#7d6650; color:var(--paper); font-family:var(--texto); font-weight:500; }
 @media (prefers-reduced-motion: no-preference){ html{ scroll-behavior:smooth; } }
 /* the hero stays put while the shelf scrolls up over it */
 #hero{ position:fixed; inset:0; z-index:0; }
