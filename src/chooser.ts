@@ -17,10 +17,10 @@ function reach(id: string): string {
   const has = new Set(regional(id));
   const miss = all.filter(l => !has.has(l)).map(l => {
     const where = GROUPS.find(g => g.lines.includes(l))?.label.split(' · ')[0];
-    return where ? `la ${l} (${where})` : `la ${l}`;
+    return where ? `l’${l} (${where})` : `l’${l}`;
   });
-  const ave = hasAve(state.town) && NET.trenes.some(t => t.p === 'AVE' && t.s.some(x => x[0] === id)) ? ' y el AVE' : '';
-  return (miss.length ? `Todas menos ${miss.join(' y ')}` : 'Todas las líneas') + ave;
+  const ave = hasAve(state.town) && NET.trenes.some(t => t.p === 'AVE' && t.s.some(x => x[0] === id)) ? ' i l’AVE' : '';
+  return (miss.length ? `Totes menys ${miss.join(' i ')}` : 'Totes les línies') + ave;
 }
 
 // the pueblo chooser: a paper sheet over the darkened scene (native <dialog>, so Esc, focus-trapping and the
@@ -30,7 +30,7 @@ export function setupChooser(onPick: (id: string) => void, onStation: (id: strin
   const dialog = byId<HTMLDialogElement>('selp');
   let group: Group | null = null, picking = false, station = false;
 
-  const question = () => state.dir === 'casa' ? '¿A qué pueblo vas?' : '¿Desde qué pueblo vuelves?';
+  const question = () => state.dir === 'casa' ? 'On vas?' : 'D’on tornes?';
   // the pills in line-number order (R14 over R15), as in the prototype; the strip itself starts with the main line
   const pills = (g: Group) => [...g.lines].sort().map(l => `<span class="pill" style="--c:${LINE[l]}">${l}</span>`).join('');
 
@@ -41,10 +41,10 @@ export function setupChooser(onPick: (id: string) => void, onStation: (id: strin
   function stepTowns(g: Group): string {
     const rows = g.towns.map(t => `<li class="${t.line !== g.lines[0] ? 'branch' : ''}" style="--c:${LINE[t.line]}">
       <button type="button" class="opt" data-town="${t.id}"${t.id === state.town ? ' aria-current="true"' : ''}>${esc(t.name)}</button></li>`).join('');
-    return `<button type="button" class="back">‹ Líneas</button><h3 id="selpH">${question()}</h3><ol class="strip" style="--c:${LINE[g.lines[0]]}">${rows}</ol>`;
+    return `<button type="button" class="back">‹ Línies</button><h3 id="selpH">${question()}</h3><ol class="strip" style="--c:${LINE[g.lines[0]]}">${rows}</ol>`;
   }
   function stepStations(): string {
-    const q = state.dir === 'casa' ? '¿Desde qué estación de Barcelona sales?' : '¿A qué estación de Barcelona llegas?';
+    const q = state.dir === 'casa' ? 'De quina estació surts?' : 'A quina estació arribes?';
     return `<h3 id="selpH">${q}</h3><div class="ests">${BCN.map(s =>
       `<button type="button" class="est" data-station="${s.id}"${s.id === state.station ? ' aria-current="true"' : ''}>`
       + `<span class="n">${esc(s.name)}</span> <span class="d">${reach(s.id)}</span></button>`).join('')}</div>`;
@@ -53,7 +53,7 @@ export function setupChooser(onPick: (id: string) => void, onStation: (id: strin
   const edge = `--cut:${rag(11)}`;
   function draw(): void {
     const body = station ? stepStations() : group ? stepTowns(group) : stepGroups();
-    dialog.innerHTML = `<div class="sheet"><div class="pp" style="${edge}"><button type="button" class="x" aria-label="Cerrar">✕</button>${body}</div></div>`;
+    dialog.innerHTML = `<div class="sheet"><div class="pp" style="${edge}"><button type="button" class="x" aria-label="Tancar">✕</button>${body}</div></div>`;
   }
   const focusSel = (sel: string) => dialog.querySelector<HTMLElement>(sel)?.focus();
 

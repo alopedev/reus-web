@@ -60,7 +60,7 @@ export function madridNow(): {date: string, min: number} {
 export const addDays = (iso: string, n: number): string => { const d=new Date(iso+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); };
 export const weekday = (iso: string): number => new Date(iso+'T12:00:00Z').getUTCDay();
 export const hhmm = (m: number): string => { m=((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); };
-export const dur = (m: number): string => { if(m<1) return 'ahora'; const h=Math.floor(m/60), r=m%60; return h?(r?`${h} h ${r} min`:`${h} h`):`${r} min`; };
+export const dur = (m: number): string => { if(m<1) return 'ara'; const h=Math.floor(m/60), r=m%60; return h?(r?`${h} h ${r} min`:`${h} h`):`${r} min`; };
 
 // days missing from the data borrow the latest known day of the same kind (weekday, Saturday or Sunday). `station`
 // is the Barcelona end of the trip (Sants by default; a parameter already, for 3.5's choice of station)

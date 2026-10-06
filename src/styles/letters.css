@@ -1,4 +1,4 @@
-/* the letters' journey: paper cut-outs that fly from the name on the wall to "Qué es" on the table.
+/* the letters' journey: paper cut-outs that fly from the name on the wall to "Què és" on the table.
    A layer of its own, fixed and above both the wall (#hero, z-index 0) and the table (#repisa, z-index 2):
    nested inside either, its transform/filter would break its own fixed positioning and .escena would clip it. */
 #letras{ position:fixed; inset:0; z-index:5; pointer-events:none; }

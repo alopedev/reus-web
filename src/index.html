@@ -1,23 +1,23 @@
 <!doctype html>
-<html lang="es">
+<html lang="ca">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#7d6650">
 <title>Capacasa</title>
-<meta name="description" content="El tren a casa, y de vuelta a Barcelona: los próximos trenes directos entre Barcelona y tu pueblo, en una sola pantalla pintada.">
+<meta name="description" content="El tren cap a casa, i el de tornada a Barcelona: els pròxims trens directes entre Barcelona i el teu poble, en una pantalla.">
 <!-- the preview when the link is shared (LinkedIn, X, WhatsApp): crawlers need absolute URLs -->
 <meta property="og:type" content="website">
-<meta property="og:locale" content="es_ES">
+<meta property="og:locale" content="ca_ES">
 <meta property="og:site_name" content="Capacasa">
 <meta property="og:title" content="Capacasa">
-<meta property="og:description" content="El tren a casa, y de vuelta a Barcelona: los próximos trenes directos entre Barcelona y tu pueblo.">
+<meta property="og:description" content="El tren cap a casa, i el de tornada a Barcelona: els pròxims trens directes entre Barcelona i el teu poble.">
 <meta property="og:url" content="https://reus-web.vercel.app/">
 <meta property="og:image" content="https://reus-web.vercel.app/og.jpg">
 <meta property="og:image:type" content="image/jpeg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Capacasa: interior de un vagón pintado en acuarela con el campo al atardecer en la ventanilla, cuatro billetes de papel (Sants ⇄ Reus, Girona ⇄ Gràcia, França ⇄ Tortosa, Figueres ⇄ Sants) y el próximo tren, R15 18:33 → 20:03">
+<meta property="og:image:alt" content="Capacasa: interior d’un vagó pintat amb aquarel·la amb el camp al capvespre a la finestreta, quatre bitllets de paper (Sants ⇄ Reus, Girona ⇄ Gràcia, França ⇄ Tortosa, Figueres ⇄ Sants) i el pròxim tren, R15 18:33 → 20:03">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,9 +29,9 @@
   <div class="top">
     <div class="brandBox">
       <h1 class="brand">Capacasa</h1>
-      <p class="sub">El tren a casa, y de vuelta a Barcelona</p>
+      <p class="sub">El tren cap a casa, i el de tornada a Barcelona</p>
     </div>
-    <div class="tickets" id="tickets" role="group" aria-label="Sentido del viaje"></div>
+    <div class="tickets" id="tickets" role="group" aria-label="Sentit del viatge"></div>
   </div>
   <dialog id="selp" aria-labelledby="selpH"></dialog>
   <dialog id="detalle" aria-labelledby="detalleH"></dialog>
@@ -41,12 +41,12 @@
     <div class="board" id="board"></div>
     <p class="note" id="note"></p>
     <div class="ruler">
-      <div class="rulerHead"><button type="button" class="now" id="nowBtn" hidden>Volver a ahora</button></div>
-      <div class="track"><div class="ticks" id="ticks"></div><input type="range" id="t" min="300" max="1439" step="1" aria-label="Elegir tren"></div>
+      <div class="rulerHead"><button type="button" class="now" id="nowBtn" hidden>Tornar a ara</button></div>
+      <div class="track"><div class="ticks" id="ticks"></div><input type="range" id="t" min="300" max="1439" step="1" aria-label="Triar tren"></div>
       <div class="hours" id="hours" aria-hidden="true"></div>
     </div>
   </section>
-  <a class="more" id="more" href="#repisa">Qué es y cómo se hizo <span aria-hidden="true">↓</span></a>
+  <a class="more" id="more" href="#repisa">Què és i com s’ha fet <span aria-hidden="true">↓</span></a>
 </div>
 <div class="sombra" id="sombra" aria-hidden="true"></div>
 <p class="sr" id="aviso" aria-live="polite"></p>
@@ -84,46 +84,46 @@
       <path d="M76 36 C82 28 88 28 94 36" fill="none" stroke="#1E1B1A" stroke-width="5"/><ellipse cx="32" cy="36" rx="12" ry="5" fill="#fff" opacity=".16"/><ellipse cx="116" cy="36" rx="12" ry="5" fill="#fff" opacity=".16"/></svg>
   </div>
   <div class="cosa vib c" id="rodalies" aria-hidden="true"><div class="rodalies">
-    <span style="top:7px;font-size:9px;letter-spacing:.06em">RODALIES · 2ª · IDA</span><span style="top:20px;font-size:11px">BCN SANTS → REUS</span></div></div>
+    <span style="top:7px;font-size:9px;letter-spacing:.06em">RODALIES · 2a · ANADA</span><span style="top:20px;font-size:11px">BCN SANTS → REUS</span></div></div>
   <div class="mesa">
     <header class="intro">
-      <h2 id="qe">Qué es</h2>
-      <p>¿A qué hora sale el próximo tren a casa? Capacasa te lo dice sin complicaciones, sin mil opciones en que perderse. Toca tu pueblo en el billete y ya está: sin buscador, sin fechas, sin registro.</p>
+      <h2 id="qe">Què és</h2>
+      <p>A quina hora surt el pròxim tren cap a casa? Capacasa t’ho diu directament, sense mil opcions on perdre’s. Toca el teu poble al bitllet i ja està: sense cercador, sense dates, sense registre.</p>
     </header>
 
     <article class="papel folleto vib" id="folleto" aria-labelledby="h-leer">
-      <span class="kicker">Folleto</span>
-      <h2 id="h-leer">Cómo leerla</h2>
+      <span class="kicker">Fullet</span>
+      <h2 id="h-leer">Com llegir-la</h2>
       <div class="mini" aria-hidden="true"><div class="w"></div>
         <span class="n" style="left:8px;top:84px">1</span><span class="n" style="right:8px;top:8px">2</span>
         <span class="n" style="left:40%;top:88px">3</span><span class="n" style="left:66%;top:88px">4</span></div>
       <ol>
-        <li><b>1</b> · La hora grande: tu tren. «comprar» te lleva a Renfe.</li>
-        <li><b>2</b> · El billete: toca tu pueblo o tu estación; ⇄ da la vuelta.</li>
-        <li><b>3</b> · Pulsa un horario para elegirlo. En la lista, el sello marca el tuyo.</li>
-        <li><b>4</b> · La línea de abajo es el día y las líneas transversales, los trenes.</li>
+        <li><b>1</b> · L’hora en gran: el teu tren. «compra’l» et porta a Renfe.</li>
+        <li><b>2</b> · El bitllet: toca el teu poble o la teva estació; ⇄ els gira.</li>
+        <li><b>3</b> · Clica un horari per triar-lo. A la llista, el segell marca el teu.</li>
+        <li><b>4</b> · La línia de baix és el dia i les línies transversals, els trens.</li>
       </ol>
     </article>
 
     <article class="cuaderno vib b" id="cuaderno" aria-labelledby="h-hizo">
-      <div class="hoja izq"><div class="papel cara guarda" aria-hidden="true"><b>Cuaderno de viaje</b><span>De Barcelona a casa</span></div><div class="tapa" aria-hidden="true"><b>Cuaderno<br>de viaje</b><span>De Barcelona a casa</span></div></div>
+      <div class="hoja izq"><div class="papel cara guarda" aria-hidden="true"><b>Llibre de viatge</b><span>De Barcelona a casa</span></div><div class="tapa" aria-hidden="true"><b>Llibre<br>de viatge</b><span>De Barcelona a casa</span></div></div>
       <div class="papel hoja der">
-        <span class="kicker">Cuaderno · técnica</span>
-        <h2 id="h-hizo">Cómo se hizo</h2>
+        <span class="kicker">Quadern · tècnica</span>
+        <h2 id="h-hizo">Com s’ha fet</h2>
         <ul>
-          <li>Un paisaje en 3D, no un vídeo <span class="tec">Three.js: escena 3D generada por código</span></li>
-          <li>Pintado en acuarela, en directo <span class="tec">Shader WebGL: filtro Kuwahara y pigmento</span></li>
-          <li>Un billete que se pulsa <span class="tec">HTML y CSS: papel recortado con clip-path</span></li>
-          <li>La mirada baja a la mesa <span class="tec">CSS 3D y GSAP ScrollTrigger</span></li>
+          <li>Un paisatge en 3D, no un vídeo <span class="tec">Three.js: escena 3D generada per codi</span></li>
+          <li>Pintat amb aquarel·la, en directe <span class="tec">Shader WebGL: filtre Kuwahara i pigment</span></li>
+          <li>Un bitllet clicat <span class="tec">HTML i CSS: paper retallat amb clip-path</span></li>
+          <li>Scroll cap a la taula <span class="tec">CSS 3D i GSAP ScrollTrigger</span></li>
         </ul>
       </div>
     </article>
 
     <article class="reverso vib c" id="reverso" aria-labelledby="h-datos">
       <div class="papel">
-        <span class="kicker">Reverso del billete</span>
-        <h2 id="h-datos">Datos y límites</h2>
-        <p>Es el horario previsto: los retrasos no salen aquí. Solo trenes directos, regionales y el AVE de Camp de Tarragona. El billete se compra en Renfe. <span id="hasta"></span></p>
+        <span class="kicker">Revers del bitllet</span>
+        <h2 id="h-datos">Dades i límits</h2>
+        <p>És l’horari previst: els retards no surten. Només trens directes, regionals i l’AVE de Camp de Tarragona. El bitllet es compra a Renfe. <span id="hasta"></span></p>
         <p class="fuente" id="fuente"></p>
       </div>
     </article>

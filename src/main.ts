@@ -15,7 +15,7 @@ import { byId } from './dom';
 // or a reopened tab). The native API, not ScrollTrigger.clearScrollMemory(): ScrollTrigger is only registered later,
 // in setupShelf, and calling it before stops the whole page from starting
 if('scrollRestoration' in history) history.scrollRestoration = 'manual';
-// nor jump to an anchor: «Qué es y cómo se hizo» used to leave #repisa in the address, and reopening the site from
+// nor jump to an anchor: «Què és i com s’ha fet» used to leave #repisa in the address, and reopening the site from
 // the history or the address bar's suggestions landed on the table (Safari shows only the domain, so it was unseen)
 if(location.hash){
   history.replaceState(null, '', location.pathname + location.search);

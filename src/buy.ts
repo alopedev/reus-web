@@ -18,7 +18,7 @@ export function buyUrl(from: string, to: string, iso: string, dep: number): stri
   // (tried on 06-10-2026 with fresh and reused browsers: Sants → Reus, L'Aldea → Sants, Passeig de Gràcia → Reus)
   const q = new URLSearchParams({
     cdgoOrigen: code(from), cdgoDestino: code(to), FechaIdaSel: date, adultos_: '1', ninos_: '0', ninosMenores: '0',
-    tipoBusqueda: 'autocomplete', currenLocation: 'menuBusqueda', vengoderenfecom: 'SI', Idioma: 'es', Pais: 'ES',
+    tipoBusqueda: 'autocomplete', currenLocation: 'menuBusqueda', vengoderenfecom: 'SI', Idioma: 'ca', Pais: 'ES',
   });
   return `${SEARCH}?${q}`;
 }
