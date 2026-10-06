@@ -1338,13 +1338,15 @@ PHONE = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), d = document.
   return {rows: [...document.querySelectorAll('#board .trip')].map(r => n(r.textContent)), buttons: [...document.querySelectorAll('#board .trip')].map(r => r.matches('button')),
           buy: document.querySelectorAll('#board a').length, dep: document.getElementById('dep')?.textContent, open: d.open, sheet: n(d.textContent),
           link: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), tab: a.target === '_blank'},
+          home: (h => h && {url: h.origin + h.pathname, text: h.searchParams.get('text'), tab: d.querySelector('.avisa').target === '_blank'})(d.querySelector('.avisa') && new URL(d.querySelector('.avisa').href)),
           focus: document.activeElement?.matches('#board button.big') ?? false}; })()"""
 
 async def check_phone_board(browser):
     """6B (Àlex, 06-10): on a phone the board keeps only the times, the countdown on the big train and a «›» on every
     trip; every trip is a button (the big one too) that opens a paper sheet with its detail and «Comprar en Renfe ↗».
     Tapping another trip makes it the train shown first. Esc, ✕ and the backdrop close the sheet and hand the focus
-    back to the big train. On a wide screen the board is unchanged (check_hero_board)."""
+    back to the big train. On a wide screen the board is unchanged (check_hero_board). The sheet also says «Avisar a
+    casa» (Àlex 06-10, only on a phone): a link to WhatsApp (wa.me, no number) with the train written as a message."""
     errs = []
     page = await hero_page(browser, 390, 844)
     b = await page.evaluate(PHONE)
@@ -1356,6 +1358,11 @@ async def check_phone_board(browser):
         try: await page.click(sel, timeout=CLICK_MS)
         except Exception: errs.append(f"{when}: {sel} is not clickable"); return None
         await page.wait_for_timeout(500); return await page.evaluate(PHONE)
+    def home(b, when, text):
+        h = b["home"]
+        if not h: errs.append(f"{when}: the sheet has no «Avisar a casa»"); return
+        if h["url"] != "https://wa.me/" or h["text"] != text or not h["tab"]:
+            errs.append(f"{when}: «Avisar a casa» goes to {h['url']} with «{h['text']}» (new tab: {h['tab']}), expected https://wa.me/ with «{text}»")
     async def sheet(when, dep, arr, said, link):
         b = await tap("#board button.big", when) if when != "after tapping the 11:03" else await tap("#board .tt", when)
         if not b: return
@@ -1366,6 +1373,8 @@ async def check_phone_board(browser):
         k = b["link"]
         if not k: errs.append(f"{when}: the sheet has no link to Renfe")
         elif (k["from"], k["to"], k["day"]) != link or not k["tab"]: errs.append(f"{when}: «Comprar en Renfe» searches {k}, expected {link} in a new tab")
+        home(b, when, f"Cojo el R15 de las {dep} en Sants. Llego a Reus a las {arr}.")
+        if "Avisar a casa" not in b["sheet"]: errs.append(f"{when}: the sheet does not say «Avisar a casa»")
     await sheet("tapping the big train", "10:03", "11:33", "Sale en 3 min", ("0071,71801,71801", "0071,71400,71400", "28/09/2026"))
     await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
     b = await page.evaluate(PHONE)
@@ -1376,6 +1385,12 @@ async def check_phone_board(browser):
     await tap("#board button.big", "the backdrop")
     await page.mouse.click(195, 40); await page.wait_for_timeout(300)
     if (await page.evaluate(PHONE))["open"]: errs.append("the backdrop does not close the sheet")
+    await page.close()
+    # from Reus at 21:30 the train shown is today's last AVE, from Camp de Tarragona: the message says where it leaves
+    page = await hero_page(browser, 390, 844, at="2026-09-28T19:30:00Z")
+    await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    b = await tap("#board button.big", "the AVE from Reus at 21:30")
+    if b: home(b, "the AVE from Reus at 21:30", "Cojo el AVE de las 22:17 en Camp de Tarragona. Llego a Sants a las 22:59.")
     await page.close()
     return errs
 

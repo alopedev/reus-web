@@ -1,6 +1,7 @@
 import { reduce, state } from './state';
 import { madridNow, addDays, hhmm, dur, dayData, lastDay, source, NET, BCN, bcnName, bcnShort, CAMP, stopsBetween, type Train } from './time';
 import { buyUrl } from './buy';
+import { homeText } from './home';
 import { cut } from './paper';
 import { LINE } from './towns';
 import { setupChooser } from './chooser';
@@ -85,7 +86,8 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     cur = { line: a[3], color: LINE[a[3]] ?? 'var(--shadow)', from: ida ? bcn : there, to: ida ? there : bcn, dep: hhmm(a[0]), arr: hhmm(a[1]),
       when: tomorrow ? 'Mañana' : a[0] < now.min ? 'Ya ha salido' : a[0] === now.min ? 'Sale ahora' : `Sale en ${dur(a[0]-now.min)}`, length: dur(a[1]-a[0]),
       stops: stopsBetween(tomorrow ? addDays(now.date, 1) : now.date, a[2], ends[0], ends[1]), buy,
-      ave: isAve ? (ida ? `El AVE no llega a ${townName}: baja en Camp de Tarragona.` : `El AVE no sale de ${townName}: sale de Camp de Tarragona.`) : '' };
+      ave: isAve ? (ida ? `El AVE no llega a ${townName}: baja en Camp de Tarragona.` : `El AVE no sale de ${townName}: sale de Camp de Tarragona.`) : '',
+      home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(a[1]), tomorrow) };
     const key = a[0] + state.dir + isAve + state.town + state.station;
     const turn = shown !== null && shown !== key;
     if(html !== drawn || turn){ byId('board').innerHTML = drawn = html; if(turn && !reduce) byId('dep').classList.add('swap'); }
