@@ -3,6 +3,7 @@ import { madridNow, addDays, hhmm, dur, dayData, lastDay, source, NET, BCN, bcnN
 import { buyUrl } from './buy';
 import { homeText } from './home';
 import { cut } from './paper';
+import { ofPlace, atPlace } from './ca';
 import { LINE } from './towns';
 import { setupChooser } from './chooser';
 import { setupDetail, type Trip } from './detail';
@@ -42,16 +43,16 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     const none = !lastAve && !regs.length && !aves.length;
     if(none){
       byId('lbl').textContent = noTrain(from, to, now.date);
-      byId('ticks').innerHTML = `<b class="nowline${now.min < R0 + 60 ? ' start' : now.min > R1 - 60 ? ' end' : ''}" style="left:${pos(now.min)}"><span>ahora</span></b>`;
+      byId('ticks').innerHTML = `<b class="nowline${now.min < R0 + 60 ? ' start' : now.min > R1 - 60 ? ' end' : ''}" style="left:${pos(now.min)}"><span>ara</span></b>`;
       tIn.value = String(Math.min(R1, Math.max(R0, now.min)));
       nowBtn.parentElement!.classList.toggle('left', now.min > (R0+R1)/2);
-      tIn.setAttribute('aria-valuetext', 'sin tren directo hoy ni mañana');
+      tIn.setAttribute('aria-valuetext', 'sense tren directe avui ni demà');
       nowBtn.hidden = state.useNow;
       if(world) world.setTime(now.min);
       table.setTime(now.min);
       byId('board').innerHTML = drawn = ''; cur = null;
       if(shown !== 'none' + state.station + state.town + state.dir){ byId('aviso').textContent = noTrain(from, to, now.date); shown = 'none' + state.station + state.town + state.dir; }
-      byId('note').textContent = exact ? '' : 'Horario aproximado: aún no hay horario oficial de este día.';
+      byId('note').textContent = exact ? '' : 'Horari aproximat: encara no hi ha horari oficial d’aquest dia.';
       if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
       return;
     }
@@ -61,15 +62,15 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     const isAve = !!lastAve || (!!ave && (!regs.length || ave[0] < regs[0][0] || (!state.useNow && !tomorrow && state.ave && ave[0] === start)));
     const a = isAve ? ave : regs[0];
     const live = state.useNow && !tomorrow;
-    byId('lbl').textContent = lastAve ? 'Hoy ya no quedan regionales' : tomorrow ? 'Hoy ya no quedan · mañana' : '';
+    byId('lbl').textContent = lastAve ? 'Avui ja no queden regionals' : tomorrow ? 'Avui ja no en queden · demà' : '';
     // the ruler has one mark: the knob always stands on the train shown (every tick is a train, the AVE like the
     // rest); now is a thin line with its word
     byId('ticks').innerHTML = today.map(({t, ave:v})=>`<i class="${!tomorrow && v===isAve && t[0]===a[0] ? 'on' : ''}" style="left:${pos(t[0])}"></i>`).join('')
-      + `<b class="nowline${now.min < R0 + 60 ? ' start' : now.min > R1 - 60 ? ' end' : ''}" style="left:${pos(now.min)}"><span>ahora</span></b>`;
+      + `<b class="nowline${now.min < R0 + 60 ? ' start' : now.min > R1 - 60 ? ' end' : ''}" style="left:${pos(now.min)}"><span>ara</span></b>`;
     tIn.value = String(tomorrow ? Math.min(R1, Math.max(R0, now.min)) : a[0]);
-    // «Volver a ahora» stands on the side of the ruler away from «ahora», so it never covers the word
+    // «Tornar a ara» stands on the side of the ruler away from «ara», so it never covers the word
     nowBtn.parentElement!.classList.toggle('left', now.min > (R0+R1)/2);
-    tIn.setAttribute('aria-valuetext', tomorrow ? 'no quedan trenes hoy' : `${isAve ? 'AVE' : 'tren'} de las ${hhmm(a[0])}`);
+    tIn.setAttribute('aria-valuetext', tomorrow ? 'avui ja no queden trens' : `${isAve ? 'AVE' : 'tren'} de les ${hhmm(a[0])}`);
     nowBtn.hidden = state.useNow;
     if(world) world.setTime(tomorrow ? a[0] : start);
     table.setTime(tomorrow ? a[0] : start);
@@ -84,23 +85,23 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     // the detail of the train shown, for the sheet a phone opens
     const there = isAve ? 'Camp de Tarragona' : townName;
     cur = { line: a[3], color: LINE[a[3]] ?? 'var(--shadow)', from: ida ? bcn : there, to: ida ? there : bcn, dep: hhmm(a[0]), arr: hhmm(a[1]),
-      when: tomorrow ? 'Mañana' : a[0] < now.min ? 'Ya ha salido' : a[0] === now.min ? 'Sale ahora' : `Sale en ${dur(a[0]-now.min)}`, length: dur(a[1]-a[0]),
+      when: tomorrow ? 'Demà' : a[0] < now.min ? 'Ja ha sortit' : a[0] === now.min ? 'Surt ara' : `Surt d’aquí a ${dur(a[0]-now.min)}`, length: dur(a[1]-a[0]),
       stops: stopsBetween(tomorrow ? addDays(now.date, 1) : now.date, a[2], ends[0], ends[1]), buy,
-      ave: isAve ? (ida ? `El AVE no llega a ${townName}: baja en Camp de Tarragona.` : `El AVE no sale de ${townName}: sale de Camp de Tarragona.`) : '',
+      ave: isAve ? (ida ? `L’AVE no arriba ${atPlace(townName)}: baixa a Camp de Tarragona.` : `L’AVE no surt ${ofPlace(townName)}: surt de Camp de Tarragona.`) : '',
       home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(a[1]), tomorrow) };
     const key = a[0] + state.dir + isAve + state.town + state.station;
     const turn = shown !== null && shown !== key;
     if(html !== drawn || turn){ byId('board').innerHTML = drawn = html; if(turn && !reduce) byId('dep').classList.add('swap'); }
     if(shown !== key){ say(tomorrow, isAve ? (ida ? bcn : 'Camp de Tarragona') : from, isAve ? (ida ? 'Camp de Tarragona' : `Barcelona ${bcn}`) : to, a, isAve); shown = key; }
-    byId('note').textContent = exact ? '' : 'Horario aproximado: aún no hay horario oficial de este día.';
+    byId('note').textContent = exact ? '' : 'Horari aproximat: encara no hi ha horari oficial d’aquest dia.';
     if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
   }
   // the ticket's route: both ends are buttons, the town's opens the town chooser and Barcelona's the station
   // chooser (3.5); ⇄ turns the order around, so the DOM order matches what is read: «Sants ⇄ Reus» / «Reus ⇄ Sants»
   function route(ida: boolean, townName: string): string {
-    const swap = `<button type="button" class="swap" aria-label="Cambiar el sentido">⇄</button>`;
-    const townBtn = `<button type="button" class="end town" aria-haspopup="dialog" aria-label="${townName}, cambiar de pueblo">${townName}</button>`;
-    const bcnBtn = `<button type="button" class="end bcn" aria-haspopup="dialog" aria-label="${bcnName(state.station)}, cambiar de estación de Barcelona">${bcnShort(state.station)}</button>`;
+    const swap = `<button type="button" class="swap" aria-label="Canviar el sentit">⇄</button>`;
+    const townBtn = `<button type="button" class="end town" aria-haspopup="dialog" aria-label="${townName}, canviar de poble">${townName}</button>`;
+    const bcnBtn = `<button type="button" class="end bcn" aria-haspopup="dialog" aria-label="${bcnName(state.station)}, canviar d’estació de Barcelona">${bcnShort(state.station)}</button>`;
     return ida ? `${bcnBtn} ${swap} ${townBtn}` : `${townBtn} ${swap} ${bcnBtn}`;
   }
   // the route is only rebuilt when it changes (⇄, a new town), never on the countdown's refresh; a rebuilt control
@@ -118,10 +119,10 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     const ida = state.dir === 'casa';
     const runs = (st: string) => [iso, addDays(iso, 1)].some(x => { const {d} = dayData(x, state.town, st); return (ida ? d.r : d.b).length > 0; });
     const others = BCN.filter(s => s.id !== state.station && runs(s.id)).map(s => s.name);
-    if(!others.length) return `No hay tren directo entre ${from} y ${to} hoy ni mañana.`;
+    if(!others.length) return `No hi ha tren directe entre ${from} i ${to} avui ni demà.`;
     const town = NET.estaciones[state.town].nombre, bcn = bcnName(state.station);
     const alt = others.length > 1 ? `${others.slice(0, -1).join(', ')} o de ${others[others.length - 1]}` : others[0];
-    return ida ? `Desde ${bcn} no hay tren directo a ${town}. Sale de ${alt}.` : `De ${town} no hay tren directo a ${bcn}. Va a ${alt.replace(' o de ', ' o a ')}.`;
+    return ida ? `Des de ${bcn} no hi ha tren directe ${atPlace(town)}. Surt de ${alt}.` : `${cap(ofPlace(town))} no hi ha tren directe a ${bcn}. Va a ${alt.replace(' o de ', ' o a ')}.`;
   }
   // one trip of the board: line, departure, which one it is («el próximo», with its countdown, and «el siguiente»;
   // «mañana» after today's last AVE), arrival. The AVE says under its arrival that it runs from or to Camp de
@@ -130,30 +131,31 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
   // is a button with a «›» that opens its detail, the big one included (its link to Renfe moves into the sheet)
   function trip(t: Train, big: boolean, isAve: boolean, until: string, morrow: boolean, buy: string, phone: boolean){
     if(phone){
-      const w = big ? `<span class="soon">${until && 'en ' + until}</span>` : morrow ? 'mañana' : '';
+      const w = big ? `<span class="soon">${until && 'd’aquí a ' + until}</span>` : morrow ? 'demà' : '';
       const cells = `<span class="pill" style="--c:${LINE[t[3]] ?? 'var(--shadow)'}">${t[3]}</span> <span class="t"${big ? ' id="dep"' : ''}>${hhmm(t[0])}</span> `
         + `<span class="w">${w}</span> <span class="t arr">→ ${hhmm(t[1])}</span> <span class="mas" aria-hidden="true">›</span>`;
-      const where = isAve ? (state.dir==='casa' ? ' a' : ' desde') + ' Camp de Tarragona' : '';
-      const label = `${isAve ? 'AVE' : t[3]} de las ${hhmm(t[0])}${where}${big && until ? ', sale en ' + until : morrow ? ', mañana' : ''}, llega a las ${hhmm(t[1])}. Ver detalle y comprar`;
+      const where = isAve ? (state.dir==='casa' ? ' a' : ' des de') + ' Camp de Tarragona' : '';
+      const label = `${isAve ? 'AVE' : t[3]} de les ${hhmm(t[0])}${where}${big && until ? ', surt d’aquí a ' + until : morrow ? ', demà' : ''}, arriba a les ${hhmm(t[1])}. Veure el detall i comprar`;
       return `<button type="button" class="trip${big ? ' big' : ' tt'}" data-m="${t[0]}"${isAve ? ' data-ave' : ''} aria-haspopup="dialog" aria-label="${label}">${cells}</button>`;
     }
     // the big train's time and «comprar ↗» open Renfe in a new tab; the word repeats the link for the eye only
     const to = ` href="${buy.replace(/&/g, '&amp;')}" target="_blank" rel="noopener"`;
-    const soon = big ? `<span class="soon">${until && 'en ' + until}</span>` : '';
+    const soon = big ? `<span class="soon">${until && 'd’aquí a ' + until}</span>` : '';
     const word = big ? ` <a class="buy"${to} tabindex="-1" aria-hidden="true">comprar ↗</a>` : '';
-    const where = (big ? `<span class="nx">el próximo${until ? ', ' : ''}</span>${soon}` : morrow ? 'mañana' : 'el siguiente') + word;
-    const camp = isAve ? ` <span class="st">${state.dir==='casa' ? 'hasta' : 'desde'} Camp de Tarragona</span>` : '';
+    const where = (big ? `<span class="nx">el pròxim${until ? ', ' : ''}</span>${soon}` : morrow ? 'demà' : 'el següent') + word;
+    const camp = isAve ? ` <span class="st">${state.dir==='casa' ? 'fins a' : 'des de'} Camp de Tarragona</span>` : '';
     // spaces between the cells: the grid ignores them, but the text (and a screen reader) keeps its words apart
-    const dep = big ? `<a class="t" id="dep"${to} aria-label="${hhmm(t[0])}, comprar en Renfe (abre otra pestaña)">${hhmm(t[0])}</a>` : `<span class="t">${hhmm(t[0])}</span>`;
+    const dep = big ? `<a class="t" id="dep"${to} aria-label="${hhmm(t[0])}, comprar a Renfe (s’obre en una altra pestanya)">${hhmm(t[0])}</a>` : `<span class="t">${hhmm(t[0])}</span>`;
     const cells = `<span class="pill" style="--c:${LINE[t[3]] ?? 'var(--shadow)'}">${t[3]}</span> ${dep} `
       + `<span class="w">${where}</span> <span class="t arr">→ ${hhmm(t[1])}</span>${camp}`;
     if(big) return `<div class="trip big">${cells}</div>`;
-    const label = `${isAve ? 'AVE' : t[3]} de las ${hhmm(t[0])}${isAve ? (state.dir==='casa' ? ' a' : ' desde') + ' Camp de Tarragona' : ''}, llega a las ${hhmm(t[1])}`;
+    const label = `${isAve ? 'AVE' : t[3]} de les ${hhmm(t[0])}${isAve ? (state.dir==='casa' ? ' a' : ' des de') + ' Camp de Tarragona' : ''}, arriba a les ${hhmm(t[1])}`;
     return `<button type="button" class="trip tt" data-m="${t[0]}"${isAve ? ' data-ave' : ''} aria-label="${label}">${cells}</button>`;
   }
+  const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
   // what a screen reader hears: the train, only when it changes (never the countdown's refresh)
   function say(tomorrow: boolean, from: string, to: string, a: Train, isAve: boolean){
-    byId('aviso').textContent = `${tomorrow ? 'Hoy ya no quedan trenes. El primero de mañana' : state.useNow ? 'Próximo tren' : 'Tren elegido'}: ${hhmm(a[0])}, ${isAve ? 'AVE ' : ''}de ${from} a ${to}; llega a las ${hhmm(a[1])}.`;
+    byId('aviso').textContent = `${tomorrow ? 'Avui ja no queden trens. El primer de demà' : state.useNow ? 'Pròxim tren' : 'Tren triat'}: ${hhmm(a[0])}, ${isAve ? 'AVE ' : ''}${ofPlace(from)} ${atPlace(to)}; arriba a les ${hhmm(a[1])}.`;
   }
   function pick(m: number, ave = false){ state.useNow = false; state.minute = m; state.ave = ave; render(); }
   nowBtn.addEventListener('click', ()=>{ state.useNow = true; render(); tIn.focus({preventScroll:true}); });
@@ -191,7 +193,7 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
   // their listeners are delegated on the container instead of attached to elements that get replaced
   byId('tickets').innerHTML = `
     <div class="tk" style="--cut:${cut(7)}">
-      <span class="pp"><span class="k">Billete</span>
+      <span class="pp"><span class="k">Bitllet</span>
       <span class="route"></span></span><span class="stub" aria-hidden="true"></span>
     </div>`;
   const detail = setupDetail();
@@ -205,8 +207,9 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     else if(t.closest('.end.bcn')) chooser.openStation();
   });
   setInterval(()=>{ if(state.useNow) render(); }, 30000);
-  { const day = (iso: string) => new Date(iso+'T12:00:00Z').toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
-    byId('hasta').textContent = `Horarios hasta el ${day(lastDay())}.`;
-    byId('fuente').textContent = `${source.fuente}, ${day(source.actualizado)}.`; }
+  { const day = (iso: string) => new Date(iso+'T12:00:00Z').toLocaleDateString('ca-ES',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
+    byId('hasta').textContent = `Horaris fins al ${day(lastDay())}.`;
+    // Renfe's licence asks for its exact words, in Spanish (data.renfe.com/legal); the date that follows is ours
+    byId('fuente').textContent = `${source.fuente}. Dades del ${day(source.actualizado)}.`; }
   return { render };
 }

@@ -18,14 +18,14 @@ const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;'
 export function setupDetail(): Detail {
   const dialog = byId<HTMLDialogElement>('detalle');
   function open(t: Trip): void {
-    const stops = t.stops == null ? '' : t.stops === 0 ? 'sin paradas' : t.stops === 1 ? '1 parada' : `${t.stops} paradas`;
-    dialog.innerHTML = `<div class="pliego" tabindex="-1"><button type="button" class="x" aria-label="Cerrar">✕</button>
+    const stops = t.stops == null ? '' : t.stops === 0 ? 'sense parades' : t.stops === 1 ? '1 parada' : `${t.stops} parades`;
+    dialog.innerHTML = `<div class="pliego" tabindex="-1"><button type="button" class="x" aria-label="Tancar">✕</button>
       <h3 id="detalleH"><span class="pill" style="--c:${t.color}">${esc(t.line)}</span> ${esc(t.from)} → ${esc(t.to)}</h3>
       <p class="horas">${t.dep} <span class="flecha">→</span> ${t.arr}</p>
-      <p class="datos"><span>${esc(t.when)}</span> <span>${t.length} de viaje${stops ? ' · ' + stops : ''}</span></p>
+      <p class="datos"><span>${esc(t.when)}</span> <span>${t.length} de viatge${stops ? ' · ' + stops : ''}</span></p>
       ${t.ave ? `<p class="ave">${esc(t.ave)}</p>` : ''}
-      <div class="botones"><a class="comprar" href="${esc(t.buy)}" target="_blank" rel="noopener">Comprar en Renfe ↗<span class="sr"> (abre otra pestaña)</span></a>
-      <a class="avisa" href="${esc(whatsappUrl(t.home))}" target="_blank" rel="noopener">Avisar a casa<span class="sr"> por WhatsApp</span></a></div></div>`;
+      <div class="botones"><a class="comprar" href="${esc(t.buy)}" target="_blank" rel="noopener">Comprar a Renfe ↗<span class="sr"> (s’obre en una altra pestanya)</span></a>
+      <a class="avisa" href="${esc(whatsappUrl(t.home))}" target="_blank" rel="noopener">Avisar a casa<span class="sr"> per WhatsApp</span></a></div></div>`;
     dialog.showModal();
     dialog.querySelector<HTMLElement>('.pliego')?.focus();   // the sheet itself: no ring on a control the finger did not choose
   }
