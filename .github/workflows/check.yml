@@ -23,7 +23,9 @@ jobs:
       - run: pip install playwright pillow && python -m playwright install --with-deps chromium
       - run: npm run build
       - run: npm run build:paridad
-      - run: python scripts/check.py
+      - run: python scripts/check.py paridad   # TEMP: only the parity frames, to fetch CI's own phone frame
+      - if: always()   # TEMP: CI's frame as base64 in the log (artifacts cannot be downloaded from the cloud session)
+        run: for f in screenshots/*-distinto.png; do echo "BEGIN $f"; base64 -w 100 "$f"; echo "END $f"; done
       # the screenshots, and any reference frame written in this run, to review or commit
       - if: always()
         uses: actions/upload-artifact@v4
