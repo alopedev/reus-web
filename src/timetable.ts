@@ -204,7 +204,7 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
   });
   setInterval(()=>{ if(state.useNow) render(); }, 30000);
   { const day = (iso: string) => new Date(iso+'T12:00:00Z').toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
-    byId('hasta').textContent = `Horarios cargados hasta el ${day(lastDay())}; los días siguientes se aproximan.`;
+    byId('hasta').textContent = `Horarios hasta el ${day(lastDay())}.`;
     byId('fuente').textContent = `${source.fuente}, ${day(source.actualizado)}.`; }
   return { render };
 }
