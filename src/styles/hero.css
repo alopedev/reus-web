@@ -63,6 +63,27 @@
 .tt:hover .t:not(.arr){ text-shadow:var(--alzado-pared-hover); }
 .tt:active .t:not(.arr){ text-shadow:none; transform:translate(.06em,.06em); }
 .tt:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
+/* the big train's route, on a desktop (journey.ts): its words first, on one line, then a line up to the arrival
+   with a dot at every stop, placed by the time it reaches it; names and times above or below, like the ruler's */
+.big .w{ display:flex; align-items:center; }
+.big .lead{ flex:none; white-space:nowrap; }
+.rec{ position:relative; flex:1 1 0; min-width:0; height:1.5px; margin-left:1.4rem; }
+.rec.off{ visibility:hidden; }
+/* the line, solid; folded (a long train), solid up to the second stop (--a), dotted to the last but one (--b), solid
+   again to the arrival, with «· 15 parades ·» over the dotted stretch */
+.rec::before, .rec::after{ content:""; position:absolute; top:0; bottom:0; background:var(--paper); opacity:.6; }
+.rec::before{ left:0; width:var(--a, 100%); } .rec::after{ left:var(--b, 100%); right:0; }
+.rec .tram{ display:none; position:absolute; top:0; bottom:0; left:var(--a); width:calc(var(--b) - var(--a));
+  background:repeating-linear-gradient(90deg, var(--paper) 0 .2rem, transparent .2rem .5rem); opacity:.9; }
+.rec.plegat .tram{ display:block; }
+.rec .pleg{ font-style:italic; letter-spacing:.02em; }
+.rec i, .rec b{ position:absolute; top:50%; width:.42rem; height:.42rem; border-radius:50%; background:var(--paper);
+  box-shadow:1px 1px 0 var(--shadow); transform:translate(-50%,-50%); }
+/* the ends, departure and arrival, are bigger than the stops */
+.rec b{ width:.6rem; height:.6rem; }
+.rec .s{ position:absolute; white-space:nowrap; font-size:.93rem; line-height:1.1; color:var(--soft); }
+.rec .s.up{ bottom:.5rem; } .rec .s.down{ top:.5rem; }
+.rec .h{ font-family:var(--serif); font-size:1rem; color:var(--paper); }
 #dep.swap{ animation:swap .45s ease; }
 @keyframes swap{ from{ opacity:.2; transform:translateY(8px); } to{ opacity:1; transform:none; } }
 .note{ font-size:.93rem; color:var(--soft); margin:0; text-shadow:0 1px 2px rgba(0,0,0,.35); }
