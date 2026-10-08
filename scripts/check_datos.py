@@ -238,7 +238,7 @@ def check_duplicados(d):
 
 
 def check_estaciones(d):
-    """Rule 7: Barcelona flag, comarca/lineas for towns, Camp de Tarragona's lineas."""
+    """Rule 7: Barcelona flag, comarca/lineas (and ll, when there) for towns, Camp de Tarragona's lineas."""
     errs = []
     estaciones = d.get("estaciones", {})
     bad = []
@@ -260,6 +260,11 @@ def check_estaciones(d):
             bad.append(f"{sid} ({info.get('nombre')}): missing comarca")
         if not info.get("lineas"):
             bad.append(f"{sid} ({info.get('nombre')}): missing or empty lineas")
+        # where the town is, for its weather (optional: without it the window shows none)
+        ll = info.get("ll")
+        if ll is not None and not (isinstance(ll, list) and len(ll) == 2 and all(isinstance(v, (int, float)) for v in ll)
+                                   and 40.4 <= ll[0] <= 42.95 and 0.1 <= ll[1] <= 3.4):
+            bad.append(f"{sid} ({info.get('nombre')}): ll should be [lat, lon] inside Catalonia, got {ll!r}")
     errs += capped(bad)
     return errs
 
