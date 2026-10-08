@@ -24,22 +24,6 @@ jobs:
       - run: npm run build
       - run: npm run build:paridad
       - run: python scripts/check.py
-      # temporary (PR #23): the cloud session cannot download artifacts, so the log carries each frame that differs
-      # as its difference from the committed reference (cropped, zlib, base64)
-      - if: failure()
-        run: |
-          python - <<'PY'
-          import base64, glob, os, zlib
-          from PIL import Image, ImageChops
-          for f in sorted(glob.glob('screenshots/*-distinto.png')):
-              name = os.path.basename(f)[:-len('-distinto.png')]
-              shot = Image.open(f).convert('RGB'); ref = Image.open(f'scripts/baseline/linux/{name}.png').convert('RGB')
-              d = ImageChops.subtract_modulo(shot, ref); box = d.getbbox() or (0, 0, 1, 1)
-              data = base64.b64encode(zlib.compress(d.crop(box).tobytes(), 9)).decode()
-              print(f'BEGIN {name} {shot.size[0]}x{shot.size[1]} box={box}')
-              for i in range(0, len(data), 4000): print(data[i:i + 4000])
-              print(f'END {name}')
-          PY
       # the screenshots, and any reference frame written in this run, to review or commit
       - if: always()
         uses: actions/upload-artifact@v4
