@@ -1082,8 +1082,11 @@ def _stops(net, day, frm, to, dep):
 
 JOURNEY = """(() => { const rec = document.querySelector('#board .trip.big .rec'); if(!rec) return null;
   const box = e => { const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
-  const shown = [...rec.querySelectorAll('.s')].filter(s => !s.hidden);
-  return {dots: [...rec.querySelectorAll('i')].map(i => parseFloat(i.style.left)), labels: [...rec.querySelectorAll('.s')].map(s => s.textContent),
+  const shown = [...rec.querySelectorAll('.s')].filter(s => !s.hidden), fold = rec.querySelector('.pleg');
+  return {dots: [...rec.querySelectorAll('i')].map(i => parseFloat(i.style.left)), labels: [...rec.querySelectorAll('.s:not(.pleg)')].map(s => s.textContent),
+          folded: rec.classList.contains('plegat'), fold: fold && !fold.hidden ? {text: fold.textContent, title: fold.title} : null,
+          bare: [...rec.querySelectorAll('i')].map(i => i.hidden), full: [...rec.querySelectorAll('i')].map(i => i.dataset.n),
+          tram: getComputedStyle(rec.querySelector('.tram')).display,
           shown: shown.map(s => ({text: s.textContent, side: s.classList.contains('up') ? 'up' : s.classList.contains('down') ? 'down' : '', ...box(s)})),
           titles: [...rec.querySelectorAll('i')].map(i => i.title), rec: box(rec), off: rec.classList.contains('off'), hidden: rec.getAttribute('aria-hidden'),
           win: box(document.getElementById('win')), lead: box(document.querySelector('#board .big .lead')), arr: box(document.querySelector('#board .big .arr'))}; })()"""
@@ -1091,10 +1094,12 @@ JOURNEY = """(() => { const rec = document.querySelector('#board .trip.big .rec'
 async def check_journey(browser):
     """The big train's route (Àlex 08-10, option A, only on a desktop): in the gap between «compra’l ↗» and the
     arrival, a line with a dot per stop placed by the time the train reaches it, and each stop's name and time above
-    or below its dot when there is room; a label left out keeps its dot, with the label as a tooltip. Labels never
-    overlap each other, the board's words, the arrival or the window. No route for the AVE (no stops) nor on a phone."""
+    or below its dot. When not every name fits, the line folds (Àlex 08-10, option B): the first two stops and the
+    last two keep their names, the stops between lose their dots under a dotted stretch with «· N parades ·» over it
+    (the folded stops as its tooltip). Labels never overlap each other, the board's words, the arrival or the window.
+    No route for the AVE (no stops) nor on a phone."""
     errs, net, day = [], _net(), "2026-09-28"
-    def judge(when, j, want, all_shown):
+    def judge(when, j, want, folded):
         if j is None: errs.append(f"{when}: the big train has no route (.rec)"); return
         names, d0, a0 = want
         if j["hidden"] != "true": errs.append(f"{when}: the route is not aria-hidden")
@@ -1102,11 +1107,20 @@ async def check_journey(browser):
         if j["labels"] != names: errs.append(f"{when}: the route's stops are {j['labels']}, expected {names}")
         at = [round((int(x.split()[-1][:2]) * 60 + int(x.split()[-1][3:]) - d0) % 1440 / (a0 - d0) * 100, 1) for x in names]
         if [round(x, 1) for x in j["dots"]] != at: errs.append(f"{when}: the dots stand at {j['dots']}%, expected {at}% (by the time of each stop)")
-        if all_shown and len(j["shown"]) != len(names): errs.append(f"{when}: only {len(j['shown'])} of {len(names)} labels shown, expected all")
-        if not j["shown"]: errs.append(f"{when}: no label shown")
-        hid = [t for t, lab in zip(j["titles"], j["labels"]) if lab not in [s["text"] for s in j["shown"]]]
-        if any(not t for t in hid): errs.append(f"{when}: a stop left without a label has no tooltip")
-        if any(t for t, lab in zip(j["titles"], j["labels"]) if lab in [s["text"] for s in j["shown"]]): errs.append(f"{when}: a labelled stop also has a tooltip")
+        n, texts = len(names), [s["text"] for s in j["shown"]]
+        if j["folded"] != folded: errs.append(f"{when}: the line is {'folded' if j['folded'] else 'not folded'}, expected {'folded' if folded else 'every stop named'}")
+        elif not folded:
+            if texts != names: errs.append(f"{when}: the labels shown are {texts}, expected every stop {names}")
+            if any(j["bare"]) or j["fold"] or j["tram"] != "none": errs.append(f"{when}: unfolded, yet a dot is hidden or the fold shows")
+        else:
+            # two names at each end when they fit, else one; the fold's word anywhere among them
+            k = (len(texts) - 1) // 2; want_fold = f"· {n - 2 * k} parades ·"
+            if k < 1 or sorted(texts) != sorted(names[:k] + [want_fold] + names[n - k:]):
+                errs.append(f"{when}: folded, the labels shown are {texts}, expected the first and last one or two stops and «· N parades ·»")
+            elif j["bare"] != [False] * k + [True] * (n - 2 * k) + [False] * k: errs.append(f"{when}: folded, the hidden dots are {j['bare']}, expected only the {n - 2 * k} in the fold")
+            elif j["fold"]["title"] != ", ".join(j["full"][k:n - k]): errs.append(f"{when}: the fold's tooltip is {j['fold']['title']!r}, expected the folded stops")
+            if j["tram"] == "none": errs.append(f"{when}: folded, but no dotted stretch")
+        if any(j["titles"]): errs.append(f"{when}: a dot has a tooltip although its stop is named or folded")
         cut = lambda p, q: p["l"] < q["r"] - .5 and q["l"] < p["r"] - .5 and p["t"] < q["b"] - .5 and q["t"] < p["b"] - .5
         for i, p in enumerate(j["shown"]):
             if not p["side"]: errs.append(f"{when}: «{p['text']}» is shown on neither side")
@@ -1117,12 +1131,12 @@ async def check_journey(browser):
                 if cut(p, q): errs.append(f"{when}: «{p['text']}» overlaps «{q['text']}»")
     # at 10:00, Sants → Reus: the R15 at 10:03, every stop labelled
     page = await hero_page(browser)
-    judge("Sants → Reus at 10:00", await page.evaluate(JOURNEY), _stops(net, day, SANTS_ID, REUS_TOWN, 603), True)
+    judge("Sants → Reus at 10:00", await page.evaluate(JOURNEY), _stops(net, day, SANTS_ID, REUS_TOWN, 603), False)
     # Reus → Sants: the AVE from Camp de Tarragona is the big train, and has no stops
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     if await page.evaluate(JOURNEY) is not None: errs.append("the AVE (no stops between Camp de Tarragona and Sants) has a route")
     await page.close()
-    # a long train on a small desktop: Lleida, at 1024 × 768; labels left out where they do not fit
+    # a long train on a small desktop: Lleida (the R14 at 12:03, 13 stops), at 1024 × 768: folded
     page = await hero_page(browser, 1024, 768)
     e = await choose_town(page, "R13", LLEIDA_TOWN)
     if e: errs += e
@@ -1131,7 +1145,7 @@ async def check_journey(browser):
         dep = await page.evaluate("document.getElementById('dep').textContent")
         want = _stops(net, day, SANTS_ID, LLEIDA_TOWN, int(dep[:2]) * 60 + int(dep[3:]))
         if not want: errs.append(f"Lleida: no direct train at {dep} in the frozen timetable")
-        else: judge(f"Sants → Lleida {dep} at 1024x768", await page.evaluate(JOURNEY), want, False)
+        else: judge(f"Sants → Lleida {dep} at 1024x768", await page.evaluate(JOURNEY), want, True)
     await page.close()
     # a phone has no room for it (6B): its board keeps only the times
     page = await hero_page(browser, 390, 844)

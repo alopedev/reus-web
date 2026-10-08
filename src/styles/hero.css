@@ -69,7 +69,14 @@
 .big .lead{ flex:none; white-space:nowrap; }
 .rec{ position:relative; flex:1 1 0; min-width:0; height:1.5px; margin-left:1.4rem; }
 .rec.off{ visibility:hidden; }
-.rec::before{ content:""; position:absolute; inset:0; background:var(--paper); opacity:.6; }
+/* the line, solid; folded (a long train), solid up to the second stop (--a), dotted to the last but one (--b), solid
+   again to the arrival, with «· 15 parades ·» over the dotted stretch */
+.rec::before, .rec::after{ content:""; position:absolute; top:0; bottom:0; background:var(--paper); opacity:.6; }
+.rec::before{ left:0; width:var(--a, 100%); } .rec::after{ left:var(--b, 100%); right:0; }
+.rec .tram{ display:none; position:absolute; top:0; bottom:0; left:var(--a); width:calc(var(--b) - var(--a));
+  background:repeating-linear-gradient(90deg, var(--paper) 0 .2rem, transparent .2rem .5rem); opacity:.9; }
+.rec.plegat .tram{ display:block; }
+.rec .pleg{ font-style:italic; letter-spacing:.02em; }
 .rec i, .rec b{ position:absolute; top:50%; width:.42rem; height:.42rem; border-radius:50%; background:var(--paper);
   box-shadow:1px 1px 0 var(--shadow); transform:translate(-50%,-50%); }
 /* the ends, departure and arrival, are bigger than the stops */
