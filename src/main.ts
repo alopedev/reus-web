@@ -44,3 +44,8 @@ window.reus = { hingeAt, dropped, ScrollTrigger, paisaje: () => world ? world.gr
 // has the worker, not `npm run dev`
 if(import.meta.env.PROD && 'serviceWorker' in navigator)
   addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); }, {once: true});
+
+// visits (P1-4): Vercel Web Analytics, no cookies, page views only. Vercel serves the script once Analytics is
+// enabled for the project; nowhere else is it there, so neither check.py nor `npm run dev` asks for it
+if(import.meta.env.PROD && location.hostname.endsWith('.vercel.app'))
+  document.head.append(Object.assign(document.createElement('script'), {src: '/_vercel/insights/script.js'}));
