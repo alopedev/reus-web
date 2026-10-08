@@ -16,7 +16,7 @@ Formato que produce `scripts/extract_red.py` y que comprueba `scripts/check_dato
   "fuente": "Origen de los datos: Renfe Operadora",
   "actualizado": "2026-09-28",
   "estaciones": {
-    "71400": {"nombre": "Reus", "comarca": "Baix Camp", "lineas": ["R14", "R15"], "ll": [41.15, 1.109]},
+    "71400": {"nombre": "Reus", "comarca": "Baix Camp", "lineas": ["R14", "R15"], "ll": [41.161, 1.1]},
     "71801": {"nombre": "Barcelona-Sants", "barcelona": true, "lineas": ["R11", "R13", "R14", "R15", "R16", "R17", "AVE"]}
   },
   "trenes": [
