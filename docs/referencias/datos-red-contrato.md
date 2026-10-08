@@ -16,7 +16,7 @@ Formato que produce `scripts/extract_red.py` y que comprueba `scripts/check_dato
   "fuente": "Origen de los datos: Renfe Operadora",
   "actualizado": "2026-09-28",
   "estaciones": {
-    "71400": {"nombre": "Reus", "comarca": "Baix Camp", "lineas": ["R14", "R15"]},
+    "71400": {"nombre": "Reus", "comarca": "Baix Camp", "lineas": ["R14", "R15"], "ll": [41.161, 1.1]},
     "71801": {"nombre": "Barcelona-Sants", "barcelona": true, "lineas": ["R11", "R13", "R14", "R15", "R16", "R17", "AVE"]}
   },
   "trenes": [
@@ -26,7 +26,7 @@ Formato que produce `scripts/extract_red.py` y que comprueba `scripts/check_dato
 }
 ```
 
-- `estaciones`: solo las que aparecen en algún tren. Cada pueblo lleva `comarca` (para el grupo AVE: Baix Camp y Tarragonès) y `lineas`; las de Barcelona llevan `"barcelona": true`. Camp de Tarragona lleva `"lineas": ["AVE"]`.
+- `estaciones`: solo las que aparecen en algún tren. Cada pueblo lleva `comarca` (para el grupo AVE: Baix Camp y Tarragonès) y `lineas`; las de Barcelona llevan `"barcelona": true`. Camp de Tarragona lleva `"lineas": ["AVE"]`. Desde el 08-10, cada pueblo lleva además `ll`, `[latitud, longitud]` de su estación en el GTFS con 3 decimales (unos 100 m), para pedir el tiempo de casa (Open-Meteo); es opcional: un pueblo sin `ll` se ve sin tiempo.
 - `trenes`: cada tren una vez, aunque circule muchos días. `n` número de tren, `p` producto o línea (`R11`…`R17`, `AVE`, `AVLO`), `s` paradas en orden: `[stop_id, llegada, salida]` en minutos desde medianoche (pueden pasar de 1440 si cruza la medianoche).
 - `dias`: fecha ISO → índices de `trenes` que circulan ese día.
 - Tamaño: ≤ 150 KB con gzip.
@@ -36,4 +36,5 @@ Formato que produce `scripts/extract_red.py` y que comprueba `scripts/check_dato
 - Sin duplicados: un mismo tren físico (número y horas) aparece una sola vez por día.
 - Horas crecientes a lo largo de `s`.
 - Cobertura: los pueblos con tren directo a Barcelona de `PUEBLOS_59` (`scripts/check_datos.py`) tienen estación y algún tren. Las paradas del área de Barcelona (Bellvitge - Gornal, El Prat Aeroport, El Prat de Llobregat) pueden faltar: el selector no las ofrece y Renfe deja de parar ahí cuando hay obras (desde el 03-10-2026).
+- Ningún día incompleto: cada día, cada línea (R11, R13–R17, y AVE/Avlo juntos) lleva al menos la mitad de su mediana de trenes diarios en el fichero. Un feed que llega con un día o una línea a medias no se publica.
 - Sants → Reus y Reus → Sants deben coincidir con `data/trains.json` (claves `r` y `b`) los días que ambos cubren: es la red de seguridad de que la web actual no pierde trenes.

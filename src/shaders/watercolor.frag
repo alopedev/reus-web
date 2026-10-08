@@ -1,6 +1,6 @@
 precision highp float;
 uniform sampler2D tScene; uniform vec2 res, sres; uniform float tq, reveal, aspect, waspect, hor, wrad, seats, foldY, shade;
-uniform vec3 skyTop, skyHor, sunCol, wallA, wallB, wood, seat; uniform vec2 sunPos; uniform float sunA; uniform vec4 win;
+uniform vec3 skyTop, skyHor, sunCol, wallA, wallB, wood, seat; uniform vec2 sunPos; uniform float sunA; uniform vec4 win; uniform float wx;
 varying vec2 vUv;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
@@ -23,7 +23,13 @@ vec3 sky(vec2 w, float t){
   s = mix(s, s*.88, fbm(w*vec2(2.2,1.6)+vec2(t*.02,0.))*.75);
   vec2 d = (w - sunPos)*vec2(waspect,1.);
   float rr = length(d) + (fbm(d*10.+t)-.5)*.02;
-  return mix(s, sunCol, smoothstep(.09,.08,rr)*sunA);
+  // the weather at home (wx: 0 fair, 1 overcast, 2 rain, 3 fog): anything but fair greys the sky into bands of
+  // cloud, in the light of the hour, and hides the sun
+  float ov = step(.5, wx);
+  vec3 grey = vec3(dot(s, vec3(.3,.5,.2)))*vec3(.92,.94,1.)*.92;
+  vec3 cl = mix(grey, grey*.78, smoothstep(.45,.75,fbm(w*vec2(1.6,4.)+vec2(t*.01,0.)))*.6);
+  s = mix(s, cl, ov*.85);
+  return mix(s, sunCol, smoothstep(.09,.08,rr)*sunA*(1.-ov));
 }
 // what the window shows, before it becomes paint
 vec3 outside(vec2 w, float t, out float e, out float pen){
@@ -37,7 +43,14 @@ vec3 outside(vec2 w, float t, out float e, out float pen){
   vec2 px = 1./res;
   vec4 bl = (texture2D(tScene,s+vec2(4.,1.)*px)+texture2D(tScene,s-vec2(4.,1.)*px)+texture2D(tScene,s+vec2(-1.,4.)*px)+texture2D(tScene,s-vec2(-1.,4.)*px))*.25;
   e = smoothstep(.06,.35,length(k-bl)); pen = smoothstep(.55,1.,e)*.2;
-  return mix(sky(w,t), obj, a);
+  // under a grey sky the land loses colour too; fog is a haze that thickens towards the horizon and softens the
+  // pen lines, which would otherwise show through it; its colour is the horizon's at that hour (grey by day, dark
+  // blue at night)
+  float ov = step(.5, wx);
+  obj = mix(obj, mix(vec3(dot(obj, vec3(.299,.587,.114))), obj, .65)*.9, ov);
+  vec3 c = mix(sky(w,t), obj, a);
+  if(wx > 2.5){ vec3 haze = mix(vec3(dot(skyHor, vec3(.3,.5,.2))), skyHor, .35); c = mix(c, haze, clamp(exp(-abs(w.y-hor)*3.2)*.85 + .25, 0., .92)); e *= .35; pen *= .35; }
+  return c;
 }
 float ring(float sd, float w){ return 1. - smoothstep(0., w, abs(sd)); }
 
@@ -60,6 +73,21 @@ void main(){
     float bar = ring(w.y-.64, .012*(1.+.3*noise(uv*80.)));
     col = mix(col, wood*.9, bar*.9);
     col = mix(col, vec3(1.), .06*smoothstep(.2,.9,w.x-w.y+.5)*(1.-smoothstep(.0,.3,abs(w.x-w.y-.1))));
+    // rain: drops on the glass, still (they sit on the window, not on the landscape going by), a darker rim each
+    // and a trail under the bigger ones
+    if(wx > 1.5 && wx < 2.5){
+      vec2 g = vec2(w.x*waspect, w.y)*15.;
+      vec2 id = floor(g), f = fract(g)-.5;
+      float h = hash(id), r = .10 + .16*hash(id+7.3);
+      vec2 o = (vec2(hash(id+1.1), hash(id+2.2))-.5)*.5;
+      float d = length((f-o)*vec2(1.,.85));
+      float drop = step(.55, h) * (1.-smoothstep(r-.03, r, d));
+      float rim = step(.55, h) * ring(d-r+.02, .025);
+      float trail = step(.86, h) * step(f.y, o.y) * (1.-smoothstep(.02,.05,abs(f.x-o.x))) * smoothstep(-.5, o.y, f.y);
+      col = mix(col, col*1.12 + .05, drop*.7 + trail*.35);
+      col = mix(col, col*.62, rim*.6);
+      edge += rim*.3;
+    }
     order = .45 + (w.y > hor ? (1.-w.y)/(1.-hor)*.24 : .24 + (hor-w.y)/hor*.3) + (fbm(w*vec2(3.,4.)+3.1)-.5)*.25;
   } else {
     // the carriage wall, lit by the window

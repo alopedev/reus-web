@@ -4,7 +4,7 @@ import red from '../data/red.json';
 // once, with its stops as [stop_id, arrival, departure], and the trains that run each day
 export interface Network {
   fuente: string; actualizado: string;
-  estaciones: Record<string, { nombre: string; comarca?: string; lineas?: string[]; barcelona?: boolean }>;
+  estaciones: Record<string, { nombre: string; comarca?: string; lineas?: string[]; barcelona?: boolean; ll?: [lat: number, lon: number] }>;
   trenes: { n: string; p: string; s: [string, number, number][] }[];
   dias: Record<string, number[]>;
 }

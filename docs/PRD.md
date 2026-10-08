@@ -109,9 +109,11 @@ Ordenadas por prioridad.
 | ID | Requisito | Criterios de aceptación | Estado |
 |---|---|---|---|
 | P1-1 | Horarios siempre al día | Una tarea diaria regenera los horarios sin intervención | Hecho (`horarios.yml`) |
-| P1-2 | Avisos de datos | Aviso a Àlex si la descarga falla, si salen cero trenes o muchos menos de lo normal, o si los datos caducan en pocos días (el feed regional dura un mes) | En parte (email si falla) |
+| P1-2 | Avisos de datos | Aviso a Àlex si la descarga falla, si salen cero trenes o muchos menos de lo normal, o si los datos caducan en pocos días (el feed regional dura un mes) | En parte: email si falla; no se publica si un día pierde más de la mitad de los trenes de una línea (08-10). Falta avisar de la caducidad |
 | P1-3 | Publicación gratuita | La web vive fuera de claude.ai con coste cero | Hecho (Vercel) |
 | P1-4 | Medición de visitas | Contador sencillo y respetuoso con la privacidad para saber si se llega a 10 visitantes al mes | Hecho (08-10): Vercel Web Analytics, sin cookies; solo páginas vistas y 1 mes de histórico en el plan gratuito |
+
+| P1-5 | El tiempo de casa | La ventanilla pinta el tiempo de ahora en el pueblo elegido (lluvia, nubes, niebla) y, si el servicio no responde, buen tiempo | Hecho (08-10): Open-Meteo desde el navegador, sin servidor ni clave; crédito en «Dades i límits» |
 
 ### P2 · Consideraciones futuras
 

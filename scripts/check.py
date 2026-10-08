@@ -700,8 +700,12 @@ async def check_sizes(browser):
 baseline = root / "scripts/baseline" / sys.platform
 
 async def open_page(browser, **options):
-    """A page with generous timeouts: software rendering on a two-core CI machine can take long to give a frame."""
-    page = await browser.new_page(**options); page.set_default_timeout(120000); return page
+    """A page with generous timeouts: software rendering on a two-core CI machine can take long to give a frame.
+    Open-Meteo is never asked: the window keeps fair weather, so no check depends on the real weather
+    (check_weather answers for it)."""
+    page = await browser.new_page(**options); page.set_default_timeout(120000)
+    await page.route("https://api.open-meteo.com/**", lambda route: route.abort())
+    return page
 PARITY = {"escritorio-hero": (1440, 900, False), "escritorio-mesa": (1440, 900, True), "movil-hero": (390, 844, False)}
 
 async def check_parity(browser):
@@ -801,6 +805,38 @@ async def check_red(browser):
     errs = []
     if red["fuente"] not in text: errs.append(f"the back of the ticket does not credit «{red['fuente']}» (it reads «{text[-90:]}»)")
     if catalan_date(y, m, d) not in text: errs.append(f"the back of the ticket does not give the data's update date, {catalan_date(y, m, d)}")
+    if "Open-Meteo" not in text: errs.append("the back of the ticket does not credit Open-Meteo for the weather (CC BY 4.0)")
+    return errs
+
+# the weather at home (08-10): Open-Meteo's answer → what the window paints. None: Open-Meteo fails (a 503)
+WEATHER = [(61, "rain"), (45, "fog"), (3, "cloudy"), (1, "clear"), (None, "clear")]
+
+async def check_weather(browser):
+    """The window paints the weather of the chosen town, as Open-Meteo gives it, and fair weather when it fails."""
+    import json
+    errs = []
+    if not any("ll" in v for v in json.loads((root / "data/red.json").read_text())["estaciones"].values()):
+        return ["data/red.json has no town coordinates (ll): the window can never show the weather"]
+    for code, want in WEATHER:
+        page = await browser.new_page(viewport={"width": 1440, "height": 900}, reduced_motion="reduce"); page.set_default_timeout(120000)
+        asked = []
+        async def answer(route, request, code=code):
+            asked.append(request.url)
+            if code is None: await route.fulfill(status=503, body="")
+            else: await route.fulfill(status=200, content_type="application/json", headers={"access-control-allow-origin": "*"},
+                                      body=json.dumps({"current": {"weather_code": code}}))
+        await page.route("https://api.open-meteo.com/**", answer)
+        await page.goto(page_url)
+        # the answer comes after the first paint; give it time, then a frame to repaint the window
+        try: await page.wait_for_function(f"window.reus && window.reus.tiempo() === '{want}'", timeout=30000)
+        except Exception: pass
+        await page.wait_for_timeout(1500)
+        got = await page.evaluate("window.reus.tiempo()")
+        if not asked: errs.append(f"weather code {code}: Open-Meteo is never asked")
+        elif "latitude=41." not in asked[0]: errs.append(f"Open-Meteo is asked for somewhere other than Reus: {asked[0]}")
+        if got != want: errs.append(f"weather code {code}: the window paints «{got}», expected «{want}»")
+        if want in ("rain", "fog"): await page.screenshot(path=str(shots / f"tiempo-{want}.png"))
+        await page.close()
     return errs
 
 SUBTITLE = "El tren cap a casa, i el de tornada a Barcelona"
@@ -861,6 +897,7 @@ async def check_hero(browser):
     # the big train's route, only on a desktop
     errs += [f"route: {e}" for e in await check_journey(browser)]
     errs += [f"light: {e}" for e in await check_daylight(browser)]
+    errs += [f"weather: {e}" for e in await check_weather(browser)]
     # 21:30, from Reus: no regional left today, but two AVE from Camp de Tarragona (22:17, 22:39)
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)

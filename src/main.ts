@@ -11,6 +11,7 @@ import { setupShelf, dropped, hingeAt } from './shelf';
 import { pair, state } from './letters';
 import { byId } from './dom';
 import { daylight } from './light';
+import { createWeather } from './weather';
 
 // the page always opens on the hero: the browser must not put back the last visit's scroll (Safari does on a reload
 // or a reopened tab). The native API, not ScrollTrigger.clearScrollMemory(): ScrollTrigger is only registered later,
@@ -29,7 +30,9 @@ byId('more').addEventListener('click', e => { e.preventDefault(); byId('repisa')
 const world = build3D();
 const table = createTable();
 const scenery = createScenery(world);
-const { render } = setupTimetable({ world, table, scenery });
+// the weather at home: the window repaints when it changes (also the still frame of reduced motion, or paused)
+const weather = createWeather(w => { if(!world) return; world.setWeather(w); if(!scenery.isPlaying()) world.frame(0, 0, 1); });
+const { render } = setupTimetable({ world, table, scenery, weather });
 render();
 // the window's size depends on the tickets and the fonts: measure it again once they are in, and repaint the still
 // frame too (reduced motion, or paused), which otherwise keeps the window where it was first painted
@@ -38,8 +41,8 @@ scenery.repaint();
 setupShelf(world);
 
 // what check.py reads from the page (modules keep everything else private)
-declare global { interface Window { reus: { hingeAt: typeof hingeAt, dropped: typeof dropped, ScrollTrigger: typeof ScrollTrigger, paisaje: () => number | null, playing: () => boolean, letras: { pair: typeof pair, state: typeof state }, daylight: typeof daylight } } }
-window.reus = { hingeAt, dropped, ScrollTrigger, paisaje: () => world ? world.grain() : null, playing: scenery.isPlaying, letras: { pair, state }, daylight };
+declare global { interface Window { reus: { hingeAt: typeof hingeAt, dropped: typeof dropped, ScrollTrigger: typeof ScrollTrigger, paisaje: () => number | null, playing: () => boolean, letras: { pair: typeof pair, state: typeof state }, daylight: typeof daylight, tiempo: () => string } } }
+window.reus = { hingeAt, dropped, ScrollTrigger, paisaje: () => world ? world.grain() : null, playing: scenery.isPlaying, letras: { pair, state }, daylight, tiempo: weather.now };
 
 // without a connection the site still opens, with the timetable it was built with (src/sw.js); only the built site
 // has the worker, not `npm run dev`

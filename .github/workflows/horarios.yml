@@ -47,6 +47,10 @@ jobs:
           git config user.email "136198470+alopedev@users.noreply.github.com"
           git add data/trains.json data/red.json
           git commit -m "chore: refresh the timetable" -m "Automatic: .github/workflows/horarios.yml"
+          # check.py takes ~20 min: if a PR was merged meanwhile, a bare push is rejected and nothing is published.
+          # Rebase onto it (only data/ changes here) and check the data again against its check_datos.py
+          git pull --rebase origin main
+          python scripts/check_datos.py
           git push
       - if: always()
         uses: actions/upload-artifact@v4
