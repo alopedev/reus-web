@@ -29,6 +29,9 @@ Rules checked:
   10. There is an AVE Sants -> Camp de Tarragona every day (at least 5 a day), and the
       same in the opposite direction.
   11. Size: red.json is <= 150 KB gzip-compressed.
+  12. No day lost most of a line: every day, each line (R11, R13-R17, and AVE/AVLO together)
+      runs at least half its median number of trains a day over the file. A feed that comes
+      back with a day or a line half empty is held back, not published.
 
 Usage: python3 scripts/check_datos.py [path-to-red.json]   (default: data/red.json)
 """
@@ -369,6 +372,32 @@ def check_ave_camp_tarragona(d):
     return capped(errs)
 
 
+def check_dia_incompleto(d):
+    """Rule 12: every day, each line runs at least half its median number of trains a day."""
+    trenes = d.get("trenes", [])
+    dias = d.get("dias", {})
+    if not isinstance(dias, dict) or not dias:
+        return []
+    linea = lambda p: "AVE/AVLO" if p in ALTA_VELOCIDAD else p
+    lineas = sorted({linea(t.get("p")) for t in trenes if t.get("p") in PRODUCTOS})
+    por_dia = {}
+    for day, indices in dias.items():
+        c = collections.Counter()
+        for idx in indices if isinstance(indices, list) else []:
+            if isinstance(idx, int) and 0 <= idx < len(trenes) and trenes[idx].get("p") in PRODUCTOS:
+                c[linea(trenes[idx]["p"])] += 1
+        por_dia[day] = c
+    errs = []
+    for ln in lineas:
+        counts = sorted(c[ln] for c in por_dia.values())
+        mediana = counts[len(counts) // 2]
+        for day in sorted(por_dia):
+            n = por_dia[day][ln]
+            if n * 2 < mediana:
+                errs.append(f"{day}: {ln} runs {n} trains, under half its usual {mediana} a day")
+    return capped(errs, 10)
+
+
 def check_tamano(path):
     """Rule 11: <= 150 KB gzip-compressed."""
     try:
@@ -398,6 +427,7 @@ def run(path, trains_path):
         ("paridad", lambda: check_paridad(d, trains_path)),
         ("AVE Camp de Tarragona", lambda: check_ave_camp_tarragona(d)),
         ("tamaño", lambda: check_tamano(path)),
+        ("día incompleto", lambda: check_dia_incompleto(d)),
     ):
         failures += [f"{prefix}: {e}" for e in fn()]
     return failures
