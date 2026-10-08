@@ -10,6 +10,7 @@ import { setupTimetable } from './timetable';
 import { setupShelf, dropped, hingeAt } from './shelf';
 import { pair, state } from './letters';
 import { byId } from './dom';
+import { daylight } from './light';
 
 // the page always opens on the hero: the browser must not put back the last visit's scroll (Safari does on a reload
 // or a reopened tab). The native API, not ScrollTrigger.clearScrollMemory(): ScrollTrigger is only registered later,
@@ -37,8 +38,8 @@ scenery.repaint();
 setupShelf(world);
 
 // what check.py reads from the page (modules keep everything else private)
-declare global { interface Window { reus: { hingeAt: typeof hingeAt, dropped: typeof dropped, ScrollTrigger: typeof ScrollTrigger, paisaje: () => number | null, playing: () => boolean, letras: { pair: typeof pair, state: typeof state } } } }
-window.reus = { hingeAt, dropped, ScrollTrigger, paisaje: () => world ? world.grain() : null, playing: scenery.isPlaying, letras: { pair, state } };
+declare global { interface Window { reus: { hingeAt: typeof hingeAt, dropped: typeof dropped, ScrollTrigger: typeof ScrollTrigger, paisaje: () => number | null, playing: () => boolean, letras: { pair: typeof pair, state: typeof state }, daylight: typeof daylight } } }
+window.reus = { hingeAt, dropped, ScrollTrigger, paisaje: () => world ? world.grain() : null, playing: scenery.isPlaying, letras: { pair, state }, daylight };
 
 // without a connection the site still opens, with the timetable it was built with (src/sw.js); only the built site
 // has the worker, not `npm run dev`

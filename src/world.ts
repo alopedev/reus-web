@@ -93,7 +93,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
   const rt = new WebGLRenderTarget(2, 2, {format:RGBAFormat, minFilter:LinearFilter, magFilter:LinearFilter});
   const post = new ShaderMaterial({
     uniforms:{ tScene:{value:rt.texture}, res:{value:new Vector2(1,1)}, sres:{value:new Vector2(1,1)}, tq:{value:0}, reveal:{value:1},
-      skyTop:{value:new Vector3()}, skyHor:{value:new Vector3()}, sunCol:{value:new Vector3()}, sunPos:{value:new Vector2()},
+      skyTop:{value:new Vector3()}, skyHor:{value:new Vector3()}, sunCol:{value:new Vector3()}, sunPos:{value:new Vector2()}, sunA:{value:.85},
       aspect:{value:1}, waspect:{value:1}, hor:{value:.42}, win:{value:new Vector4(.2,.3,.8,.8)}, wrad:{value:.04}, seats:{value:1},
       wallA:{value:new Vector3()}, wallB:{value:new Vector3()}, wood:{value:new Vector3()}, seat:{value:new Vector3()},
       foldY:{value:0}, shade:{value:0} },
@@ -131,7 +131,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
   }
   function setTime(min: number){
     const p = daylight(min);
-    U.skyTop.value.set(...p.top); U.skyHor.value.set(...p.hor); U.sunCol.value.set(...p.sun); U.sunPos.value.set(...p.sunUV);
+    U.skyTop.value.set(...p.top); U.skyHor.value.set(...p.hor); U.sunCol.value.set(...p.sun); U.sunPos.value.set(...p.sunUV); U.sunA.value = p.glow;
     U.wallA.value.set(...p.wallA); U.wallB.value.set(...p.wallB); U.wood.value.set(...p.wood); U.seat.value.set(...p.seat);
     hemi.color.set(p.hemi[0]); hemi.groundColor.set(p.hemi[1]); hemi.intensity = p.hemi[2];
     sun.color.set(p.dir[0]); sun.intensity = p.dir[1]; sun.position.set(...p.dir[2]);
