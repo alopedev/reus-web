@@ -1,4 +1,4 @@
-# Handoff · 6 de octubre de 2026
+# Handoff · 8 de octubre de 2026
 
 Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md` (registro estético). Producto: `docs/PRD.md` v0.2.
 
@@ -40,7 +40,9 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 **Luz del sol real (08-10, en PR):** opción C de tres (Àlex): `src/light.ts` calcula salida y puesta del sol del día en Barcelona (`sunTimes`, NOAA) y coloca en ellas las luces: noche, amanecer, día, atardecer, **hora azul** (nueva, de la puesta a +20 min, sin sol) y noche; cada una se funde en la siguiente en 40 min. El disco del sol se apaga y el de la luna se enciende, nunca se transforma (`glow`, uniform `sunA` del shader). La mesa sigue repintando al cambiar el nombre de la luz (a mitad del fundido). Check `check_daylight` en `check.py hero`. A las 10:00 del horario congelado la luz no cambia: las referencias de paridad siguen valiendo. Capturas en `luz-real/` de los archivos del proyecto.
 
-**Tiempo de casa en la ventanilla (08-10, por construir):** Àlex eligió la A, gotas en el cristal (con cielo gris; nublado y niebla iguales en las tres). Prototipo y capturas en `tiempo-ventanilla/` de los archivos del proyecto. Pendiente: comprobar si Open-Meteo admite llamadas desde otra web (CORS); la red de la sesión en la nube y la del Mac la bloquean. `red.json` no guarda coordenadas: `extract_red.py` tendría que añadirlas.
+**Tiempo de casa en la ventanilla (08-10, por construir):** Àlex eligió la A, gotas en el cristal (con cielo gris; nublado y niebla iguales en las tres). Prototipo y capturas en `tiempo-ventanilla/` de los archivos del proyecto. Open-Meteo admite llamadas desde otra web (CORS, comprobado por Àlex en Chrome el 08-10), así que no hace falta servidor; ese día respondió un 503, así que si falla la ventanilla se queda sin tiempo. `red.json` no guarda coordenadas: `extract_red.py` tendría que añadirlas.
+
+**Título del cuaderno (08-10):** la hoja interior del cuaderno de la mesa dice «Llibre de viatge · tècnica» (antes «Quadern · tècnica»), como su tapa.
 
 **Transición hero → mesa y viaje de letras:** hechos (`src/shelf.ts`, `src/letters.ts`). Con «Capacasa», tres letras se funden en el hueco de «Qué es».
 
@@ -100,7 +102,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 - Enlace de compra: va sin nombres de estación (Renfe y el GTFS los escriben distinto). Si Renfe cambia la URL o los campos que pide su buscador, el enlace se rompe sin avisar: solo hay que tocar `src/buy.ts`. La referencia `scripts/baseline/darwin/movil-hero.png` aún retrata el tablero sin «comprar ↗»: bórrala y vuelve a pasar `check.py paridad` en el Mac para renovarla (la de Linux ya está renovada)
 
-- El 30-09 el feed de Renfe trajo un tren repetido (Sants → Reus 09:03 → 10:33, del 30-09 al 04-10): `check_datos.py` lo paró y el robot no publicó; el 01-10 ya no salía. Si se repite a menudo, valorar deduplicarlo en `extract_red.py` en vez de parar la publicación
+- Tren repetido (arreglado el 08-10): el R15 de las 09:03 de Sants (Renfe 17501) salía dos veces en `red.json` del 30-09 al 04-10 y otra vez del 13 al 18-10, y `check_datos.py` (paridad) paraba el robot: no publicó nada del 03-10 al 08-10 (el 05-10, además, el feed de Rodalies vino sin trenes en el rango). Causa: los dos feeds de Renfe dan a ese tren un minuto distinto en Passeig de Gràcia (08:55 frente a 08:56) los días en que el de Rodalies cambia su horario más allá de Reus, y `extract_red.py` solo fusionaba los dos feeds si la firma de Barcelona coincidía al minuto. Ahora acepta un minuto de diferencia por estación cuando el tren toca dos o más estaciones de Barcelona (`find_fom`). Comprobado en GitHub Actions con los feeds del 08-10: solo desaparecen esas 6 copias y `check_datos.py` pasa. Renfe (`ssl.renfe.com`) está bloqueado en las sesiones de Claude en la nube y en la carpeta del Mac vía Claude: para probar con datos reales, un workflow temporal en la rama
 
 - La mesa se pinta al cargar, tapada por el hero, no «la primera vez que se ve» como dice `table.ts`: la intersección de borde de `.escena` (a 100svh) cuenta como visible. El pintado en acuarela no se llega a ver en escritorio. Sin tocar: cambia lo que se ve
 - Robot diario: si `red.json` falla su check, tampoco se publica `trains.json`. Claude recomendó dejarlo así; Àlex no ha respondido
