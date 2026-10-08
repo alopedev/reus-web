@@ -837,6 +837,8 @@ async def check_hero(browser):
     errs += [f"phone: {e}" for e in await check_phone_board(browser)]
     # 3.5 · the Barcelona station
     errs += [f"station: {e}" for e in await check_station(browser)]
+    # the big train's route, only on a desktop
+    errs += [f"route: {e}" for e in await check_journey(browser)]
     # 21:30, from Reus: no regional left today, but two AVE from Camp de Tarragona (22:17, 22:39)
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
@@ -877,7 +879,8 @@ async def check_hero(browser):
 
 BOARD = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), rows = [...document.querySelectorAll('#board .trip')];
   // «compra’l ↗» is the big row's link to Renfe, read on its own (buy) rather than as part of the row's text
-  const text = r => { const c = r.cloneNode(true); c.querySelectorAll('.buy').forEach(x => x.remove()); return n(c.textContent); };
+  // the big train's route (desktop) is for the eye only, read by check_journey
+  const text = r => { const c = r.cloneNode(true); c.querySelectorAll('.buy, .rec').forEach(x => x.remove()); return n(c.textContent); };
   const dep = document.getElementById('dep'), word = document.querySelector('#board .buy'), q = dep?.href ? new URL(dep.href).searchParams : null;
   return {rows: rows.map(text), buy: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), host: new URL(dep.href).host, query: Object.fromEntries(q),
             tab: dep.target === '_blank' && word?.target === '_blank', same: word?.href === dep.href, label: dep.getAttribute('aria-label')}, buttons: rows.map(r => r.matches('button.tt')), dep: document.getElementById('dep')?.textContent,
@@ -993,7 +996,7 @@ async def check_hero_ticket(page):
 # eligible network stations (spec-3.3.md, decision 2): everything in the frozen timetable except Barcelona's own
 # stops, Camp de Tarragona (AVE only) and the three Barcelona-area stations the selector leaves out
 EXCLUDED_TOWNS = {"71707", "72400", "71708", "04104"}
-SANTS_ID, CAMP_ID, REUS_TOWN, GIRONA_TOWN, TARRAGONA_TOWN = "71801", "04104", "71400", "79300", "71500"
+SANTS_ID, CAMP_ID, REUS_TOWN, GIRONA_TOWN, TARRAGONA_TOWN, LLEIDA_TOWN = "71801", "04104", "71400", "79300", "71500", "78400"
 
 def _net():
     import json
@@ -1062,6 +1065,79 @@ def _direct(net, day, frm, to):
             a, b = ids.index(frm), ids.index(to)
             if b > a: out.append((t["s"][a][2], t["s"][b][1], t["p"]))
     return sorted(out)
+
+def _stops(net, day, frm, to, dep):
+    """The stops of the direct train that leaves `frm` at `dep` for `to`, both left out, as the big train's route
+    labels them (mirrors src/time.ts's stopsBetween() and stopName()): «Altafulla 10:42»."""
+    import re
+    def label(sid):
+        n = re.sub(r"\s*-\s*(?=[A-ZÀ-Ý]).*$", "", re.sub(r"^Barcelona[- ](Estació de )?", "", net["estaciones"][sid]["nombre"]))
+        return re.sub(r" de .*$", "", n) if len(n) > 16 else n
+    for i in net["dias"].get(day, []):
+        t = net["trenes"][i]; ids = [s[0] for s in t["s"]]
+        if frm in ids and to in ids and ids.index(frm) < ids.index(to) and t["s"][ids.index(frm)][2] == dep:
+            a, b = ids.index(frm), ids.index(to)
+            return [f"{label(s[0])} {s[1] // 60 % 24:02d}:{s[1] % 60:02d}" for s in t["s"][a + 1:b]], t["s"][a][2], t["s"][b][1]
+    return None
+
+JOURNEY = """(() => { const rec = document.querySelector('#board .trip.big .rec'); if(!rec) return null;
+  const box = e => { const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
+  const shown = [...rec.querySelectorAll('.s')].filter(s => !s.hidden);
+  return {dots: [...rec.querySelectorAll('i')].map(i => parseFloat(i.style.left)), labels: [...rec.querySelectorAll('.s')].map(s => s.textContent),
+          shown: shown.map(s => ({text: s.textContent, side: s.classList.contains('up') ? 'up' : s.classList.contains('down') ? 'down' : '', ...box(s)})),
+          titles: [...rec.querySelectorAll('i')].map(i => i.title), rec: box(rec), off: rec.classList.contains('off'), hidden: rec.getAttribute('aria-hidden'),
+          win: box(document.getElementById('win')), lead: box(document.querySelector('#board .big .lead')), arr: box(document.querySelector('#board .big .arr'))}; })()"""
+
+async def check_journey(browser):
+    """The big train's route (Àlex 08-10, option A, only on a desktop): in the gap between «compra’l ↗» and the
+    arrival, a line with a dot per stop placed by the time the train reaches it, and each stop's name and time above
+    or below its dot when there is room; a label left out keeps its dot, with the label as a tooltip. Labels never
+    overlap each other, the board's words, the arrival or the window. No route for the AVE (no stops) nor on a phone."""
+    errs, net, day = [], _net(), "2026-09-28"
+    def judge(when, j, want, all_shown):
+        if j is None: errs.append(f"{when}: the big train has no route (.rec)"); return
+        names, d0, a0 = want
+        if j["hidden"] != "true": errs.append(f"{when}: the route is not aria-hidden")
+        if j["off"]: errs.append(f"{when}: the route is hidden for lack of room")
+        if j["labels"] != names: errs.append(f"{when}: the route's stops are {j['labels']}, expected {names}")
+        at = [round((int(x.split()[-1][:2]) * 60 + int(x.split()[-1][3:]) - d0) % 1440 / (a0 - d0) * 100, 1) for x in names]
+        if [round(x, 1) for x in j["dots"]] != at: errs.append(f"{when}: the dots stand at {j['dots']}%, expected {at}% (by the time of each stop)")
+        if all_shown and len(j["shown"]) != len(names): errs.append(f"{when}: only {len(j['shown'])} of {len(names)} labels shown, expected all")
+        if not j["shown"]: errs.append(f"{when}: no label shown")
+        hid = [t for t, lab in zip(j["titles"], j["labels"]) if lab not in [s["text"] for s in j["shown"]]]
+        if any(not t for t in hid): errs.append(f"{when}: a stop left without a label has no tooltip")
+        if any(t for t, lab in zip(j["titles"], j["labels"]) if lab in [s["text"] for s in j["shown"]]): errs.append(f"{when}: a labelled stop also has a tooltip")
+        cut = lambda p, q: p["l"] < q["r"] - .5 and q["l"] < p["r"] - .5 and p["t"] < q["b"] - .5 and q["t"] < p["b"] - .5
+        for i, p in enumerate(j["shown"]):
+            if not p["side"]: errs.append(f"{when}: «{p['text']}» is shown on neither side")
+            if p["l"] < j["rec"]["l"] - .5 or p["r"] > j["rec"]["r"] + .5: errs.append(f"{when}: «{p['text']}» leaves the route's line")
+            for name in ("win", "lead", "arr"):
+                if cut(p, j[name]): errs.append(f"{when}: «{p['text']}» overlaps {name}")
+            for q in j["shown"][i + 1:]:
+                if cut(p, q): errs.append(f"{when}: «{p['text']}» overlaps «{q['text']}»")
+    # at 10:00, Sants → Reus: the R15 at 10:03, every stop labelled
+    page = await hero_page(browser)
+    judge("Sants → Reus at 10:00", await page.evaluate(JOURNEY), _stops(net, day, SANTS_ID, REUS_TOWN, 603), True)
+    # Reus → Sants: the AVE from Camp de Tarragona is the big train, and has no stops
+    await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    if await page.evaluate(JOURNEY) is not None: errs.append("the AVE (no stops between Camp de Tarragona and Sants) has a route")
+    await page.close()
+    # a long train on a small desktop: Lleida, at 1024 × 768; labels left out where they do not fit
+    page = await hero_page(browser, 1024, 768)
+    e = await choose_town(page, "R13", LLEIDA_TOWN)
+    if e: errs += e
+    else:
+        await page.wait_for_timeout(300)
+        dep = await page.evaluate("document.getElementById('dep').textContent")
+        want = _stops(net, day, SANTS_ID, LLEIDA_TOWN, int(dep[:2]) * 60 + int(dep[3:]))
+        if not want: errs.append(f"Lleida: no direct train at {dep} in the frozen timetable")
+        else: judge(f"Sants → Lleida {dep} at 1024x768", await page.evaluate(JOURNEY), want, False)
+    await page.close()
+    # a phone has no room for it (6B): its board keeps only the times
+    page = await hero_page(browser, 390, 844)
+    if await page.evaluate("!!document.querySelector('#board .rec')"): errs.append("the phone's board has a route")
+    await page.close()
+    return errs
 
 TOWN = """(() => { const b = document.querySelector('.tk .town'); if(!b) return null;
   return {tag: b.tagName, text: b.textContent.trim(), haspopup: b.getAttribute('aria-haspopup'),

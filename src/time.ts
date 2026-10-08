@@ -39,16 +39,24 @@ export function direct(iso: string, from: string, to: string): Train[] {
   return out.sort((x, y) => x[0]-y[0]);
 }
 
-// the stops a direct train makes between two stations, both left out (the trip's detail on a phone): the first train
-// of the day with that number that calls at `from` and later at `to`, as direct() found it (any day's, for a day
-// beyond the timetable, which borrows another day's trains)
-export function stopsBetween(iso: string, id: string, from: string, to: string): number | null {
+// the stops a direct train makes between two stations, both left out, with the time it reaches each (the trip's
+// detail on a phone counts them; the big train's route on a desktop draws them): the first train of the day with
+// that number that calls at `from` and later at `to`, as direct() found it (any day's, for a day beyond the
+// timetable, which borrows another day's trains)
+export function stopsBetween(iso: string, id: string, from: string, to: string): [stop: string, arr: number][] | null {
   for(const i of [...(NET.dias[iso] ?? []), ...NET.trenes.keys()]){
     const t = NET.trenes[i]; if(t.n !== id) continue;
     const a = t.s.findIndex(x => x[0]===from), b = t.s.findIndex(x => x[0]===to);
-    if(a >= 0 && b > a) return b - a - 1;
+    if(a >= 0 && b > a) return t.s.slice(a + 1, b).map(x => [x[0], x[1]]);
   }
   return null;
+}
+// a stop's name on the big train's route, where room is short: without «Barcelona» before the city's stations, only
+// the first of a double name («Altafulla-Tamarit» → «Altafulla»; a hyphen inside a name stays: «Vila-seca»,
+// «Riba-roja d’Ebre») and, past 16 letters, without its «de …» («Sant Vicenç de Calders» → «Sant Vicenç»)
+export function stopName(id: string): string {
+  const n = (NET.estaciones[id]?.nombre ?? id).replace(/^Barcelona[- ](Estació de )?/, '').replace(/\s*-\s*(?=\p{Lu}).*$/u, '');
+  return n.length > 16 ? n.replace(/ de .*$/, '') : n;
 }
 
 // times are minutes after midnight, always in Madrid

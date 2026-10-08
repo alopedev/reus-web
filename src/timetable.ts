@@ -7,6 +7,7 @@ import { ofPlace, atPlace } from './ca';
 import { LINE } from './towns';
 import { setupChooser } from './chooser';
 import { setupDetail, type Trip } from './detail';
+import { journey, fitJourney } from './journey';
 import { byId } from './dom';
 import type { World } from './world';
 import type { Table } from './table';
@@ -81,17 +82,23 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     const ends = isAve ? (ida ? [state.station, CAMP] : [CAMP, state.station]) : ida ? [state.station, state.town] : [state.town, state.station];
     const buy = buyUrl(ends[0], ends[1], tomorrow ? addDays(now.date, 1) : now.date, a[0]);
     const until = live ? dur(a[0]-now.min) : '';
-    const html = trips.map(t => trip(t, t === a, aves.includes(t) || t === lastAve, t === a ? until : '', !!lastAve && t !== lastAve, buy, narrow.matches)).join('');
+    // its stops: counted in a phone's sheet, drawn on a desktop's board (journey.ts)
+    const stops = stopsBetween(tomorrow ? addDays(now.date, 1) : now.date, a[2], ends[0], ends[1]);
+    const html = trips.map(t => trip(t, t === a, aves.includes(t) || t === lastAve, t === a ? until : '', !!lastAve && t !== lastAve, buy, narrow.matches,
+      t === a ? journey(stops, a[0], a[1]) : '')).join('');
     // the detail of the train shown, for the sheet a phone opens
     const there = isAve ? 'Camp de Tarragona' : townName;
     cur = { line: a[3], color: LINE[a[3]] ?? 'var(--shadow)', from: ida ? bcn : there, to: ida ? there : bcn, dep: hhmm(a[0]), arr: hhmm(a[1]),
       when: tomorrow ? 'Demà' : a[0] < now.min ? 'Ja ha sortit' : a[0] === now.min ? 'Surt ara' : `Surt en ${dur(a[0]-now.min)}`, length: dur(a[1]-a[0]),
-      stops: stopsBetween(tomorrow ? addDays(now.date, 1) : now.date, a[2], ends[0], ends[1]), buy,
+      stops: stops?.length ?? null, buy,
       ave: isAve ? (ida ? `L’AVE no arriba ${atPlace(townName)}: baixa a Camp de Tarragona.` : `L’AVE no surt ${ofPlace(townName)}: surt de Camp de Tarragona.`) : '',
       home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(a[1]), tomorrow) };
     const key = a[0] + state.dir + isAve + state.town + state.station;
     const turn = shown !== null && shown !== key;
-    if(html !== drawn || turn){ byId('board').innerHTML = drawn = html; if(turn && !reduce) byId('dep').classList.add('swap'); }
+    if(html !== drawn || turn){
+      byId('board').innerHTML = drawn = html; if(turn && !reduce) byId('dep').classList.add('swap');
+      const rec = byId('board').querySelector<HTMLElement>('.rec'); if(rec) laid.observe(rec);
+    }
     if(shown !== key){ say(tomorrow, isAve ? (ida ? bcn : 'Camp de Tarragona') : from, isAve ? (ida ? 'Camp de Tarragona' : `Barcelona ${bcn}`) : to, a, isAve); shown = key; }
     byId('note').textContent = exact ? '' : `Horari aproximat: ${nextDay ? 'demà' : 'avui'} encara no hi ha horari oficial.`;
     if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
@@ -129,7 +136,7 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
   // Tarragona, not the town. The train shown is big; the other is a button that shows it
   // On a phone only the times are left, with the countdown on the big train and «mañana» where it applies; every trip
   // is a button with a «›» that opens its detail, the big one included (its link to Renfe moves into the sheet)
-  function trip(t: Train, big: boolean, isAve: boolean, until: string, morrow: boolean, buy: string, phone: boolean){
+  function trip(t: Train, big: boolean, isAve: boolean, until: string, morrow: boolean, buy: string, phone: boolean, rec: string){
     if(phone){
       const w = big ? `<span class="soon">${until && 'en ' + until}</span>` : morrow ? 'demà' : '';
       const cells = `<span class="pill" style="--c:${LINE[t[3]] ?? 'var(--shadow)'}">${t[3]}</span> <span class="t"${big ? ' id="dep"' : ''}>${hhmm(t[0])}</span> `
@@ -143,11 +150,13 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     const soon = big ? `<span class="soon">${until && 'en ' + until}</span>` : '';
     const word = big ? ` <a class="buy"${to} tabindex="-1" aria-hidden="true">compra’l ↗</a>` : '';
     const where = (big ? `<span class="nx">el pròxim${until ? ', ' : ''}</span>${soon}` : morrow ? 'demà' : 'després') + word;
+    // the big train's words keep to one line, and its route takes the rest of the gap up to the arrival
+    const w = big ? `<span class="lead">${where}</span>${rec}` : where;
     const camp = isAve ? ` <span class="st">${state.dir==='casa' ? 'fins a' : 'des de'} Camp de Tarragona</span>` : '';
     // spaces between the cells: the grid ignores them, but the text (and a screen reader) keeps its words apart
     const dep = big ? `<a class="t" id="dep"${to} aria-label="${hhmm(t[0])}, comprar a Renfe (s’obre en una altra pestanya)">${hhmm(t[0])}</a>` : `<span class="t">${hhmm(t[0])}</span>`;
     const cells = `<span class="pill" style="--c:${LINE[t[3]] ?? 'var(--shadow)'}">${t[3]}</span> ${dep} `
-      + `<span class="w">${where}</span> <span class="t arr">→ ${hhmm(t[1])}</span>${camp}`;
+      + `<span class="w">${w}</span> <span class="t arr">→ ${hhmm(t[1])}</span>${camp}`;
     if(big) return `<div class="trip big">${cells}</div>`;
     const label = `${isAve ? 'AVE' : t[3]} de les ${hhmm(t[0])}${isAve ? (state.dir==='casa' ? ' a' : ' des de') + ' Camp de Tarragona' : ''}, arriba a les ${hhmm(t[1])}`;
     return `<button type="button" class="trip tt" data-m="${t[0]}"${isAve ? ' data-ave' : ''} aria-label="${label}">${cells}</button>`;
@@ -168,6 +177,9 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     else tIn.focus({preventScroll:true});
   });
   narrow.addEventListener('change', ()=>{ drawn = ''; render(); });
+  // the route's labels are laid out again whenever its line changes width (a new board, the screen, the fonts)
+  const laid = new ResizeObserver(es => { for(const e of es) if(e.target.isConnected) fitJourney(e.target as HTMLElement); else laid.unobserve(e.target); });
+  document.fonts?.ready.then(() => { const rec = byId('board').querySelector<HTMLElement>('.rec'); if(rec) fitJourney(rec); });
   // dragging or tapping the ruler lands on the nearest train, never between two
   let rq = 0;
   function snap(){
