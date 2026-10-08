@@ -22,7 +22,7 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 - `python3 scripts/check.py sinred`: solo el check 17 (tras una primera visita, la web abre sin conexión con el horario guardado), en un minuto
 - `python3 scripts/check.py mesa`: solo el check 16 (los objetos de viaje y la mesa pintada siguen a los papeles cuando estos se recolocan tarde, p. ej. al llegar las fuentes), en escritorio y móvil, en un minuto
 - `python3 scripts/check.py compartir`: solo el check 17 (la vista previa al compartir el enlace: `description`, Open Graph, tarjeta grande de X y `og:image` de 1200 × 630 en `dist/`), en un segundo y sin navegador
-- `python3 scripts/check_datos.py` (o `npm run check:datos`): comprueba `data/red.json` contra su contrato (`docs/referencias/datos-red-contrato.md`) — forma, cobertura de pueblos, paridad con `data/trains.json`, tamaño. Sin dependencias, en segundos; acepta una ruta alternativa como argumento
+- `python3 scripts/check_datos.py` (o `npm run check:datos`): comprueba `data/red.json` contra su contrato (`docs/referencias/datos-red-contrato.md`) — forma, cobertura de pueblos, paridad con `data/trains.json`, tamaño, y que ningún día pierda más de la mitad de los trenes de una línea. Sin dependencias, en segundos; acepta una ruta alternativa como argumento
 - No hay tests unitarios ni linter; las verificaciones son los tipos (`tsc`) y `check.py`
 
 ## Cómo trabajamos
@@ -54,7 +54,7 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 - Horarios en minutos desde medianoche. La web lee `data/red.json` (`src/time.ts`: `direct(fecha, desde, hasta)` saca los trenes directos entre dos estaciones; `dayData` da Sants ↔ Reus como `r`/`b` y el AVE Sants ↔ Camp de Tarragona como `ar`/`ab` a `timetable.ts`)
 - IDs de parada GTFS: Barcelona-Sants 71801, Reus 71400
 - Días sin dato usan el último día conocido del mismo tipo y la web avisa de «horario aproximado»
-- Los horarios se regeneran solos cada día (`.github/workflows/horarios.yml`, 04:00 UTC): si cambian y pasan todas las pruebas, un commit a `main` los publica; si algo falla, no se publica nada y GitHub avisa por email. Se puede lanzar a mano desde la pestaña Actions
+- Los horarios se regeneran solos cada día (`.github/workflows/horarios.yml`, 04:00 UTC): si cambian y pasan todas las pruebas, un commit a `main` los publica; si algo falla, no se publica nada y GitHub avisa por email. Antes del push, el robot se pone encima de lo que se haya fusionado mientras corría `check.py` (`git pull --rebase`) y vuelve a pasar `check_datos.py`. Se puede lanzar a mano desde la pestaña Actions
 - Escala de cartel: el `font-size` de `html` sigue a la pantalla (`min(1.111vw, 1.778vh)`, mínimo 14 px; en vertical, el ancho) y todos los tamaños del hero y la mesa van en `rem`. No uses px ni `clamp(…vw…)` sueltos: rompen la proporción. La geometría en JS (mesa, objetos) se mide en `rem` leyendo el tamaño de la raíz
 - La maquetación de la mesa decide por el espacio real (container queries sobre `.escena`), no por el tamaño de pantalla. La mesa fija (sticky) exige pantalla apaisada de ≥ 1000 × 780: misma media query en CSS y en `PINNED` del script
 - `check.py` recorre 11 tamaños de pantalla (360 a 2560 px); si cambias tamaños, revisa también esas capturas
