@@ -24,20 +24,6 @@ jobs:
       - run: npm run build
       - run: npm run build:paridad
       - run: python scripts/check.py
-      # TEMPORARY (the Open-Meteo credit changes the back of the ticket): the new escritorio-mesa frame, as its
-      # difference from the reference in the repo, printed to the log; removed in the commit that renews the reference
-      - if: always()
-        run: |
-          python - <<'PY'
-          import base64, zlib, pathlib
-          from PIL import Image
-          new = pathlib.Path("screenshots/escritorio-mesa-distinto.png")
-          if new.exists():
-              a = Image.open(new).convert("RGB").tobytes(); b = Image.open("scripts/baseline/linux/escritorio-mesa.png").convert("RGB").tobytes()
-              d = base64.b64encode(zlib.compress(bytes((x - y) % 256 for x, y in zip(a, b)), 9)).decode()
-              print("DIFFLEN", len(d))
-              for i in range(0, len(d), 8000): print("DIFF", i // 8000, d[i:i + 8000])
-          PY
       # the screenshots, and any reference frame written in this run, to review or commit
       - if: always()
         uses: actions/upload-artifact@v4
