@@ -11,9 +11,10 @@ import { byId } from './dom';
 import type { World } from './world';
 import type { Table } from './table';
 import type { Scenery } from './scenery';
+import type { createWeather } from './weather';
 
 // the hero's timetable: the next train, the ticket for the direction, the ruler of the day
-export function setupTimetable({ world, table, scenery }: { world: World | null, table: Table, scenery: Scenery }): { render(): void } {
+export function setupTimetable({ world, table, scenery, weather }: { world: World | null, table: Table, scenery: Scenery, weather: ReturnType<typeof createWeather> }): { render(): void } {
   const tIn = byId<HTMLInputElement>('t'), nowBtn = byId<HTMLButtonElement>('nowBtn');
   const R0 = 300, R1 = 1439, pos = (m: number) => ((Math.min(R1,Math.max(R0,m))-R0)/(R1-R0)*100).toFixed(2)+'%';
   byId('hours').innerHTML = [6,9,12,15,18,21].map(x=>`<span style="left:${pos(x*60)}">${x} h</span>`).join('');
@@ -28,6 +29,7 @@ export function setupTimetable({ world, table, scenery }: { world: World | null,
     const start = state.useNow ? now.min : state.minute ?? now.min;
     const ida = state.dir==='casa';
     const townName = NET.estaciones[state.town].nombre;
+    weather.follow(state.town);
     const bcn = bcnName(state.station);
     const from = ida ? bcn : townName, to = ida ? townName : `Barcelona ${bcn}`;
     setRoute(route(ida, townName));
