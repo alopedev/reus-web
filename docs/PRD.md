@@ -111,7 +111,7 @@ Ordenadas por prioridad.
 | P1-1 | Horarios siempre al día | Una tarea diaria regenera los horarios sin intervención | Hecho (`horarios.yml`) |
 | P1-2 | Avisos de datos | Aviso a Àlex si la descarga falla, si salen cero trenes o muchos menos de lo normal, o si los datos caducan en pocos días (el feed regional dura un mes) | En parte (email si falla) |
 | P1-3 | Publicación gratuita | La web vive fuera de claude.ai con coste cero | Hecho (Vercel) |
-| P1-4 | Medición de visitas | Contador sencillo y respetuoso con la privacidad para saber si se llega a 10 visitantes al mes | Pendiente |
+| P1-4 | Medición de visitas | Contador sencillo y respetuoso con la privacidad para saber si se llega a 10 visitantes al mes | Hecho (08-10): Vercel Web Analytics, sin cookies; solo páginas vistas y 1 mes de histórico en el plan gratuito |
 
 ### P2 · Consideraciones futuras
 

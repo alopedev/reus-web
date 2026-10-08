@@ -812,6 +812,27 @@ async def hero_page(browser, w=1440, h=900, at="2026-09-28T08:00:00Z"):
     await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1200)
     return page
 
+# the light follows the real sun (08-10): (Madrid day, minute) → the light it must be, and the sunset it must find
+DAYLIGHT = [("2026-12-21", 16*60, "dusk"), ("2026-12-21", 18*60+30, "night"), ("2026-12-21", 12*60, "day"),
+            ("2026-06-21", 21*60, "dusk"), ("2026-06-21", 20*60, "dusk"), ("2026-06-21", 23*60, "night"), ("2026-06-21", 7*60, "dawn")]
+SUNSET = {"2026-12-21": 17*60+25, "2026-06-21": 21*60+28}
+
+async def check_daylight(browser):
+    """The light of the window and the carriage on the sun's clock (light.ts), winter and summer."""
+    errs = []
+    page = await hero_page(browser)
+    for day, minute, want in DAYLIGHT:
+        got = await page.evaluate(f"window.reus.daylight({minute}, '{day}').name")
+        if got != want: errs.append(f"on {day} at {minute//60:02d}:{minute%60:02d} the light is «{got}», expected «{want}»")
+    for day, sunset in SUNSET.items():
+        # an hour before sunset the sun still shows; 20 minutes after it, the blue hour: no sun, the sky bluer than red
+        before = await page.evaluate(f"window.reus.daylight({sunset-60}, '{day}').glow")
+        blue = await page.evaluate(f"(l => [l.glow, l.top[2] - l.top[0]])(window.reus.daylight({sunset+20}, '{day}'))")
+        if not before > 0: errs.append(f"on {day} the sun has gone an hour before sunset ({sunset//60:02d}:{sunset%60:02d})")
+        if blue[0] != 0 or blue[1] < .2: errs.append(f"on {day} 20 minutes after sunset it is not the blue hour (glow {blue[0]}, sky blue minus red {blue[1]:.2f})")
+    await page.close()
+    return errs
+
 async def check_hero(browser):
     """15. The hero B: its name and subtitle."""
     errs = []
@@ -839,6 +860,7 @@ async def check_hero(browser):
     errs += [f"station: {e}" for e in await check_station(browser)]
     # the big train's route, only on a desktop
     errs += [f"route: {e}" for e in await check_journey(browser)]
+    errs += [f"light: {e}" for e in await check_daylight(browser)]
     # 21:30, from Reus: no regional left today, but two AVE from Camp de Tarragona (22:17, 22:39)
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
