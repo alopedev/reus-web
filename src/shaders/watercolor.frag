@@ -1,6 +1,6 @@
 precision highp float;
 uniform sampler2D tScene; uniform vec2 res, sres; uniform float tq, reveal, aspect, waspect, hor, wrad, seats, foldY, shade;
-uniform vec3 skyTop, skyHor, sunCol, wallA, wallB, wood, seat; uniform vec2 sunPos; uniform vec4 win;
+uniform vec3 skyTop, skyHor, sunCol, wallA, wallB, wood, seat; uniform vec2 sunPos; uniform float sunA; uniform vec4 win;
 varying vec2 vUv;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
@@ -23,7 +23,7 @@ vec3 sky(vec2 w, float t){
   s = mix(s, s*.88, fbm(w*vec2(2.2,1.6)+vec2(t*.02,0.))*.75);
   vec2 d = (w - sunPos)*vec2(waspect,1.);
   float rr = length(d) + (fbm(d*10.+t)-.5)*.02;
-  return mix(s, sunCol, smoothstep(.09,.08,rr)*.85);
+  return mix(s, sunCol, smoothstep(.09,.08,rr)*sunA);
 }
 // what the window shows, before it becomes paint
 vec3 outside(vec2 w, float t, out float e, out float pen){
