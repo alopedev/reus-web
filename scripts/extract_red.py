@@ -383,9 +383,14 @@ def main():
     dropped = set()   # paradas de av fuera de Catalunya (o nuevas sin comarca): se listan al final
 
     stop_names = {}
+    stop_ll = {}   # where each town is, for its weather in the window: [lat, lon] to 3 decimals (~100 m)
     for r in fom_gtfs.rows("stops.txt"):
         if r["stop_name"]:
             stop_names[r["stop_id"]] = r["stop_name"]
+        try:
+            stop_ll[r["stop_id"]] = [round(float(r["stop_lat"]), 3), round(float(r["stop_lon"]), 3)]
+        except (KeyError, TypeError, ValueError):
+            pass
 
     print("Leyendo av (Fichero_AV_LD)...", file=sys.stderr)
     av_gtfs = load_gtfs(args.avld, AVLD_URL)
@@ -626,6 +631,8 @@ def main():
                 f"anadela a scripts/extract_red.py antes de seguir (no se inventa)."
             )
         estaciones[sid] = {"nombre": name, "comarca": comarca, "lineas": set()}
+        if sid in stop_ll:
+            estaciones[sid]["ll"] = stop_ll[sid]
 
     for t in trenes:
         for sid, _a, _e in t["s"]:

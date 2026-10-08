@@ -1,6 +1,7 @@
 import type { BufferGeometry } from 'three';
 import { BoxGeometry, Color, ConeGeometry, CylinderGeometry, DirectionalLight, Float32BufferAttribute, Group, HemisphereLight, IcosahedronGeometry, InstancedMesh, LinearFilter, Mesh, MeshPhongMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, RGBAFormat, Scene, ShaderMaterial, Vector2, Vector3, Vector4, WebGLRenderTarget, WebGLRenderer } from 'three';
 import { daylight, type Hour } from './light';
+import type { Weather } from './weather';
 import watercolorFrag from './shaders/watercolor.frag?raw';
 
 export interface World {
@@ -8,6 +9,7 @@ export interface World {
   setTime(min: number): Hour;                              // light it for a time of day
   resize(): void;
   setWash(foldY: number, shade: number): void;             // the pigment wash on the wall (see shelf.ts)
+  setWeather(w: Weather): void;                            // the weather at home, in the window (see weather.ts)
   grain(): number;                                         // px of the landscape per px of the window (check.py)
 }
 // something scattered on the landscape: position, size, and turn around the vertical axis
@@ -96,7 +98,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
       skyTop:{value:new Vector3()}, skyHor:{value:new Vector3()}, sunCol:{value:new Vector3()}, sunPos:{value:new Vector2()}, sunA:{value:.85},
       aspect:{value:1}, waspect:{value:1}, hor:{value:.42}, win:{value:new Vector4(.2,.3,.8,.8)}, wrad:{value:.04}, seats:{value:1},
       wallA:{value:new Vector3()}, wallB:{value:new Vector3()}, wood:{value:new Vector3()}, seat:{value:new Vector3()},
-      foldY:{value:0}, shade:{value:0} },
+      foldY:{value:0}, shade:{value:0}, wx:{value:0} },
     vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`,
     fragmentShader: watercolorFrag,
   });
@@ -163,5 +165,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     if(!washRaf) washRaf = requestAnimationFrame(() => { washRaf = 0; renderer.setRenderTarget(null); renderer.render(postScene, postCam); });
   }
   resize(); addEventListener('resize', resize);
-  return {frame, setTime, resize, setWash, grain: () => grain};
+  // 0 fair, 1 overcast, 2 rain (drops on the glass), 3 fog: the shader's wx
+  function setWeather(w: Weather){ U.wx.value = ['clear', 'cloudy', 'rain', 'fog'].indexOf(w); }
+  return {frame, setTime, resize, setWash, setWeather, grain: () => grain};
 }
