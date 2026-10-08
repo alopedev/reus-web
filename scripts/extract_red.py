@@ -28,7 +28,8 @@ Regla de fusion (docs/referencias/datos-red.md #5):
      que toque una estacion de Barcelona Y una parada ya incluida en la red (pueblo
      real, no solo Barcelona -- si no, cualquier regional que pase por Barcelona
      colaria):
-       - Si su firma de Barcelona coincide, en algun dia en que circula, con la de
+       - Si su firma de Barcelona coincide (si toca dos o mas estaciones de Barcelona,
+         basta un minuto de diferencia en cada una), en algun dia en que circula, con la de
          un tren de fom ya admitido -> es el mismo tren fisico (normalmente
          REGIONAL, que duplica fom 1:1; tambien el caso de un tren que fom trae
          partido en un tramo interno, como Lleida via La Plana-Picamoixons). Se usa
@@ -430,6 +431,24 @@ def main():
         # que usa check_datos.py para detectar "mismo tren fisico" (regla 6).
         return tuple((sid, e) for _seq, sid, a, e in stops if sid in BARCELONA)
 
+    def find_fom(date, sig):
+        """trip_id de fom con esa firma de Barcelona ese dia, o None. Primero la firma
+        exacta; si no, la misma secuencia de estaciones de Barcelona (dos o mas) saliendo
+        con un minuto de diferencia como mucho en cada una: los feeds difieren a veces en
+        un minuto en Passeig de Gracia (el R15 17501 de las 09:03 de Sants, 13-18/10/2026,
+        salia dos veces). Con una sola estacion de Barcelona, solo la exacta: dos trenes
+        distintos pueden salir de Sants con un minuto de diferencia."""
+        index = fom_bcn_index[date]
+        if sig in index:
+            return index[sig]
+        if len(sig) < 2:
+            return None
+        for other, ftid in index.items():
+            if (len(other) == len(sig) and all(a[0] == b[0] for a, b in zip(sig, other))
+                    and all(abs(a[1] - b[1]) <= 1 for a, b in zip(sig, other))):
+                return ftid
+        return None
+
     fom_bcn_index = collections.defaultdict(dict)  # date -> {firma: trip_id}
     fom_by_trip_id = {t["trip_id"]: t for t in fom_trains}
     touching_trip_ids = {t["trip_id"] for trains in fom_by_date.values() for t in trains}
@@ -510,7 +529,7 @@ def main():
         matched_ftids = []
         if sig:
             for d in dias_numero:
-                ftid = fom_bcn_index[d].get(sig)
+                ftid = find_fom(d, sig)
                 if ftid:
                     matched_ftids.append(ftid)
                     matched_lines[fom_by_trip_id[ftid]["line"]] += 1
