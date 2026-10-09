@@ -48,14 +48,15 @@ Rules checked:
   12. The landscape is painted twice as fine on the stacked hero as on the wide one (reus.paisaje(): px of the
      landscape per px of the window), so its brush strokes don't read as pixels in a small window.
   13. Accessibility without visible changes: no live region holds a control; the live region speaks only when the
-     train shown changes (never on the 30 s refresh) and names its time; the ticket's ⇄ reads «Canviar el sentit»; the recording shortcuts (R, P) work only with ?grabar in the URL; the
+     train shown changes (never on the 30 s refresh) and names its time; the ticket's arrows read «Canviar el sentit»; the recording shortcuts (R, P) work only with ?grabar in the URL; the
      «horari aproximat» note speaks impersonally. Modo rápido: `python3 scripts/check.py a11y`.
   14. The site reads the network timetable (data/red.json; the parity build, its frozen copy
      scripts/baseline/red.json): the back of the ticket credits «Origen de los datos: Renfe Operadora» with the
      date the data was updated, as Renfe's licence asks. Modo rápido: `python3 scripts/check.py red`.
   15. The hero B (docs/plan.md, 28-09): the site is called «Capacasa» (title and h1) with the subtitle «El tren cap
-     a casa, i el de tornada a Barcelona». One ticket, «Bitllet · Sants ⇄ Reus»: ⇄ turns the trip around (the
-     route reads «Reus ⇄ Sants», the live region names the new train, the focus stays on ⇄). A board of
+     a casa, i el de tornada a Barcelona». One ticket, «Bitllet · Sants ▶▶▷ Reus»: the three arrows turn the trip around
+     (the route reads «Reus → Sants», the live region names the new train, the focus stays on them); the stub carries
+     the day of the train shown, printed in dot matrix. A board of
      two trips, the first to leave and the one after it, regional or AVE (from Camp de Tarragona: Reus is in the Baix
      Camp): «R15 10:03 el pròxim, en 3 min → 11:33», «R15 11:03 després → 12:33», «en X min» only on the train
      shown while live, the AVE says «des de/fins a Camp de Tarragona» under its arrival, no
@@ -761,7 +762,7 @@ async def check_a11y(browser):
     said = (await page.evaluate(LIVE))["text"]
     if pick and pick not in said: errs.append(f"choosing the {pick} train is not announced (live region: «{said[:80]}»)")
     label = await page.evaluate("document.querySelector('.tk .swap')?.getAttribute('aria-label') || ''")
-    if not label.startswith("Canviar el sentit"): errs.append(f"the ticket's ⇄ reads «{label}», expected «Canviar el sentit…»")
+    if not label.startswith("Canviar el sentit"): errs.append(f"the ticket's → reads «{label}», expected «Canviar el sentit…»")
     # R and P are for recording the video only: without ?grabar a stray key must not pause the landscape
     PLAYING = "window.reus.playing ? reus.playing() : null"
     await page.keyboard.press("p"); await page.wait_for_timeout(200)
@@ -1022,6 +1023,8 @@ async def check_hero(browser):
     want = ["AVE 05:50 el pròxim → 06:22 fins a Camp de Tarragona", "R15 06:33 després → 08:03"]
     if b["rows"] != want: errs.append(f"at 23:30 the board reads {b['rows']}, expected tomorrow's first trips {want}")
     if "Avui ja no en queden" not in b["info"]: errs.append("at 23:30 the board does not say «Avui ja no en queden · demà»")
+    dia = await page.evaluate("document.querySelector('.tk .fecha')?.dataset.dia")
+    if dia != "2026-09-29": errs.append(f"at 23:30, with tomorrow's trains on the board, the stub is printed with the day {dia}, expected 2026-09-29")
     errs += [f"at 23:30: {e}" for e in buy_link(b, "71801", CAMP_ID, "29/09/2026")]
     await page.close()
     return errs
@@ -1156,25 +1159,26 @@ def buy_link(b, frm, to, day):
     return errs
 
 TICKET = """(() => { const t = [...document.querySelectorAll('#tickets .tk')], sw = document.querySelector('.tk .swap');
-  return {n: t.length, text: t[0] ? t[0].textContent.replace(/\\s+/g, ' ').trim() : '', route: t[0]?.querySelector('.route')?.textContent.replace(/\\s+/g, ' ').trim(),
-          swap: sw ? sw.textContent.trim() : null, focus: document.activeElement === sw, aviso: document.getElementById('aviso').textContent}; })()"""
+  return {n: t.length, text: t[0] ? t[0].textContent.replace(/\\s+/g, ' ').trim() : '', route: [...(t[0]?.querySelector('.route')?.children ?? [])].map(b => b.matches('.swap') ? '→' : b.textContent.trim()).join(' '),
+          swap: sw ? sw.querySelectorAll('svg.fletxes path').length : null, dia: t[0]?.querySelector('.fecha')?.dataset.dia, focus: document.activeElement === sw, aviso: document.getElementById('aviso').textContent}; })()"""
 
 async def check_hero_ticket(page):
-    """One ticket with both ends; ⇄ turns the trip around and keeps the focus."""
+    """One ticket with both ends; → turns the trip around and keeps the focus."""
     errs = []
     t = await page.evaluate(TICKET)
     if t["n"] != 1: return [f"{t['n']} tickets in the hero, expected one"]
     if not t["text"].startswith("Bitllet"): errs.append(f"the ticket reads «{t['text']}», expected «Bitllet …»")
-    if t["route"] != "Sants ⇄ Reus": errs.append(f"the ticket's route reads «{t['route']}», expected «Sants ⇄ Reus»")
-    if t["swap"] != "⇄": return errs + ["the ticket has no ⇄ button (.tk .swap)"]
+    if t["route"] != "Sants → Reus": errs.append(f"the ticket's route reads «{t['route']}», expected «Sants → Reus»")
+    if t["swap"] != 3: return errs + [f"the ticket's swap (.tk .swap) is not the three arrows of a printed ticket ({t['swap']} drawn)"]
+    if t["dia"] != "2026-09-28": errs.append(f"the stub is printed with the day {t['dia']}, expected 2026-09-28 (today)")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     t = await page.evaluate(TICKET)
-    if t["route"] != "Reus ⇄ Sants": errs.append(f"after ⇄ the route reads «{t['route']}», expected «Reus ⇄ Sants»")
-    if not t["focus"]: errs.append("after ⇄ the focus is not on ⇄ any more")
-    if "a Barcelona Sants" not in t["aviso"]: errs.append(f"after ⇄ the live region does not name the new trip («{t['aviso'][:80]}»)")
+    if t["route"] != "Reus → Sants": errs.append(f"after the arrows the route reads «{t['route']}», expected «Reus → Sants»")
+    if not t["focus"]: errs.append("after the arrows the focus is not on them any more")
+    if "a Barcelona Sants" not in t["aviso"]: errs.append(f"after the arrows the live region does not name the new trip («{t['aviso'][:80]}»)")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     t = await page.evaluate(TICKET)
-    if t["route"] != "Sants ⇄ Reus": errs.append(f"⇄ twice does not bring the trip back («{t['route']}»)")
+    if t["route"] != "Sants → Reus": errs.append(f"the arrows twice do not bring the trip back («{t['route']}»)")
     return errs
 
 # --- 3.3 · the town selector ---------------------------------------------------------------------------------
@@ -1342,12 +1346,12 @@ async def check_journey(browser):
 TOWN = """(() => { const b = document.querySelector('.tk .town'); if(!b) return null;
   return {tag: b.tagName, text: b.textContent.trim(), haspopup: b.getAttribute('aria-haspopup'),
           style: getComputedStyle(b).textDecorationLine, raised: getComputedStyle(b).textShadow, label: b.getAttribute('aria-label') || '',
-          route: document.querySelector('.tk .route')?.textContent.replace(/\\s+/g, ' ').trim()}; })()"""
+          route: [...(document.querySelector('.tk .route')?.children ?? [])].map(b => b.matches('.swap') ? '→' : b.textContent.trim()).join(' ')}; })()"""
 
 async def check_town_ticket(page):
     """The town on the ticket: a button that opens the selector, raised like every interactive text (an offset
     shadow, no underline), with an
-    accessible name starting with the town's own name; the route still reads «Sants ⇄ Reus»."""
+    accessible name starting with the town's own name; the route still reads «Sants → Reus»."""
     t = await page.evaluate(TOWN)
     if not t: return ["'.tk .town' is missing"]
     errs = []
@@ -1357,7 +1361,7 @@ async def check_town_ticket(page):
     if t["style"] != "none": errs.append(f".tk .town is underlined ({t['style']}): what you can press is raised, not underlined")
     if t["raised"] in ("", "none"): errs.append(".tk .town has no offset shadow: what you can press stands off the paper")
     if not t["label"].startswith("Reus"): errs.append(f".tk .town accessible name is «{t['label']}», expected to start with «Reus»")
-    if t["route"] != "Sants ⇄ Reus": errs.append(f".tk .route reads «{t['route']}», expected «Sants ⇄ Reus»")
+    if t["route"] != "Sants → Reus": errs.append(f".tk .route reads «{t['route']}», expected «Sants → Reus»")
     return errs
 
 # a click in the town selector may wait for a slow frame: the software-rendered hero takes seconds per frame at the
@@ -1495,8 +1499,8 @@ async def check_town_choose_girona(browser):
     if errs: await page.close(); return errs
     await page.wait_for_timeout(300)
     if await page.evaluate("document.getElementById('selp')?.open"): errs.append("#selp is still open after choosing Girona")
-    route = await page.evaluate("document.querySelector('.tk .route')?.textContent.replace(/\\s+/g, ' ').trim()")
-    if route != "Sants ⇄ Girona": errs.append(f"after choosing Girona the route reads «{route}», expected «Sants ⇄ Girona»")
+    route = await page.evaluate("[...(document.querySelector('.tk .route')?.children ?? [])].map(b => b.matches('.swap') ? '→' : b.textContent.trim()).join(' ')")
+    if route != "Sants → Girona": errs.append(f"after choosing Girona the route reads «{route}», expected «Sants → Girona»")
     if not await page.evaluate("document.activeElement === document.querySelector('.tk .town')"): errs.append("the focus is not on .tk .town after choosing Girona")
     b = await page.evaluate(BOARD); r = await page.evaluate(RULER)
     want = two_rows([t for t in _direct(net, day, SANTS_ID, GIRONA_TOWN) if t[0] >= now + margin], now)
@@ -1507,11 +1511,11 @@ async def check_town_choose_girona(browser):
     if "Girona" not in b["aviso"]: errs.append(f"choosing Girona, the live region does not name it («{b['aviso'][:80]}»)")
     errs += buy_link(b, SANTS_ID, GIRONA_TOWN, "28/09/2026")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
-    route = await page.evaluate("document.querySelector('.tk .route')?.textContent.replace(/\\s+/g, ' ').trim()")
-    if route != "Girona ⇄ Sants": errs.append(f"after ⇄ the route reads «{route}», expected «Girona ⇄ Sants»")
+    route = await page.evaluate("[...(document.querySelector('.tk .route')?.children ?? [])].map(b => b.matches('.swap') ? '→' : b.textContent.trim()).join(' ')")
+    if route != "Girona → Sants": errs.append(f"after the arrows the route reads «{route}», expected «Girona → Sants»")
     b = await page.evaluate(BOARD)
     want = two_rows([t for t in _direct(net, day, GIRONA_TOWN, SANTS_ID) if t[0] >= now + margin], now)
-    if b["rows"] != want: errs.append(f"Girona ⇄ Sants: the board reads {b['rows']}, expected {want}")
+    if b["rows"] != want: errs.append(f"Girona → Sants: the board reads {b['rows']}, expected {want}")
     await page.close()
     return errs
 
@@ -1539,8 +1543,8 @@ async def check_town_close(browser):
     async def unchanged(page, how):
         out = []
         if await page.evaluate("document.getElementById('selp')?.open"): out.append(f"{how}: #selp is still open")
-        route = await page.evaluate("document.querySelector('.tk .route')?.textContent.replace(/\\s+/g, ' ').trim()")
-        if route != "Sants ⇄ Reus": out.append(f"{how}: the route changed to «{route}»")
+        route = await page.evaluate("[...(document.querySelector('.tk .route')?.children ?? [])].map(b => b.matches('.swap') ? '→' : b.textContent.trim()).join(' ')")
+        if route != "Sants → Reus": out.append(f"{how}: the route changed to «{route}»")
         if not await page.evaluate("document.activeElement === document.querySelector('.tk .town')"): out.append(f"{how}: the focus did not return to .tk .town")
         return out
     page = await hero_page(browser)
@@ -1684,7 +1688,7 @@ async def check_phone_board(browser):
 # --- 3.5 · the Barcelona station ------------------------------------------------------------------------------
 PDG_ID, FRANCA_ID = "71802", "79400"
 STATIONS = [SANTS_ID, PDG_ID, FRANCA_ID]
-ROUTE = "document.querySelector('.tk .route')?.textContent.replace(/\\s+/g, ' ').trim()"
+ROUTE = "[...(document.querySelector('.tk .route')?.children ?? [])].map(b => b.matches('.swap') ? '→' : b.textContent.trim()).join(' ')"
 
 async def choose_station(page, station, timeout=CLICK_MS):
     """The two taps that choose the Barcelona station: the ticket's Barcelona end, then the station."""
@@ -1727,18 +1731,18 @@ async def check_station(browser):
         if "R11" not in (got["rows"][2]["d"] or ""): errs.append(f"França does not say it misses the R11 («{got['rows'][2]['d']}»)")
         if "R11" in (got["rows"][1]["d"] or ""): errs.append(f"Passeig de Gràcia says it misses the R11 («{got['rows'][1]['d']}»)")
     await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
-    if await page.evaluate(ROUTE) != "Sants ⇄ Reus": errs.append("Esc in the station sheet changed the route")
+    if await page.evaluate(ROUTE) != "Sants → Reus": errs.append("Esc in the station sheet changed the route")
     if not await page.evaluate("document.activeElement === document.querySelector('.tk .bcn')"): errs.append("after Esc the focus is not back on .tk .bcn")
     e = await choose_station(page, PDG_ID)
     if e: await page.close(); return errs + e
-    if await page.evaluate(ROUTE) != "Gràcia ⇄ Reus": errs.append(f"after choosing Passeig de Gràcia the route reads «{await page.evaluate(ROUTE)}»")
+    if await page.evaluate(ROUTE) != "Gràcia → Reus": errs.append(f"after choosing Passeig de Gràcia the route reads «{await page.evaluate(ROUTE)}»")
     if not await page.evaluate("document.activeElement === document.querySelector('.tk .bcn')"): errs.append("the focus is not on .tk .bcn after choosing a station")
     b = await page.evaluate(BOARD)
     want = two_rows([t for t in _direct(net, day, PDG_ID, REUS_TOWN) if t[0] >= now + margin], now)
     if b["rows"] != want: errs.append(f"from Passeig de Gràcia the board reads {b['rows']}, expected {want}")
     errs += buy_link(b, PDG_ID, REUS_TOWN, "28/09/2026")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
-    if await page.evaluate(ROUTE) != "Reus ⇄ Gràcia": errs.append(f"after ⇄ the route reads «{await page.evaluate(ROUTE)}»")
+    if await page.evaluate(ROUTE) != "Reus → Gràcia": errs.append(f"after the arrows the route reads «{await page.evaluate(ROUTE)}»")
     await page.click(".tk .bcn", timeout=CLICK_MS); await page.wait_for_timeout(300)
     h3 = await page.evaluate("document.querySelector('#selp h3')?.textContent.trim()")
     if h3 != "A quina estació arribes?": errs.append(f"coming back, the station sheet asks «{h3}»")
