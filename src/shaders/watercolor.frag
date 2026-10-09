@@ -98,6 +98,7 @@ void main(){
     float glow = exp(-max(sdW,0.)*7.);
     wall = mix(wall, wall*(1.-0.3) + skyHor*.45, glow*.35);             // daylight spilling onto the wall
     wall *= .82 + .18*smoothstep(0.,.35,uv.x)*smoothstep(1.,.65,uv.x); // corners fall into shade
+    wall *= mix(.66, 1., smoothstep(0., .24, y));                     // the foot of the wall, furthest from the window, in shadow
     col = wall;
     // panelling on the lower wall
     float seam = ring(fract(P.x*3.2)-.5, .004) * step(y, dado);
