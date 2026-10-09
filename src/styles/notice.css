@@ -1,0 +1,32 @@
+/* the lines' notices (09-10). On a desktop, an ink stamp on the ticket, raised like everything you can press; the
+   ink frame has the selector's grain (--grano-sello). Its sheet is the chooser's paper (.sheet, chooser.css) */
+.segell{ position:absolute; top:.35rem; right:2.5rem; z-index:2; transform:rotate(-7deg); font:700 .95rem/1.05 var(--texto);
+  letter-spacing:.06em; text-transform:uppercase; color:#6E2A1C; background:none; border:0; padding:.32rem .5rem .28rem;
+  cursor:pointer; text-align:center; text-shadow:var(--alzado-papel); }
+.segell::after{ content:""; position:absolute; inset:0; border:2.5px solid #6E2A1C; border-radius:.3em;
+  -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:160px; mask-size:160px; pointer-events:none; }
+/* the stamp takes its own band beside «Bitllet», so a short route («Sants ⇄ Reus») never runs under it */
+.tk.sellat .k{ min-height:2.6rem; }
+.tk.sellat .pp{ min-width:15rem; }
+.segell small{ display:block; font-weight:500; text-transform:none; letter-spacing:0; font-size:.88rem; }
+.segell:hover{ text-shadow:var(--alzado-papel-hover); }
+.segell:active{ text-shadow:none; transform:rotate(-7deg) translate(.05em,.05em); }
+.segell:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; }
+
+#avis .nota{ margin:0 0 1rem; }
+#avis .k, .pliego .avisos .k{ display:flex; align-items:center; gap:.4rem; margin:0 0 .35rem; font-weight:700; }
+#avis .txt{ margin:0; font:500 1.1rem/1.45 var(--texto); }
+.qui{ margin:.4rem 0 0; font-size:.93rem; opacity:.85; }
+.mes{ color:inherit; font-weight:700; text-decoration:none; text-shadow:var(--alzado-papel); }
+.mes:hover{ text-shadow:var(--alzado-papel-hover); }
+.mes:active{ text-shadow:none; }
+.mes:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; border-radius:.2rem; }
+
+/* on a phone, the train's sheet says what is known of its line; a notice is framed in the stamp's ink */
+.pliego .avisos{ margin:.8rem 0 0; font-size:.93rem; }
+.pliego .avisos.avis{ position:relative; padding:.6rem .7rem; color:#6E2A1C; }
+.pliego .avisos.avis::after{ content:""; position:absolute; inset:0; border:2px solid #6E2A1C; border-radius:.3rem;
+  -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:160px; mask-size:160px; pointer-events:none; }
+.pliego .avisos .txt{ margin:0; font:500 1rem/1.4 var(--texto); color:var(--shadow); }
+.pliego .avisos .qui{ color:var(--shadow); }
+.pliego .avisos .mes{ display:inline-flex; align-items:center; min-height:max(2.75rem, 44px); position:relative; z-index:1; }
