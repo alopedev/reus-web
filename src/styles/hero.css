@@ -159,9 +159,3 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 @media (max-width:700px){ .stage{ padding-bottom:calc(1rem + env(safe-area-inset-bottom, 0px)); } }
 .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
 
-/* the hint that there is more below, raised like everything you can press */
-.more{ justify-self:center; margin-top:-1rem; font-size:.95rem; color:var(--paper); text-shadow:var(--alzado-pared); text-decoration:none; }
-.more:hover{ text-shadow:var(--alzado-pared-hover); }
-.more:active{ text-shadow:none; transform:translate(.06em,.06em); }
-.more:focus-visible{ outline:2px solid var(--paper); outline-offset:4px; }
-

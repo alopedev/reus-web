@@ -108,12 +108,10 @@ async def settle(page):
     await page.wait_for_timeout(500)
 
 async def check_shelf(page, name):
-    """The shelf below the hero: a visible hint to scroll, the three paper objects, nothing sticking out sideways."""
+    """The shelf below the hero: the page scrolls (no written hint since 09-10: fewer words on the wall), the three
+    paper objects, nothing sticking out sideways."""
     errs = []
-    hint = await page.evaluate("""(() => { const m = document.querySelector('#more');
-      if(!m) return null; const r = m.getBoundingClientRect(); return {bottom: r.bottom, h: innerHeight}; })()""")
-    if not hint: return ["no scroll hint (#more) in the hero"]
-    if hint["bottom"] > hint["h"]: errs.append("scroll hint is below the fold")
+    if await page.evaluate("!!document.querySelector('#more')"): errs.append("«Què és i com s’ha fet» is back in the hero (removed 09-10)")
     if not await page.evaluate("document.scrollingElement.scrollHeight > innerHeight + 10"):
         return errs + ["page does not scroll"]
     await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})")
