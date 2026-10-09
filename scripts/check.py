@@ -982,13 +982,12 @@ def luminance(rgb):
 
 HOURS = """(() => { const row = document.querySelector('.hours'), c = getComputedStyle(row).color.match(/\\d+/g).map(Number);
   const box = e => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; };
-  return {color: c, row: box(row), labels: [...row.querySelectorAll('span')].map(box), rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
-          more: box(document.getElementById('more')), win: box(document.getElementById('win')), h: innerHeight}; })()"""
+  return {color: c, row: box(row), labels: [...row.querySelectorAll('span')].map(box)}; })()"""
 
 async def check_ruler_foot(browser):
     """The foot of the hero: the ruler's hours read against the painted wall at its brightest (10:00, AA: 4.5:1, the
-    foot of the wall in shadow), and on an iPhone the hours and «Què és» rise clear of Safari's
-    floating toolbar (--barra, which only WebKit on iOS sets)."""
+    foot of the wall in shadow), and on a phone the hours and «Què és» keep clear of the safe area at the
+    bottom (Àlex, 09-10, option A)."""
     errs = []
     for w, h in ((390, 844), (1440, 900)):
         page = await hero_page(browser, w, h); await page.wait_for_timeout(1500)
@@ -1003,14 +1002,12 @@ async def check_ruler_foot(browser):
         ratio = (luminance(g["color"]) + .05) / (bright + .05)
         if ratio < 4.5: errs.append(f"{w}x{h} at 10:00: the ruler's hours stand at {ratio:.1f}:1 against the wall, AA needs 4.5:1")
         await page.close()
-    # an iPhone: Safari 26's toolbar floats over the bottom of the screen; with --barra the foot rises above it
+    # on a phone the foot keeps clear of the safe area Safari reports: Chromium has none, so read the rule itself
     page = await hero_page(browser, 390, 844)
-    await page.evaluate("document.documentElement.style.setProperty('--barra', '4.6rem')"); await page.wait_for_timeout(500)
-    g = await page.evaluate(HOURS)
-    clear = g["h"] - 4.6 * g["rem"]
-    if g["row"][3] > clear + 1 or g["more"][3] > clear + 1:
-        errs.append(f"390x844 on an iPhone: the foot of the hero reaches {max(g['row'][3], g['more'][3]):.0f} px, under Safari's toolbar from {clear:.0f} px")
-    if g["win"][3] - g["win"][1] < 200: errs.append(f"390x844 on an iPhone: the window shrinks to {g['win'][3] - g['win'][1]:.0f} px tall")
+    safe = await page.evaluate("""[...document.styleSheets].filter(s => !s.href || s.href.startsWith(location.origin)).flatMap(s => [...s.cssRules]).some(function has(r){
+      // a style rule has cssRules too (nesting): look at its own style first
+      return r.selectorText === '.stage' && /env\\(safe-area-inset-bottom/.test(r.style.paddingBottom) || [...(r.cssRules || [])].some(has); })""")
+    if not safe: errs.append("on a phone the hero's foot does not keep clear of env(safe-area-inset-bottom)")
     await page.close()
     return errs
 

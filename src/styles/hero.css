@@ -154,12 +154,9 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   #board .tt::before{ content:""; position:absolute; left:0; right:0; top:50%; height:max(2.75rem, 44px); transform:translateY(-50%); }
   .ruler{ margin-top:.4rem; }
 }
-/* Safari on the iPhone (iOS 26) floats its toolbar over the foot of the page and gives no inset for it: the foot of
-   the hero rises clear of it. Only WebKit on iOS knows -webkit-touch-callout; an iPad keeps
-   its toolbar at the top. check.py sets --barra itself to see the foot move */
-:root{ --barra:0px; }
-@supports (-webkit-touch-callout:none){ :root{ --barra:4.6rem; } }
-@media (max-width:700px){ .stage{ padding-bottom:calc(1rem + var(--barra)); } }
+/* the root's safe-area padding never reaches the fixed hero: on a phone its foot keeps clear of the home bar and of
+   whatever inset Safari gives for its toolbar (Àlex, 09-10, option A) */
+@media (max-width:700px){ .stage{ padding-bottom:calc(1rem + env(safe-area-inset-bottom, 0px)); } }
 .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
 
 /* the hint that there is more below, raised like everything you can press */
