@@ -62,7 +62,8 @@ Rules checked:
      headings and no «Luego»/«Anterior»; the other trip is a button, and choosing one, AVE included, makes it the
      train shown. With no trains left today it shows tomorrow's first ones under «Avui ja no en queden · demà». The ruler of the day has one
      mark: every train is a tick, the AVE like the rest; the knob always stands on the train shown; «ara» is a
-     thin line with its word, with no «Son las HH:MM» heading; «Tornar a ara» never covers that word; the arrow
+     thin line with its word, with no «Son las HH:MM» heading; away from now a station clock stands on that line in
+     place of the word and goes back to now; the arrow
      keys step through every train, AVE included. From Reus in the evening, when no regional is left but an AVE
      from Camp de Tarragona is, that AVE is the train shown and tomorrow's first regional follows it, marked «demà».
      The ticket's town (`.tk .town`) opens a native `#selp` dialog (docs/spec-3.3.md): step 1 lists the four
@@ -997,14 +998,24 @@ async def check_hero(browser):
               return b ? b.left < -1 || b.right > innerWidth + 1 : 'missing'; })()""")
             if out: errs.append(f"{w}x{h} at {when}: the word «ara» leaves the screen ({out})")
             await page.close()
-    # late in the evening «ara» sits on the right of the ruler, where «Tornar a ara» used to be
+    # away from now (late in the evening, the first train chosen) the station clock stands on the line of «ara» in
+    # place of its word, on screen, telling 23:10; pressing it goes back to now
     for w, h in ((390, 844), (1440, 900)):
         page = await hero_page(browser, w, h, at="2026-09-28T21:10:00Z")
         await page.focus("#t"); await page.keyboard.press("Home"); await page.wait_for_timeout(300)
-        hit = await page.evaluate("""(() => { const a = document.getElementById('nowBtn'), b = document.querySelector('.nowline span');
-          if(!a || !b || a.hidden) return 'missing'; const r = a.getBoundingClientRect(), s = b.getBoundingClientRect();
-          return r.right > s.left && s.right > r.left && r.bottom > s.top && s.bottom > r.top; })()""")
-        if hit: errs.append(f"{w}x{h} at 23:10: «Tornar a ara» covers the word «ara» ({hit})")
+        c = await page.evaluate("""(() => { const a = document.getElementById('nowBtn'), l = document.querySelector('.nowline'), w = l?.querySelector('span');
+          if(!a || !l || a.hidden) return null; const r = a.getBoundingClientRect(), s = l.getBoundingClientRect(), st = getComputedStyle(a);
+          return {dx: Math.abs((r.left + r.right) / 2 - (s.left + s.right) / 2), gap: s.top - r.bottom, left: r.left, right: r.right - innerWidth,
+                  word: getComputedStyle(w).visibility, name: a.getAttribute('aria-label'), h: st.getPropertyValue('--h').trim(), m: st.getPropertyValue('--m').trim()}; })()""")
+        if not c: errs.append(f"{w}x{h} at 23:10, away from now: no clock on the ruler"); await page.close(); continue
+        if c["dx"] > 3 or not -4 < c["gap"] < 6: errs.append(f"{w}x{h} at 23:10: the clock does not stand on the line of «ara» (off by {c['dx']:.1f} px, {c['gap']:.1f} px above it)")
+        if c["left"] < 0 or c["right"] > 0: errs.append(f"{w}x{h} at 23:10: the clock leaves the screen")
+        if c["word"] != "hidden": errs.append(f"{w}x{h} at 23:10: the word «ara» still shows under the clock")
+        if c["name"] != "Tornar a ara": errs.append(f"{w}x{h} at 23:10: the clock is called «{c['name']}», expected «Tornar a ara» for a screen reader")
+        if (c["h"], c["m"]) != ("335deg", "60deg"): errs.append(f"{w}x{h} at 23:10: the clock's hands read {c['h']} and {c['m']}, expected 335deg and 60deg")
+        await page.click("#nowBtn"); await page.wait_for_timeout(300)
+        back = await page.evaluate("[document.getElementById('nowBtn').hidden, getComputedStyle(document.querySelector('.nowline span')).visibility]")
+        if back != [True, "visible"]: errs.append(f"{w}x{h} at 23:10: pressing the clock does not go back to now (clock hidden, word: {back})")
         await page.close()
     # at 23:30 no train is left today: tomorrow's first ones, and the board says so
     page = await hero_page(browser, at="2026-09-28T21:30:00Z")

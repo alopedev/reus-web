@@ -64,7 +64,7 @@
 .tt:active .t:not(.arr){ text-shadow:none; transform:translate(.06em,.06em); }
 .tt:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
 /* the big train's route, on a desktop (journey.ts): its words first, on one line, then a line up to the arrival
-   with a dot at every stop, placed by the time it reaches it; names and times above or below, like the ruler's */
+   with a dot at every stop, placed by the time it reaches it; names above or below, like the ruler's */
 .big .w{ display:flex; align-items:center; }
 .big .lead{ flex:none; white-space:nowrap; }
 .rec{ position:relative; flex:1 1 0; min-width:0; height:1.5px; margin-left:1.4rem; }
@@ -92,12 +92,22 @@
 .ruler{ grid-column:1 / -1; position:relative; margin-top:.9rem; }
 /* room above the track for «ahora»; «Volver a ahora» on the side away from it */
 .rulerHead{ display:flex; justify-content:flex-end; align-items:baseline; min-height:1.5rem; margin-bottom:.35rem; text-shadow:0 1px 2px rgba(0,0,0,.35); }
-.rulerHead.left{ justify-content:flex-start; }
-.now{ font:inherit; font-family:var(--texto); font-weight:500; font-size:.95rem; color:var(--paper); background:none; border:0; padding:.1em 0; cursor:pointer;
-  text-shadow:var(--alzado-pared); }
-.now:hover{ text-shadow:var(--alzado-pared-hover); }
-.now:active{ text-shadow:none; transform:translate(.06em,.06em); }
+/* away from now, a station clock (Hilfiker's, the Swiss one) stands on the orange line of «ara» in place of its word,
+   telling the time now; pressing it goes back to now (Àlex 09-10). Raised like the rest that can be pressed */
+.now{ position:absolute; z-index:1; bottom:calc(50% + .9rem); width:2.5rem; padding:0; border:0; background:none; cursor:pointer;
+  transform:translateX(-50%) rotate(-3deg); filter:drop-shadow(.12rem .12rem 0 var(--shadow)); }
+.now svg{ display:block; width:100%; height:auto; }
+.now .hh, .now .mm, .now .ss{ transform-origin:0 0; }
+.now .hh{ transform:rotate(var(--h)); } .now .mm{ transform:rotate(var(--m)); } .now .ss{ transform:rotate(calc(var(--s) * 6deg)); }
+/* a wider hit area above and to the sides, never over the ruler it stands on */
+.now::before{ content:""; position:absolute; inset:-.5rem -.6rem 0; }
+.now:hover{ filter:drop-shadow(.16rem .16rem 0 var(--shadow)); }
+.now:active{ filter:none; transform:translateX(-50%) translate(.06rem,.06rem) rotate(-3deg); }
 .now[hidden]{ display:none; }
+/* the second hand sweeps round in 58.5 s and waits for the minute, as on the platform */
+@media (prefers-reduced-motion: no-preference){ .now .ss{ animation:segon 60s linear calc(var(--s) * -.975s) infinite; } }
+@keyframes segon{ 0%{ transform:rotate(0); } 97.5%, 100%{ transform:rotate(360deg); } }
+.ticks .nowline.away span{ visibility:hidden; }
 .track{ position:relative; height:1.6rem; }
 .ticks{ position:absolute; left:0; right:0; top:50%; height:.75rem; transform:translateY(-50%); pointer-events:none; }
 .ticks i{ position:absolute; top:0; width:1.5px; height:.75rem; background:var(--paper); opacity:.75; transform:translateX(-50%); }
@@ -152,6 +162,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   #board .tt{ position:relative; }
   #board .tt::before{ content:""; position:absolute; left:0; right:0; top:50%; height:max(2.75rem, 44px); transform:translateY(-50%); }
   .ruler{ margin-top:.4rem; }
+  .now{ width:1.75rem; }
 }
 .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
 
