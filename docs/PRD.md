@@ -120,7 +120,6 @@ Ordenadas por prioridad.
 - Retrasos en tiempo real con una función serverless mínima (`gtfsrt.renfe.com` no admite CORS).
 - Un paisaje por línea (costa, interior, Pirineo).
 - Fase 4 del diseño: tren de papel sobre una vía en la mesa (aparcada).
-- Subir Three.js desde r128 para aligerar la carga.
 
 ## 7. Métricas de éxito
 
@@ -143,7 +142,7 @@ Al generalizar: el paisaje es el mismo para todos los trayectos; el billete de R
 
 ## 9. Consideraciones técnicas
 
-- Vite + TypeScript estricto; Three.js r128 y GSAP 3.15 como dependencias; Google Fonts. Publicada en Vercel en cada push a `main`; GitHub Actions pasa tipos, compilación y `check.py`.
+- Vite + TypeScript estricto; Three.js r186 y GSAP 3.15 como dependencias; Google Fonts. Publicada en Vercel en cada push a `main`; GitHub Actions pasa tipos, compilación y `check.py`.
 - Sin servidor: los horarios son estáticos y una tarea de GitHub los regenera cada día (04:00 UTC); si Renfe falla, la web sigue con los de ayer.
 - Datos: GTFS abierto de Renfe. Los regionales, solo de `fomento_transit.zip` (vigencia ~1 mes); la alta velocidad, de `Fichero_AV_LD` filtrando AVE/Avlo en Camp de Tarragona (`stop_id` 04104). Los dos feeds duplican los regionales: deduplicar por número de tren y hora. Investigación: `docs/referencias/datos-horarios.md`.
 - Licencia: reutilización libre citando «Origen de los datos: Renfe Operadora» y la fecha de actualización.
