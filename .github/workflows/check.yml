@@ -24,22 +24,6 @@ jobs:
       - run: npm run build
       - run: npm run build:paridad
       - run: python scripts/check.py
-        env:
-          PARIDAD_VOLCAR: '1'
-      # TEMPORARY: the CI's own hero frames, as a difference from the reference in the repo, printed to the log
-      - if: always()
-        run: |
-          python - <<'PY'
-          import base64, zlib
-          from PIL import Image
-          for name in ("escritorio-hero", "movil-hero"):
-              a = Image.open(f"screenshots/{name}-ci.png").convert("RGB").tobytes()
-              b = Image.open(f"scripts/baseline/linux/{name}.png").convert("RGB").tobytes()
-              d = base64.b64encode(zlib.compress(bytes((x - y) % 256 for x, y in zip(a, b)), 9)).decode()
-              print(f"VOLCADO {name} {len(d)}")
-              for i in range(0, len(d), 3000): print(f"V{i // 3000:04d} {d[i:i + 3000]}")
-              print(f"FIN {name}")
-          PY
       # the screenshots, and any reference frame written in this run, to review or commit
       - if: always()
         uses: actions/upload-artifact@v4

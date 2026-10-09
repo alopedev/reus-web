@@ -720,7 +720,6 @@ async def check_parity(browser):
             except Exception: errs.append(f"{name}: the table never gets painted")
             await page.wait_for_timeout(1500)
         shot = Image.open(io.BytesIO(await page.screenshot())).convert("RGB"); await page.close()
-        if os.environ.get("PARIDAD_VOLCAR"): shot.save(shots / f"{name}-ci.png")   # TEMPORARY: CI frames for the references
         ref = baseline / f"{name}.png"
         if not ref.exists():
             shot.save(ref); print(f"reference frame written: {ref.relative_to(root)}")
