@@ -108,12 +108,10 @@ async def settle(page):
     await page.wait_for_timeout(500)
 
 async def check_shelf(page, name):
-    """The shelf below the hero: a visible hint to scroll, the three paper objects, nothing sticking out sideways."""
+    """The shelf below the hero: the page scrolls (no written hint since 09-10: fewer words on the wall), the three
+    paper objects, nothing sticking out sideways."""
     errs = []
-    hint = await page.evaluate("""(() => { const m = document.querySelector('#more');
-      if(!m) return null; const r = m.getBoundingClientRect(); return {bottom: r.bottom, h: innerHeight}; })()""")
-    if not hint: return ["no scroll hint (#more) in the hero"]
-    if hint["bottom"] > hint["h"]: errs.append("scroll hint is below the fold")
+    if await page.evaluate("!!document.querySelector('#more')"): errs.append("«Què és i com s’ha fet» is back in the hero (removed 09-10)")
     if not await page.evaluate("document.scrollingElement.scrollHeight > innerHeight + 10"):
         return errs + ["page does not scroll"]
     await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})")
@@ -977,6 +975,7 @@ async def check_hero(browser):
     errs += [f"route: {e}" for e in await check_journey(browser)]
     errs += [f"light: {e}" for e in await check_daylight(browser)]
     errs += [f"weather: {e}" for e in await check_weather(browser)]
+    errs += [f"foot: {e}" for e in await check_ruler_foot(browser)]
     errs += [f"notices: {e}" for e in await check_avisos(browser)]
     # 21:30, from Reus: no regional left today, but two AVE from Camp de Tarragona (22:17, 22:39)
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
@@ -1052,6 +1051,42 @@ async def check_hero_ruler(page):
         if r["dep"] != dep or r["text"] != text: errs.append(f"{key} on the ruler shows {r['dep']} («{r['text']}»), expected {dep} («{text}»)")
     if r["knob"] != 350: errs.append(f"with the 05:50 AVE shown the knob stands at minute {r['knob']}, expected 350")
     await page.click("#nowBtn"); await page.wait_for_timeout(300)
+    return errs
+
+def luminance(rgb):
+    """WCAG relative luminance of an sRGB colour."""
+    f = lambda v: v / 12.92 if v <= .03928 else ((v + .055) / 1.055) ** 2.4
+    r, g, b = (f(v / 255) for v in rgb[:3]); return .2126 * r + .7152 * g + .0722 * b
+
+HOURS = """(() => { const row = document.querySelector('.hours'), c = getComputedStyle(row).color.match(/\\d+/g).map(Number);
+  const box = e => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; };
+  return {color: c, row: box(row), labels: [...row.querySelectorAll('span')].map(box)}; })()"""
+
+async def check_ruler_foot(browser):
+    """The foot of the hero: the ruler's hours read against the painted wall at its brightest (10:00, AA: 4.5:1, the
+    foot of the wall in shadow), and on a phone the hours and «Què és» keep clear of the safe area at the
+    bottom (Àlex, 09-10, option A)."""
+    errs = []
+    for w, h in ((390, 844), (1440, 900)):
+        page = await hero_page(browser, w, h); await page.wait_for_timeout(1500)
+        g = await page.evaluate(HOURS)
+        shot = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
+        # the wall between the labels (clear of their soft shadow), its brighter pixels: the paper's grain varies
+        x0, y0, x1, y1 = g["row"]; pad = 4
+        wall = sorted(luminance(shot.getpixel((x, y))) for x in range(max(0, int(x0)), min(w, int(x1)), 2) for y in range(int(y0), int(y1), 2)
+                      if not any(l - pad <= x <= r + pad for l, _, r, _ in g["labels"]))
+        if not wall: errs.append(f"{w}x{h}: no wall to read between the ruler's hours"); await page.close(); continue
+        bright = wall[int(.9 * len(wall)) - 1]
+        ratio = (luminance(g["color"]) + .05) / (bright + .05)
+        if ratio < 4.5: errs.append(f"{w}x{h} at 10:00: the ruler's hours stand at {ratio:.1f}:1 against the wall, AA needs 4.5:1")
+        await page.close()
+    # on a phone the foot keeps clear of the safe area Safari reports: Chromium has none, so read the rule itself
+    page = await hero_page(browser, 390, 844)
+    safe = await page.evaluate("""[...document.styleSheets].filter(s => !s.href || s.href.startsWith(location.origin)).flatMap(s => [...s.cssRules]).some(function has(r){
+      // a style rule has cssRules too (nesting): look at its own style first
+      return r.selectorText === '.stage' && /env\\(safe-area-inset-bottom/.test(r.style.paddingBottom) || [...(r.cssRules || [])].some(has); })""")
+    if not safe: errs.append("on a phone the hero's foot does not keep clear of env(safe-area-inset-bottom)")
+    await page.close()
     return errs
 
 async def check_hero_board(page):

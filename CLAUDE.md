@@ -48,6 +48,7 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 - La ventanilla pinta el tiempo de ahora en el pueblo elegido (Àlex, 08-10, opción A): lluvia como gotas quietas en el cristal bajo un cielo gris, nublado y niebla; sin respuesta de Open-Meteo, buen tiempo
 - La estética manda sobre la rapidez, pero la animación no puede ir a tirones
 - Respeta `prefers-reduced-motion` (fotograma fijo)
+- La regla se lee sobre la pared: el pie de la pared va en sombra (shader) para que sus horas pasen de 4,5:1 de día (`check_ruler_foot`). En móvil, el pie del hero deja `env(safe-area-inset-bottom)` (Àlex, 09-10)
 
 ## Técnica
 
