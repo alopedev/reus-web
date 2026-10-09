@@ -59,7 +59,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 1. Features del benchmark que quedan (decisiones de Àlex del 06-10; antes de construir, 3 opciones visuales):
    - Quizá: sello «último de hoy» (en móvil, encima de la hora)
    - Benchmark: https://claude.ai/code/artifact/03d4ea6e-983f-4fd4-a53c-274c8fa23d77
-2. Generalizar la mesa: solo queda el billete de Rodalies («BCN SANTS → REUS»); los textos ya están (06-10). Propuesta pendiente: que copie el trayecto elegido
+2. Generalizar la mesa: los textos ya están (06-10). El billete de Rodalies («BCN SANTS → REUS») se queda como está: Àlex descartó que copie el trayecto elegido (09-10)
 3. Grabar el vídeo para X y LinkedIn
 
 ## Lecciones técnicas
@@ -120,7 +120,7 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 - En móvil, la fila grande con «el próximo, en 36 min» y «comprar ↗» ocupa tres líneas (375 px)
 - Pantallas bajas (iPhone SE con las barras de Safari, ~375 × 548, estimado en Chromium): la ventanilla queda en una rendija (≈ 90 px de alto con 2 trayectos, 58 px con 3). El nombre, el subtítulo y el billete (144 px) y la regla (75 px) son lo que ocupa el sitio, no el tablero
 - Con 2 trayectos, el AVE solo aparece cuando es uno de los dos primeros en salir: ya no está siempre a la vista
-- En la mesa, solo el billete de Rodalies sigue diciendo Reus: es la tarea 2 de «Siguiente paso»
+- En la mesa, el billete de Rodalies sigue diciendo Reus, a propósito (Àlex, 09-10: no se toca)
 - El pueblo elegido no se recuerda al recargar la página: el 3.4 (recordar trayecto + URL) se descartó el 05-10 para esta fase
 - El caso «sin tren directo hoy ni mañana» (decisión 3 de `spec-3.3.md`) no tiene test con datos reales: con la exclusión del área de Barcelona y Camp de Tarragona, no se da con el horario congelado. Queda como red de seguridad sin ejercitar
 
