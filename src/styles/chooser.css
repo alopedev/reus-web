@@ -1,9 +1,9 @@
 /* the pueblo chooser: a sheet of paper laid over the darkened scene (prototype B, rewritten). Touch targets are
    at least 44 px whatever the poster scale: a finger does not shrink with the screen */
 /* overflow visible: the browser's own dialog clips, and would cut the sheet's offset shadow */
-dialog#selp{ border:0; padding:0; margin:auto; background:transparent; max-width:none; max-height:none; overflow:visible; color:var(--shadow); }
-dialog#selp::backdrop{ background:rgba(30,22,16,.45); }
-dialog#selp:not([open]){ display:none; }
+dialog#selp, dialog#avis{ border:0; padding:0; margin:auto; background:transparent; max-width:none; max-height:none; overflow:visible; color:var(--shadow); }
+dialog#selp::backdrop, dialog#avis::backdrop{ background:rgba(30,22,16,.45); }
+dialog#selp:not([open]), dialog#avis:not([open]){ display:none; }
 
 /* the sheet carries the shadow and the tilt; its paper (.pp) is cut with scissors like the ticket (--cut, rag() in
    paper.ts), so the shadow follows the ragged edge */

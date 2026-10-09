@@ -702,9 +702,10 @@ baseline = root / "scripts/baseline" / sys.platform
 async def open_page(browser, **options):
     """A page with generous timeouts: software rendering on a two-core CI machine can take long to give a frame.
     Open-Meteo is never asked: the window keeps fair weather, so no check depends on the real weather
-    (check_weather answers for it)."""
+    (check_weather answers for it). Nor are the lines' notices (/api/avisos, a Vercel function): check_avisos answers."""
     page = await browser.new_page(**options); page.set_default_timeout(120000)
     await page.route("https://api.open-meteo.com/**", lambda route: route.abort())
+    await page.route("**/api/avisos", lambda route: route.abort())
     return page
 PARITY = {"escritorio-hero": (1440, 900, False), "escritorio-mesa": (1440, 900, True), "movil-hero": (390, 844, False)}
 
@@ -839,6 +840,84 @@ async def check_weather(browser):
         await page.close()
     return errs
 
+# the lines' notices (09-10): what /api/avisos answers → what the board and the train's sheet say. At 10:00 on the
+# frozen timetable the board holds two R15 (Sants → Reus)
+NOTICE = "Servei alternatiu per carretera entre Reus i Riudecanyes per obres."
+AVISOS_JS = """() => ({
+  stamp: document.querySelector('.tk .segell')?.textContent.trim() ?? null,
+  open: document.getElementById('avis').open, sheet: document.getElementById('avis').textContent.replace(/\\s+/g, ' ').trim(),
+  focus: document.activeElement?.className ?? '', aviso: document.getElementById('aviso').textContent,
+  detail: document.querySelector('#detalle .avisos')?.textContent.replace(/\\s+/g, ' ').trim() ?? null,
+  boxed: !!document.querySelector('#detalle .avisos.avis'),
+  more: document.querySelector('#detalle .avisos .mes, #avis .mes')?.getAttribute('href') ?? null })"""
+
+def avisos_answer(kind):
+    """The function's answer: «avis» on every line, «normal», «old» (read an hour before the page's 10:00) or «503»."""
+    import json
+    if kind == "503": return {"status": 503, "body": "{}"}
+    line = {"estat": "avis", "text": NOTICE, "publicat": "2026-09-28T03:04:00Z"} if kind == "avis" else {"estat": "normal"}
+    llegit = "2026-09-28T07:00:00Z" if kind == "old" else "2026-09-28T07:58:00Z"
+    return {"status": 200, "content_type": "application/json",
+            "body": json.dumps({"llegit": llegit, "linies": {l: line for l in ["R11", "R13", "R14", "R15", "R16", "R17"]}})}
+
+async def avisos_page(browser, kind, w, h):
+    page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce")
+    asked = []
+    async def answer(route, request):
+        asked.append(request.url); await route.fulfill(**avisos_answer(kind))
+    await page.route("**/api/avisos", answer)   # the latest route wins over open_page's abort
+    await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
+    await page.goto(parity_url); await page.evaluate("document.fonts.ready")
+    try: await page.wait_for_function("window.reus && window.reus.avisos() !== null", timeout=20000)
+    except Exception: pass
+    await page.wait_for_timeout(800)
+    return page, asked
+
+async def check_avisos(browser):
+    """Desktop: a notice on a line of the board puts an ink stamp on the ticket, which opens a sheet with the whole
+    text; no notice, or no answer, no stamp. Phone: nothing on the board; the train's sheet says its line's notice,
+    that there is none (and when it was read), or that it could not be read (an error, or an answer too old)."""
+    errs = []
+    page, asked = await avisos_page(browser, "avis", 1440, 900)
+    if not asked: errs.append("the page never asks /api/avisos")
+    a = await page.evaluate(AVISOS_JS)
+    if not a["stamp"] or "R15" not in a["stamp"] or "per carretera" not in a["stamp"]:
+        errs.append(f"with a notice on the R15, the ticket's stamp reads «{a['stamp']}», expected «Avís R15» and «per carretera»")
+    if "Avís de la Generalitat a l’R15" not in a["aviso"]: errs.append(f"#aviso does not announce the notice: «{a['aviso']}»")
+    await page.screenshot(path=str(shots / "avisos-escritorio.png"))
+    try: await page.click(".tk .segell", timeout=CLICK_MS)
+    except Exception: errs.append("the stamp is not clickable")
+    await page.wait_for_timeout(500); a = await page.evaluate(AVISOS_JS)
+    if not a["open"]: errs.append("the stamp does not open #avis")
+    elif NOTICE not in a["sheet"] or "consultat a les 09:58" not in a["sheet"].lower() or "Generalitat de Catalunya" not in a["sheet"]:
+        errs.append(f"the notice's sheet reads «{a['sheet']}»")
+    if a["more"] != "https://rodalies.gencat.cat/ca/": errs.append(f"the notice's sheet links to {a['more']}")
+    await page.screenshot(path=str(shots / "avisos-hoja.png"))
+    await page.keyboard.press("Escape"); await page.wait_for_timeout(300); a = await page.evaluate(AVISOS_JS)
+    if a["open"] or "segell" not in a["focus"]: errs.append(f"Esc leaves #avis open ({a['open']}) or the focus off the stamp ({a['focus']})")
+    await page.close()
+    for kind in ("normal", "503", "old"):
+        page, _ = await avisos_page(browser, kind, 1440, 900)
+        a = await page.evaluate(AVISOS_JS)
+        if a["stamp"]: errs.append(f"with «{kind}» the ticket has a stamp: «{a['stamp']}»")
+        await page.close()
+    # a phone: never a stamp; the big train's sheet says what is known of the R15
+    phone = {"avis": NOTICE, "normal": "Sense avisos a l’R15 (consultat a les 09:58).",
+             "503": "No hem pogut consultar els avisos de l’R15.", "old": "No hem pogut consultar els avisos de l’R15."}
+    for kind, want in phone.items():
+        page, _ = await avisos_page(browser, kind, 390, 844)
+        a = await page.evaluate(AVISOS_JS)
+        if a["stamp"]: errs.append(f"phone, «{kind}»: the ticket has a stamp")
+        try: await page.click("#board button.big", timeout=CLICK_MS)
+        except Exception: errs.append(f"phone, «{kind}»: the big train is not clickable"); await page.close(); continue
+        await page.wait_for_timeout(500); a = await page.evaluate(AVISOS_JS)
+        if not a["detail"] or want not in a["detail"]: errs.append(f"phone, «{kind}»: the train's sheet says «{a['detail']}», expected «{want}»")
+        if kind == "avis":
+            if not a["boxed"]: errs.append("phone: the notice in the train's sheet is not framed")
+            await page.screenshot(path=str(shots / "avisos-movil.png"))
+        await page.close()
+    return errs
+
 SUBTITLE = "El tren cap a casa, i el de tornada a Barcelona"
 
 async def hero_page(browser, w=1440, h=900, at="2026-09-28T08:00:00Z"):
@@ -898,6 +977,7 @@ async def check_hero(browser):
     errs += [f"route: {e}" for e in await check_journey(browser)]
     errs += [f"light: {e}" for e in await check_daylight(browser)]
     errs += [f"weather: {e}" for e in await check_weather(browser)]
+    errs += [f"notices: {e}" for e in await check_avisos(browser)]
     # 21:30, from Reus: no regional left today, but two AVE from Camp de Tarragona (22:17, 22:39)
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
