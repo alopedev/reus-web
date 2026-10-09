@@ -13,9 +13,11 @@ import type { World } from './world';
 import type { Table } from './table';
 import type { Scenery } from './scenery';
 import type { createWeather } from './weather';
+import type { Avisos } from './avisos';
+import { notices, stamp, heard, setupNotice, type Notice, type LineNews } from './notice';
 
 // the hero's timetable: the next train, the ticket for the direction, the ruler of the day
-export function setupTimetable({ world, table, scenery, weather }: { world: World | null, table: Table, scenery: Scenery, weather: ReturnType<typeof createWeather> }): { render(): void } {
+export function setupTimetable({ world, table, scenery, weather, avisos }: { world: World | null, table: Table, scenery: Scenery, weather: ReturnType<typeof createWeather>, avisos: Avisos }): { render(): void } {
   const tIn = byId<HTMLInputElement>('t'), nowBtn = byId<HTMLButtonElement>('nowBtn');
   const R0 = 300, R1 = 1439, pos = (m: number) => ((Math.min(R1,Math.max(R0,m))-R0)/(R1-R0)*100).toFixed(2)+'%';
   byId('hours').innerHTML = [6,9,12,15,18,21].map(x=>`<span style="left:${pos(x*60)}">${x} h</span>`).join('');
@@ -31,6 +33,7 @@ export function setupTimetable({ world, table, scenery, weather }: { world: Worl
     const ida = state.dir==='casa';
     const townName = NET.estaciones[state.town].nombre;
     weather.follow(state.town);
+    avisos.follow();
     const bcn = bcnName(state.station);
     const from = ida ? bcn : townName, to = ida ? townName : `Barcelona ${bcn}`;
     setRoute(route(ida, townName));
@@ -53,7 +56,7 @@ export function setupTimetable({ world, table, scenery, weather }: { world: Worl
       nowBtn.hidden = state.useNow;
       if(world) world.setTime(now.min);
       table.setTime(now.min);
-      byId('board').innerHTML = drawn = ''; cur = null;
+      byId('board').innerHTML = drawn = ''; cur = null; setStamp([]);
       if(shown !== 'none' + state.station + state.town + state.dir){ byId('aviso').textContent = noTrain(from, to, now.date); shown = 'none' + state.station + state.town + state.dir; }
       byId('note').textContent = exact ? '' : `Horari aproximat: ${nextDay ? 'demà' : 'avui'} encara no hi ha horari oficial.`;
       if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
@@ -94,14 +97,23 @@ export function setupTimetable({ world, table, scenery, weather }: { world: Worl
       when: tomorrow ? 'Demà' : a[0] < now.min ? 'Ja ha sortit' : a[0] === now.min ? 'Surt ara' : `Surt en ${dur(a[0]-now.min)}`, length: dur(a[1]-a[0]),
       stops: stops?.length ?? null, buy,
       ave: isAve ? (ida ? `L’AVE no arriba ${atPlace(townName)}: baixa a Camp de Tarragona.` : `L’AVE no surt ${ofPlace(townName)}: surt de Camp de Tarragona.`) : '',
-      home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(a[1]), tomorrow) };
+      home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(a[1]), tomorrow), news: lineNews(a[3], isAve) };
+    // the notices of the board's regional lines: a stamp on a desktop's ticket
+    const isAveTrip = (t: Train) => aves.includes(t) || t === lastAve;
+    const ns = notices(avisos, [...new Set(trips.filter(t => !isAveTrip(t)).map(t => t[3]))]);
+    setStamp(narrow.matches ? [] : ns);
     const key = a[0] + state.dir + isAve + state.town + state.station;
     const turn = shown !== null && shown !== key;
     if(html !== drawn || turn){
       byId('board').innerHTML = drawn = html; if(turn && !reduce) byId('dep').classList.add('swap');
       const rec = byId('board').querySelector<HTMLElement>('.rec'); if(rec) laid.observe(rec);
     }
-    if(shown !== key){ say(tomorrow, isAve ? (ida ? bcn : 'Camp de Tarragona') : from, isAve ? (ida ? 'Camp de Tarragona' : `Barcelona ${bcn}`) : to, a, isAve); shown = key; }
+    const told = shown !== key;
+    if(told){ say(tomorrow, isAve ? (ida ? bcn : 'Camp de Tarragona') : from, isAve ? (ida ? 'Camp de Tarragona' : `Barcelona ${bcn}`) : to, a, isAve); shown = key; }
+    // a screen reader hears a notice when it appears or changes: after the train, or alone when the train is the same
+    const nk = JSON.stringify(ns);
+    if(nk !== noticed){ if(ns.length) byId('aviso').textContent = (told ? byId('aviso').textContent + ' ' : '') + heard(ns); noticed = nk; }
+    detail.refresh(cur);
     byId('note').textContent = exact ? '' : `Horari aproximat: ${nextDay ? 'demà' : 'avui'} encara no hi ha horari oficial.`;
     if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
   }
@@ -163,6 +175,24 @@ export function setupTimetable({ world, table, scenery, weather }: { world: Worl
     const label = `${isAve ? 'AVE' : t[3]} de les ${hhmm(t[0])}${isAve ? (state.dir==='casa' ? ' a' : ' des de') + ' Camp de Tarragona' : ''}, arriba a les ${hhmm(t[1])}`;
     return `<button type="button" class="trip tt" data-m="${t[0]}"${isAve ? ' data-ave' : ''} aria-label="${label}">${cells}</button>`;
   }
+  // what the train's sheet says of its line: the AVE has no notices; before the first answer, it is being asked
+  function lineNews(line: string, isAve: boolean): LineNews {
+    if(isAve) return { kind: 'ave' };
+    const n = avisos.line(line), read = avisos.read();
+    if(!n) return { kind: 'pending', line };
+    if(n.estat === 'avis' && read) return { kind: 'avis', line, text: n.text, read };
+    if(n.estat === 'normal' && read) return { kind: 'normal', line, read };
+    return { kind: 'error', line };
+  }
+  // the stamp sits on the ticket, outside its route, so a new route never takes it away; redrawn only when it changes
+  let stamped = '', noticed = '[]', shownNotices: Notice[] = [];
+  function setStamp(ns: Notice[]){
+    const html = ns.length ? stamp(ns) : ''; shownNotices = ns;
+    if(html === stamped) return;
+    const tk = byId('tickets').querySelector<HTMLElement>('.tk')!, had = tk.querySelector('.segell:focus');
+    tk.querySelector('.segell')?.remove(); stamped = html; tk.classList.toggle('sellat', !!html);
+    if(html){ tk.insertAdjacentHTML('beforeend', html); if(had) tk.querySelector<HTMLElement>('.segell')?.focus({preventScroll:true}); }
+  }
   const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
   // what a screen reader hears: the train, only when it changes (never the countdown's refresh)
   function say(tomorrow: boolean, from: string, to: string, a: Train, isAve: boolean){
@@ -210,7 +240,7 @@ export function setupTimetable({ world, table, scenery, weather }: { world: Worl
       <span class="pp"><span class="k">Bitllet</span>
       <span class="route"></span></span><span class="stub" aria-hidden="true"></span>
     </div>`;
-  const detail = setupDetail();
+  const detail = setupDetail(), notice = setupNotice();
   const chooser = setupChooser(
     id => { state.town = id; state.useNow = true; state.ave = false; render(); byId('tickets').querySelector<HTMLElement>('.end.town')?.focus(); },
     id => { state.station = id; state.useNow = true; state.ave = false; render(); byId('tickets').querySelector<HTMLElement>('.end.bcn')?.focus(); });
@@ -219,6 +249,7 @@ export function setupTimetable({ world, table, scenery, weather }: { world: Worl
     if(t.closest('.swap')){ state.dir = state.dir==='casa' ? 'bcn' : 'casa'; render(); if(world) world.resize(); }
     else if(t.closest('.end.town')) chooser.open();
     else if(t.closest('.end.bcn')) chooser.openStation();
+    else if(t.closest('.segell')) notice.open(shownNotices, avisos.read());
   });
   setInterval(()=>{ if(state.useNow) render(); }, 30000);
   { const day = (iso: string) => new Date(iso+'T12:00:00Z').toLocaleDateString('ca-ES',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
