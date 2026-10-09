@@ -44,6 +44,8 @@ self.addEventListener('fetch', e => {
   if(req.mode === 'navigate') e.respondWith(page(req));
   else if(url.origin === location.origin && FILES.includes(url.pathname)) e.respondWith(saved(req));
   else if(FONT_HOSTS.includes(url.hostname)) e.respondWith(font(req));
+  // everything else goes to the network untouched: the weather and /api/avisos are never saved, an old notice is worse
+  // than none
 });
 
 // the page: the network first, so a new timetable arrives as soon as it is published; the saved one if the network
