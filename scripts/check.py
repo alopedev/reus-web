@@ -62,7 +62,8 @@ Rules checked:
      headings and no «Luego»/«Anterior»; the other trip is a button, and choosing one, AVE included, makes it the
      train shown. With no trains left today it shows tomorrow's first ones under «Avui ja no en queden · demà». The ruler of the day has one
      mark: every train is a tick, the AVE like the rest; the knob always stands on the train shown; «ara» is a
-     thin line with its word, with no «Son las HH:MM» heading; «Tornar a ara» never covers that word; the arrow
+     thin line with its word, with no «Son las HH:MM» heading; away from now a station clock stands on that line in
+     place of the word and goes back to now; the arrow
      keys step through every train, AVE included. From Reus in the evening, when no regional is left but an AVE
      from Camp de Tarragona is, that AVE is the train shown and tomorrow's first regional follows it, marked «demà».
      The ticket's town (`.tk .town`) opens a native `#selp` dialog (docs/spec-3.3.md): step 1 lists the four
@@ -996,14 +997,24 @@ async def check_hero(browser):
               return b ? b.left < -1 || b.right > innerWidth + 1 : 'missing'; })()""")
             if out: errs.append(f"{w}x{h} at {when}: the word «ara» leaves the screen ({out})")
             await page.close()
-    # late in the evening «ara» sits on the right of the ruler, where «Tornar a ara» used to be
+    # away from now (late in the evening, the first train chosen) the station clock stands on the line of «ara» in
+    # place of its word, on screen, telling 23:10; pressing it goes back to now
     for w, h in ((390, 844), (1440, 900)):
         page = await hero_page(browser, w, h, at="2026-09-28T21:10:00Z")
         await page.focus("#t"); await page.keyboard.press("Home"); await page.wait_for_timeout(300)
-        hit = await page.evaluate("""(() => { const a = document.getElementById('nowBtn'), b = document.querySelector('.nowline span');
-          if(!a || !b || a.hidden) return 'missing'; const r = a.getBoundingClientRect(), s = b.getBoundingClientRect();
-          return r.right > s.left && s.right > r.left && r.bottom > s.top && s.bottom > r.top; })()""")
-        if hit: errs.append(f"{w}x{h} at 23:10: «Tornar a ara» covers the word «ara» ({hit})")
+        c = await page.evaluate("""(() => { const a = document.getElementById('nowBtn'), l = document.querySelector('.nowline'), w = l?.querySelector('span');
+          if(!a || !l || a.hidden) return null; const r = a.getBoundingClientRect(), s = l.getBoundingClientRect(), st = getComputedStyle(a);
+          return {dx: Math.abs((r.left + r.right) / 2 - (s.left + s.right) / 2), gap: s.top - r.bottom, left: r.left, right: r.right - innerWidth,
+                  word: getComputedStyle(w).visibility, name: a.getAttribute('aria-label'), h: st.getPropertyValue('--h').trim(), m: st.getPropertyValue('--m').trim()}; })()""")
+        if not c: errs.append(f"{w}x{h} at 23:10, away from now: no clock on the ruler"); await page.close(); continue
+        if c["dx"] > 3 or not -4 < c["gap"] < 6: errs.append(f"{w}x{h} at 23:10: the clock does not stand on the line of «ara» (off by {c['dx']:.1f} px, {c['gap']:.1f} px above it)")
+        if c["left"] < 0 or c["right"] > 0: errs.append(f"{w}x{h} at 23:10: the clock leaves the screen")
+        if c["word"] != "hidden": errs.append(f"{w}x{h} at 23:10: the word «ara» still shows under the clock")
+        if c["name"] != "Tornar a ara": errs.append(f"{w}x{h} at 23:10: the clock is called «{c['name']}», expected «Tornar a ara» for a screen reader")
+        if (c["h"], c["m"]) != ("335deg", "60deg"): errs.append(f"{w}x{h} at 23:10: the clock's hands read {c['h']} and {c['m']}, expected 335deg and 60deg")
+        await page.click("#nowBtn"); await page.wait_for_timeout(300)
+        back = await page.evaluate("[document.getElementById('nowBtn').hidden, getComputedStyle(document.querySelector('.nowline span')).visibility]")
+        if back != [True, "visible"]: errs.append(f"{w}x{h} at 23:10: pressing the clock does not go back to now (clock hidden, word: {back})")
         await page.close()
     # at 23:30 no train is left today: tomorrow's first ones, and the board says so
     page = await hero_page(browser, at="2026-09-28T21:30:00Z")
@@ -1242,7 +1253,8 @@ def _direct(net, day, frm, to):
 
 def _stops(net, day, frm, to, dep):
     """The stops of the direct train that leaves `frm` at `dep` for `to`, both left out, as the big train's route
-    labels them (mirrors src/time.ts's stopsBetween() and stopName()): «Altafulla 10:42»."""
+    labels them (mirrors src/time.ts's stopsBetween() and stopName()): «Altafulla», and the minute each is reached
+    (the route shows names only since 09-10; the time is the dot's place on the line)."""
     import re
     def label(sid):
         n = re.sub(r"\s*-\s*(?=[A-ZÀ-Ý]).*$", "", re.sub(r"^Barcelona[- ](Estació de )?", "", net["estaciones"][sid]["nombre"]))
@@ -1251,7 +1263,7 @@ def _stops(net, day, frm, to, dep):
         t = net["trenes"][i]; ids = [s[0] for s in t["s"]]
         if frm in ids and to in ids and ids.index(frm) < ids.index(to) and t["s"][ids.index(frm)][2] == dep:
             a, b = ids.index(frm), ids.index(to)
-            return [f"{label(s[0])} {s[1] // 60 % 24:02d}:{s[1] % 60:02d}" for s in t["s"][a + 1:b]], t["s"][a][2], t["s"][b][1]
+            return [label(s[0]) for s in t["s"][a + 1:b]], [s[1] % 1440 for s in t["s"][a + 1:b]], t["s"][a][2], t["s"][b][1]
     return None
 
 JOURNEY = """(() => { const rec = document.querySelector('#board .trip.big .rec'); if(!rec) return null;
@@ -1267,19 +1279,19 @@ JOURNEY = """(() => { const rec = document.querySelector('#board .trip.big .rec'
 
 async def check_journey(browser):
     """The big train's route (Àlex 08-10, option A, only on a desktop): in the gap between «compra’l ↗» and the
-    arrival, a line with a dot per stop placed by the time the train reaches it, and each stop's name and time above
-    or below its dot. When not every name fits, the line folds (Àlex 08-10, option B): the first two stops and the
+    arrival, a line with a dot per stop placed by the time the train reaches it, and each stop's name above or below
+    its dot, without its time (Àlex 09-10: the dot's place already says it). When not every name fits, the line folds (Àlex 08-10, option B): the first two stops and the
     last two keep their names, the stops between lose their dots under a dotted stretch with «· N parades ·» over it
     (the folded stops as its tooltip). Labels never overlap each other, the board's words, the arrival or the window.
     No route for the AVE (no stops) nor on a phone."""
     errs, net, day = [], _net(), "2026-09-28"
     def judge(when, j, want, folded):
         if j is None: errs.append(f"{when}: the big train has no route (.rec)"); return
-        names, d0, a0 = want
+        names, mins, d0, a0 = want
         if j["hidden"] != "true": errs.append(f"{when}: the route is not aria-hidden")
         if j["off"]: errs.append(f"{when}: the route is hidden for lack of room")
         if j["labels"] != names: errs.append(f"{when}: the route's stops are {j['labels']}, expected {names}")
-        at = [round((int(x.split()[-1][:2]) * 60 + int(x.split()[-1][3:]) - d0) % 1440 / (a0 - d0) * 100, 1) for x in names]
+        at = [round((m - d0) % 1440 / (a0 - d0) * 100, 1) for m in mins]
         if [round(x, 1) for x in j["dots"]] != at: errs.append(f"{when}: the dots stand at {j['dots']}%, expected {at}% (by the time of each stop)")
         n, texts = len(names), [s["text"] for s in j["shown"]]
         if j["folded"] != folded: errs.append(f"{when}: the line is {'folded' if j['folded'] else 'not folded'}, expected {'folded' if folded else 'every stop named'}")

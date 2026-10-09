@@ -2,15 +2,15 @@ import { NET, hhmm, stopName } from './time';
 
 // the big train's route, only on a desktop (Àlex 08-10, option A of three): in the gap between «compra’l ↗» and its
 // arrival, a line from departure to arrival with a dot at every stop, placed by the time the train reaches it, and
-// the stop's name and time above or below its dot. When not every name fits (a long train, a small screen), the
-// line folds (Àlex 08-10, option B of three): the first two stops and the last two keep their names and the stretch
-// in between turns dotted, with «· 15 parades ·» over it. For the eye only: the screen reader already hears the
-// train in #aviso
+// the stop's name above or below its dot, without its time (Àlex 09-10: the dot's place already says it). When not
+// every name fits (a long train, a small screen), the line folds (Àlex 08-10, option B of three): the first two
+// stops and the last two keep their names and the stretch in between turns dotted, with «· 15 parades ·» over it.
+// For the eye only: the screen reader already hears the train in #aviso
 export function journey(stops: [stop: string, arr: number][] | null, dep: number, arr: number): string {
   if(!stops || !stops.length || arr <= dep) return '';
   const at = (m: number) => ((m - dep) / (arr - dep) * 100).toFixed(2) + '%';
   return `<span class="rec" aria-hidden="true"><b style="left:0"></b><b style="left:100%"></b><span class="tram"></span>${stops.map(([id, m]) =>
-    `<i style="left:${at(m)}" data-n="${NET.estaciones[id]?.nombre ?? id} ${hhmm(m)}"></i><span class="s" data-at="${at(m)}">${stopName(id)} <span class="h">${hhmm(m)}</span></span>`).join('')}`
+    `<i style="left:${at(m)}" data-n="${NET.estaciones[id]?.nombre ?? id} ${hhmm(m)}"></i><span class="s" data-at="${at(m)}">${stopName(id)}</span>`).join('')}`
     + `<span class="s pleg" hidden></span></span>`;
 }
 

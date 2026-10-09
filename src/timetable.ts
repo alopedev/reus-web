@@ -27,6 +27,15 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
   // (6B, Àlex 06-10). The board is redrawn when the screen crosses over
   const narrow = matchMedia('(max-width:700px), (max-aspect-ratio:4/5)');
   let cur: Trip | null = null;
+  // now on the ruler: a thin orange line with «ara»; away from now, the station clock stands on it in place of the word
+  const nowLine = (m: number) => `<b class="nowline${m < R0 + 60 ? ' start' : m > R1 - 60 ? ' end' : ''}${state.useNow ? '' : ' away'}" style="left:${pos(m)}"><span>ara</span></b>`;
+  function clock(m: number){
+    nowBtn.hidden = state.useNow;
+    nowBtn.style.left = pos(m);
+    nowBtn.style.setProperty('--h', `${(m % 720) / 2}deg`);
+    nowBtn.style.setProperty('--m', `${(m % 60) * 6}deg`);
+    nowBtn.style.setProperty('--s', String(new Date().getSeconds()));
+  }
   function render(){
     const now = madridNow();
     const start = state.useNow ? now.min : state.minute ?? now.min;
@@ -49,11 +58,10 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
     const none = !lastAve && !regs.length && !aves.length;
     if(none){
       byId('lbl').textContent = noTrain(from, to, now.date);
-      byId('ticks').innerHTML = `<b class="nowline${now.min < R0 + 60 ? ' start' : now.min > R1 - 60 ? ' end' : ''}" style="left:${pos(now.min)}"><span>ara</span></b>`;
+      byId('ticks').innerHTML = nowLine(now.min);
       tIn.value = String(Math.min(R1, Math.max(R0, now.min)));
-      nowBtn.parentElement!.classList.toggle('left', now.min > (R0+R1)/2);
       tIn.setAttribute('aria-valuetext', 'sense tren directe avui ni demà');
-      nowBtn.hidden = state.useNow;
+      clock(now.min);
       if(world) world.setTime(now.min);
       table.setTime(now.min);
       byId('board').innerHTML = drawn = ''; cur = null; setStamp([]);
@@ -72,12 +80,10 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
     // the ruler has one mark: the knob always stands on the train shown (every tick is a train, the AVE like the
     // rest); now is a thin line with its word
     byId('ticks').innerHTML = today.map(({t, ave:v})=>`<i class="${!tomorrow && v===isAve && t[0]===a[0] ? 'on' : ''}" style="left:${pos(t[0])}"></i>`).join('')
-      + `<b class="nowline${now.min < R0 + 60 ? ' start' : now.min > R1 - 60 ? ' end' : ''}" style="left:${pos(now.min)}"><span>ara</span></b>`;
+      + nowLine(now.min);
     tIn.value = String(tomorrow ? Math.min(R1, Math.max(R0, now.min)) : a[0]);
-    // «Tornar a ara» stands on the side of the ruler away from «ara», so it never covers the word
-    nowBtn.parentElement!.classList.toggle('left', now.min > (R0+R1)/2);
     tIn.setAttribute('aria-valuetext', tomorrow ? 'avui ja no queden trens' : `${isAve ? 'AVE' : 'tren'} de les ${hhmm(a[0])}`);
-    nowBtn.hidden = state.useNow;
+    clock(now.min);
     if(world) world.setTime(tomorrow ? a[0] : start);
     table.setTime(tomorrow ? a[0] : start);
     // two trips: the train shown and the one after it, regional or AVE (after today's last AVE, tomorrow's first)
@@ -251,7 +257,9 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
     else if(t.closest('.end.bcn')) chooser.openStation();
     else if(t.closest('.segell')) notice.open(shownNotices, avisos.read());
   });
-  setInterval(()=>{ if(state.useNow) render(); }, 30000);
+  // on the minute, like the clock: the countdown, «ara» and the clock's hands move together (away from now too)
+  const tick = () => { render(); setTimeout(tick, Math.max(1000, 60050 - Date.now() % 60000)); };
+  setTimeout(tick, Math.max(1000, 60050 - Date.now() % 60000));
   { const day = (iso: string) => new Date(iso+'T12:00:00Z').toLocaleDateString('ca-ES',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
     byId('hasta').textContent = `Horaris fins al ${day(lastDay())}.`;
     // Renfe's licence asks for its exact words, in Spanish (data.renfe.com/legal); the date that follows is ours
