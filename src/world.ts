@@ -1,5 +1,5 @@
 import type { BufferGeometry } from 'three';
-import { BoxGeometry, Color, ConeGeometry, CylinderGeometry, DirectionalLight, Float32BufferAttribute, Group, HemisphereLight, IcosahedronGeometry, InstancedMesh, LinearFilter, Mesh, MeshPhongMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, RGBAFormat, Scene, ShaderMaterial, Vector2, Vector3, Vector4, WebGLRenderTarget, WebGLRenderer } from 'three';
+import { BoxGeometry, Color, ColorManagement, ConeGeometry, CylinderGeometry, DirectionalLight, Float32BufferAttribute, Group, HemisphereLight, IcosahedronGeometry, InstancedMesh, LinearFilter, LinearSRGBColorSpace, Mesh, MeshPhongMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, RGBAFormat, Scene, ShaderMaterial, Vector2, Vector3, Vector4, WebGLRenderTarget, WebGLRenderer } from 'three';
 import { daylight, type Hour } from './light';
 import type { Weather } from './weather';
 import watercolorFrag from './shaders/watercolor.frag?raw';
@@ -26,12 +26,18 @@ export function build3D(): World | null {
   if(!renderer.getContext()) return null;
   const hero = document.getElementById('hero')!; hero.prepend(canvas); hero.classList.add('pintada');
   renderer.setClearColor(0x000000, 0);
+  // painted as in three r128, before colour management: every colour (pigments, lights, daylight's walls) is used as
+  // written, and the post pass writes the canvas as it is. Since r152 three would turn the hex colours to linear and
+  // the output back to sRGB, a darker, harsher landscape for the same numbers
+  ColorManagement.enabled = false; renderer.outputColorSpace = LinearSRGBColorSpace;
   const scene = new Scene();
   const camera = new PerspectiveCamera(40, 1, 0.5, 5000);
   camera.position.set(0, 3.4, 0);
 function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013904223)>>>0; return s/4294967296; }; }
-  const hemi = new HemisphereLight(0xffffff, 0x777766, .95); scene.add(hemi);
-  const sun = new DirectionalLight(0xffffff, .8); scene.add(sun);
+  // since r155 lights are physically correct: the same light needs π times the intensity it had in r128
+  const LUX = Math.PI;
+  const hemi = new HemisphereLight(0xffffff, 0x777766, .95*LUX); scene.add(hemi);
+  const sun = new DirectionalLight(0xffffff, .8*LUX); scene.add(sun);
   const mat = (c: Color) => new MeshPhongMaterial({color:c, flatShading:true, shininess:0, specular:0x000000});
   const vmat = new MeshPhongMaterial({vertexColors:true, flatShading:true, shininess:0, specular:0x000000});
   const C = (h: number) => new Color(h);
@@ -135,8 +141,8 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     const p = daylight(min);
     U.skyTop.value.set(...p.top); U.skyHor.value.set(...p.hor); U.sunCol.value.set(...p.sun); U.sunPos.value.set(...p.sunUV); U.sunA.value = p.glow;
     U.wallA.value.set(...p.wallA); U.wallB.value.set(...p.wallB); U.wood.value.set(...p.wood); U.seat.value.set(...p.seat);
-    hemi.color.set(p.hemi[0]); hemi.groundColor.set(p.hemi[1]); hemi.intensity = p.hemi[2];
-    sun.color.set(p.dir[0]); sun.intensity = p.dir[1]; sun.position.set(...p.dir[2]);
+    hemi.color.set(p.hemi[0]); hemi.groundColor.set(p.hemi[1]); hemi.intensity = p.hemi[2]*LUX;
+    sun.color.set(p.dir[0]); sun.intensity = p.dir[1]*LUX; sun.position.set(...p.dir[2]);
     // Safari on iPhone paints the strip around the Dynamic Island in one flat colour, read at load: the top edge of
     // the painted wall, wallA under the luggage rack's shadow (×.9), the corners' shade averaged across the width
     // (×.94) and the watercolour's pigment (×.89, measured on an iPhone). Safari 26 takes it from the body (a fixed

@@ -10,4 +10,4 @@ Objetivo: separar el código en módulos mantenibles sin ningún cambio visible.
 | 3 · TypeScript | Tipado estricto módulo a módulo | Hecha |
 | 4 · Publicación | GitHub Actions con las pruebas; despliegue en Vercel (https://reus-web.vercel.app); actualizar `CLAUDE.md`, README y handoff | Hecha |
 
-Decisiones: sin React (la web es dibujo y animación, apenas estado; ver `docs/plan.md`). Three.js se queda en r128 durante la migración: subirlo cambia luz y color y altera la acuarela, así que va aparte. No se publica en el artifact hasta tener el alojamiento definitivo.
+Decisiones: sin React (la web es dibujo y animación, apenas estado; ver `docs/plan.md`). Three.js se queda en r128 durante la migración: subirlo cambia luz y color y altera la acuarela, así que va aparte (subido a r186 el 09-10, sin cambio visible: ver `docs/handoff.md`). No se publica en el artifact hasta tener el alojamiento definitivo.

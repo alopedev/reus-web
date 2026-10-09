@@ -50,8 +50,9 @@ Es sobre todo una pieza de portfolio de Àlex (qué sabe hacer dirigiendo a Clau
 
 ## Técnica
 
-- Migración a Vite + TypeScript en curso (`docs/migracion.md`). Three.js 0.128 y GSAP 3.15 (núcleo + ScrollTrigger) como dependencias npm con versión fija; fuentes desde Google Fonts; el tiempo, de Open-Meteo (`api.open-meteo.com`, sin clave, admite CORS; crédito CC BY 4.0 en el reverso). Nada más externo
+- Migración a Vite + TypeScript en curso (`docs/migracion.md`). Three.js 0.186 y GSAP 3.15 (núcleo + ScrollTrigger) como dependencias npm con versión fija; fuentes desde Google Fonts; el tiempo, de Open-Meteo (`api.open-meteo.com`, sin clave, admite CORS; crédito CC BY 4.0 en el reverso). Nada más externo
 - Paisaje: escena 3D → render target → shader de acuarela (Kuwahara + modelo de pigmento). El vagón se pinta en el mismo shader fuera de la ventanilla (`sdRR` con el rectángulo de `#win`)
+- Three.js pinta como en r128: `ColorManagement.enabled = false`, salida `LinearSRGBColorSpace` y las intensidades de las luces × π (`LUX` en `world.ts`). Quitar cualquiera de las tres cambia la luz y el color de toda la acuarela. Desde r163 Three.js solo usa WebGL2: sin él, `build3D()` devuelve `null` y la web sigue sin pintar
 - Horarios en minutos desde medianoche. La web lee `data/red.json` (`src/time.ts`: `direct(fecha, desde, hasta)` saca los trenes directos entre dos estaciones; `dayData` da Sants ↔ Reus como `r`/`b` y el AVE Sants ↔ Camp de Tarragona como `ar`/`ab` a `timetable.ts`)
 - IDs de parada GTFS: Barcelona-Sants 71801, Reus 71400
 - Días sin dato usan el último día conocido del mismo tipo y la web avisa de «horario aproximado»
