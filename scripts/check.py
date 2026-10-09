@@ -1127,7 +1127,8 @@ def _direct(net, day, frm, to):
 
 def _stops(net, day, frm, to, dep):
     """The stops of the direct train that leaves `frm` at `dep` for `to`, both left out, as the big train's route
-    labels them (mirrors src/time.ts's stopsBetween() and stopName()): «Altafulla 10:42»."""
+    labels them (mirrors src/time.ts's stopsBetween() and stopName()): «Altafulla», and the minute each is reached
+    (the route shows names only since 09-10; the time is the dot's place on the line)."""
     import re
     def label(sid):
         n = re.sub(r"\s*-\s*(?=[A-ZÀ-Ý]).*$", "", re.sub(r"^Barcelona[- ](Estació de )?", "", net["estaciones"][sid]["nombre"]))
@@ -1136,7 +1137,7 @@ def _stops(net, day, frm, to, dep):
         t = net["trenes"][i]; ids = [s[0] for s in t["s"]]
         if frm in ids and to in ids and ids.index(frm) < ids.index(to) and t["s"][ids.index(frm)][2] == dep:
             a, b = ids.index(frm), ids.index(to)
-            return [f"{label(s[0])} {s[1] // 60 % 24:02d}:{s[1] % 60:02d}" for s in t["s"][a + 1:b]], t["s"][a][2], t["s"][b][1]
+            return [label(s[0]) for s in t["s"][a + 1:b]], [s[1] % 1440 for s in t["s"][a + 1:b]], t["s"][a][2], t["s"][b][1]
     return None
 
 JOURNEY = """(() => { const rec = document.querySelector('#board .trip.big .rec'); if(!rec) return null;
@@ -1152,19 +1153,19 @@ JOURNEY = """(() => { const rec = document.querySelector('#board .trip.big .rec'
 
 async def check_journey(browser):
     """The big train's route (Àlex 08-10, option A, only on a desktop): in the gap between «compra’l ↗» and the
-    arrival, a line with a dot per stop placed by the time the train reaches it, and each stop's name and time above
-    or below its dot. When not every name fits, the line folds (Àlex 08-10, option B): the first two stops and the
+    arrival, a line with a dot per stop placed by the time the train reaches it, and each stop's name above or below
+    its dot, without its time (Àlex 09-10: the dot's place already says it). When not every name fits, the line folds (Àlex 08-10, option B): the first two stops and the
     last two keep their names, the stops between lose their dots under a dotted stretch with «· N parades ·» over it
     (the folded stops as its tooltip). Labels never overlap each other, the board's words, the arrival or the window.
     No route for the AVE (no stops) nor on a phone."""
     errs, net, day = [], _net(), "2026-09-28"
     def judge(when, j, want, folded):
         if j is None: errs.append(f"{when}: the big train has no route (.rec)"); return
-        names, d0, a0 = want
+        names, mins, d0, a0 = want
         if j["hidden"] != "true": errs.append(f"{when}: the route is not aria-hidden")
         if j["off"]: errs.append(f"{when}: the route is hidden for lack of room")
         if j["labels"] != names: errs.append(f"{when}: the route's stops are {j['labels']}, expected {names}")
-        at = [round((int(x.split()[-1][:2]) * 60 + int(x.split()[-1][3:]) - d0) % 1440 / (a0 - d0) * 100, 1) for x in names]
+        at = [round((m - d0) % 1440 / (a0 - d0) * 100, 1) for m in mins]
         if [round(x, 1) for x in j["dots"]] != at: errs.append(f"{when}: the dots stand at {j['dots']}%, expected {at}% (by the time of each stop)")
         n, texts = len(names), [s["text"] for s in j["shown"]]
         if j["folded"] != folded: errs.append(f"{when}: the line is {'folded' if j['folded'] else 'not folded'}, expected {'folded' if folded else 'every stop named'}")
