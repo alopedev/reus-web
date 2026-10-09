@@ -9,7 +9,6 @@ import { createScenery } from './scenery';
 import { setupTimetable } from './timetable';
 import { setupShelf, dropped, hingeAt } from './shelf';
 import { pair, state } from './letters';
-import { byId } from './dom';
 import { daylight } from './light';
 import { createWeather } from './weather';
 import { createAvisos } from './avisos';
@@ -25,8 +24,6 @@ if(location.hash){
   addEventListener('load', () => scrollTo({top: 0, behavior: 'instant'}), {once: true});
 }
 scrollTo({top: 0, behavior: 'instant'});
-// the link still goes down to the table, without writing #repisa into the address (its href stays for no script)
-byId('more').addEventListener('click', e => { e.preventDefault(); byId('repisa').scrollIntoView({behavior: 'smooth'}); });
 
 const world = build3D();
 const table = createTable();

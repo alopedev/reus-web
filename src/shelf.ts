@@ -131,6 +131,5 @@ function pitch(reset = false){
   if(shade > 0) hero.style.setProperty('--lavado', shade.toFixed(3)); else hero.style.removeProperty('--lavado');
   if(world) world.setWash(p, shade);
   else byId('sombra').style.opacity = (.6 * shade).toFixed(3);
-  byId('more').style.opacity = Math.max(0, 1 - p * 8).toFixed(3);
   letters.render(p);
 }
