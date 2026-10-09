@@ -8,6 +8,7 @@ import { LINE } from './towns';
 import { setupChooser } from './chooser';
 import { setupDetail, type Trip } from './detail';
 import { journey, fitJourney } from './journey';
+import { dotDate } from './dots';
 import { byId } from './dom';
 import type { World } from './world';
 import type { Table } from './table';
@@ -64,7 +65,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
       clock(now.min);
       if(world) world.setTime(now.min);
       table.setTime(now.min);
-      byId('board').innerHTML = drawn = ''; cur = null; setStamp([]);
+      byId('board').innerHTML = drawn = ''; cur = null; setStamp([]); setDate(now.date);
       if(shown !== 'none' + state.station + state.town + state.dir){ byId('aviso').textContent = noTrain(from, to, now.date); shown = 'none' + state.station + state.town + state.dir; }
       byId('note').textContent = exact ? '' : `Horari aproximat: ${nextDay ? 'demà' : 'avui'} encara no hi ha horari oficial.`;
       if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
@@ -108,6 +109,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
     const isAveTrip = (t: Train) => aves.includes(t) || t === lastAve;
     const ns = notices(avisos, [...new Set(trips.filter(t => !isAveTrip(t)).map(t => t[3]))]);
     setStamp(narrow.matches ? [] : ns);
+    setDate(tomorrow ? addDays(now.date, 1) : now.date);
     const key = a[0] + state.dir + isAve + state.town + state.station;
     const turn = shown !== null && shown !== key;
     if(html !== drawn || turn){
@@ -124,15 +126,19 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
     if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
   }
   // the ticket's route: both ends are buttons, the town's opens the town chooser and Barcelona's the station
-  // chooser (3.5); ⇄ turns the order around, so the DOM order matches what is read: «Sants ⇄ Reus» / «Reus ⇄ Sants»
+  // chooser (3.5); the arrows turn the order around, so the DOM order matches what is read: «Sants ▶▶▷ Reus» / «Reus ▶▶▷ Sants»
   function route(ida: boolean, townName: string): string {
-    const swap = `<button type="button" class="swap" aria-label="Canviar el sentit">⇄</button>`;
+    // the three fading arrows of a printed Rodalies ticket point the way (Àlex 09-10, option A); still the button that
+    // turns the trip around
+    const swap = `<button type="button" class="swap" aria-label="Canviar el sentit"><svg class="fletxes" viewBox="0 0 46 16" aria-hidden="true">`
+      + `<path d="M1 1 13 8 1 15Z" fill="#E07A1F"/><path d="M16 1 28 8 16 15Z" fill="#EDA864"/>`
+      + `<path d="M31 1 43 8 31 15Z" fill="#FBEBDC" stroke="#EDA864" stroke-width=".8"/></svg></button>`;
     const townBtn = `<button type="button" class="end town" aria-haspopup="dialog" aria-label="${townName}, canviar de poble">${townName}</button>`;
     const bcnBtn = `<button type="button" class="end bcn" aria-haspopup="dialog" aria-label="${bcnName(state.station)}, canviar d’estació de Barcelona">${bcnShort(state.station)}</button>`;
     return ida ? `${bcnBtn} ${swap} ${townBtn}` : `${townBtn} ${swap} ${bcnBtn}`;
   }
-  // the route is only rebuilt when it changes (⇄, a new town), never on the countdown's refresh; a rebuilt control
-  // hands the focus to its new self, so ⇄ keeps it after turning the trip around
+  // the route is only rebuilt when it changes (the arrows, a new town), never on the countdown's refresh; a rebuilt control
+  // hands the focus to its new self, so the arrows keep it after turning the trip around
   let routeHtml = '';
   function setRoute(html: string){
     if(html === routeHtml) return;
@@ -192,6 +198,9 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
   }
   // the stamp sits on the ticket, outside its route, so a new route never takes it away; redrawn only when it changes
   let stamped = '', noticed = '[]', shownNotices: Notice[] = [];
+  // the stub's printed date: the day of the train shown (tomorrow's when the board has moved on to tomorrow)
+  let dated = '';
+  function setDate(iso: string){ if(iso === dated) return; const f = byId('tickets').querySelector<HTMLElement>('.fecha')!; f.innerHTML = dotDate(dated = iso); f.dataset.dia = iso; }
   function setStamp(ns: Notice[]){
     const html = ns.length ? stamp(ns) : ''; shownNotices = ns;
     if(html === stamped) return;
@@ -238,13 +247,13 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
     else return;
     e.preventDefault(); if(next) pick(next.t[0], next.ave);
   });
-  // one ticket with both ends of the trip; ⇄ turns it around. The town end opens the town chooser, Barcelona's
+  // one ticket with both ends of the trip; the arrows turn it around. The town end opens the town chooser, Barcelona's
   // end the station chooser. The swap and both ends are rebuilt on every render() (route()), so
   // their listeners are delegated on the container instead of attached to elements that get replaced
   byId('tickets').innerHTML = `
     <div class="tk" style="--cut:${cut(7)}">
       <span class="pp"><span class="k">Bitllet</span>
-      <span class="route"></span></span><span class="stub" aria-hidden="true"></span>
+      <span class="route"></span></span><span class="stub" aria-hidden="true"></span><span class="fecha" aria-hidden="true"></span>
     </div>`;
   const detail = setupDetail(), notice = setupNotice();
   const chooser = setupChooser(

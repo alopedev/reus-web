@@ -5,21 +5,24 @@
 .sub{ margin:.55rem 0 0; font-size:1.15rem; color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.35); }
 .brandBox{ min-width:0; }
 
-/* one train ticket, cut out of paper: both ends of the trip, and ⇄ to turn it around */
+/* one train ticket, cut out of paper: both ends of the trip, and the arrows to turn it around */
 .tickets{ position:relative; display:flex; align-items:flex-start; }
 .tk{ box-sizing:border-box; position:relative; display:block; color:var(--shadow); transform:rotate(-1.5deg);
   flex:none; filter:drop-shadow(.25rem .25rem 0 var(--shadow)); }
 .tk .pp{ display:block; background:#EFE6D2 var(--grain); padding:.75rem 2.75rem .75rem 1rem; clip-path:var(--cut); }
 .tk .stub{ position:absolute; top:.5rem; bottom:.5rem; right:1.9rem; border-left:1.5px dashed rgba(45,36,28,.45); }
+/* on the stub, the day printed by the machine in dot matrix, on its side (dots.ts) */
+.tk .fecha{ position:absolute; top:0; bottom:0; right:0; width:1.9rem; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+.tk .fecha svg{ flex:none; width:4.1rem; transform:rotate(-90deg); opacity:.72; filter:blur(.15px); }
 .tk .k{ display:block; font-size:.93rem; opacity:.75; }
 .tk .route{ display:block; font-family:var(--serif); font-size:1.8rem; line-height:1.15; margin-top:.12rem; }
 /* «Sants ⇄ Reus» never wraps (it is far short of the cap); a long town name (Puigverd de Lleida-Artesa de
    Lleida…) breaks onto its own lines instead of stretching the ticket past a readable width */
 .tk .route{ white-space:normal; overflow-wrap:break-word; max-width:18rem; }
-.tk .swap{ font:inherit; color:inherit; background:none; border:0; padding:0 .15em; margin:0 .05em; cursor:pointer;
-  text-shadow:var(--alzado-papel); }
-.tk .swap:hover{ text-shadow:var(--alzado-papel-hover); }
-.tk .swap:active{ text-shadow:none; transform:translate(.05em,.05em); }
+.tk .swap{ font:inherit; color:inherit; background:none; border:0; padding:0 .15em; margin:0 .1em; cursor:pointer; }
+.tk .swap svg{ display:inline-block; width:1.55em; height:.55em; vertical-align:.12em; filter:drop-shadow(.06em .06em 0 rgba(45,36,28,.55)); }
+.tk .swap:hover svg{ filter:drop-shadow(.09em .09em 0 rgba(45,36,28,.6)); }
+.tk .swap:active svg{ filter:none; transform:translate(.05em,.05em); }
 .tk .swap:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; border-radius:3px; }
 /* the town's end opens the chooser; Barcelona's stays plain text until 3.5 */
 .tk button.end{ font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer; text-shadow:var(--alzado-papel); text-align:inherit; }
@@ -141,6 +144,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .tickets{ justify-content:flex-start; flex-wrap:wrap; row-gap:.5rem; }
   .tk .pp{ padding:.6rem 2.2rem .6rem .75rem; }
   .tk .route{ font-size:1.25rem; max-width:12.5rem; }
+  .tk .fecha svg{ width:3.2rem; }
   /* panoramic: as wide as the stage and as tall as what is left, never taller than wide. The painted frame
      (.022 of the screen's height around #win, watercolor.frag) needs room above and below, or it touches the tickets */
   #win{ width:calc(100cqw - 2.2rem); height:min(100cqh - 4.4vh - 1rem, (100cqw - 2.2rem) / 1.05); aspect-ratio:auto; border-radius:1.75rem; }
