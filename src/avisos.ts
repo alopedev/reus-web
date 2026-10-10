@@ -1,3 +1,5 @@
+import type { LineNews } from './notice';
+
 // the lines' notices, as the Generalitat publishes them (09-10): api/avisos.ts reads its feeds, since the page cannot
 // (no CORS). Three states per line, never two: a notice, normal (checked at a time), or unknown. Unknown shows
 // nothing on the board and says so in a phone's sheet, so a silence is never taken for «all is well»
@@ -36,6 +38,16 @@ export function createAvisos(onChange: () => void){
   };
 }
 export type Avisos = ReturnType<typeof createAvisos>;
+
+// what the train's sheet says of its line: the AVE has no notices; before the first answer, it is being asked
+export function lineNews(avisos: Pick<Avisos, 'line' | 'read'>, line: string, isAve: boolean): LineNews {
+  if(isAve) return { kind: 'ave' };
+  const n = avisos.line(line), read = avisos.read();
+  if(!n) return { kind: 'pending', line };
+  if(n.estat === 'avis' && read) return { kind: 'avis', line, text: n.text, read };
+  if(n.estat === 'normal' && read) return { kind: 'normal', line, read };
+  return { kind: 'error', line };
+}
 
 // a notice in a few words for the stamp, from what it says; «mira’l» when none fits
 const GIST: [RegExp, string][] = [
