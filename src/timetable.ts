@@ -117,7 +117,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
     const to = ` href="${buy.replace(/&/g, '&amp;')}" target="_blank" rel="noopener"`;
     const soon = big ? `<span class="soon">${until && 'en ' + until}</span>` : '';
     const word = big ? ` <a class="buy"${to} tabindex="-1" aria-hidden="true">compra’l ↗</a>` : '';
-    const where = (big ? `<span class="nx">el pròxim${until ? ', ' : ''}</span>${soon}` : morrow ? 'demà' : 'després') + word;
+    const where = (big ? `<span class="nx">${r.gone ? 'ja ha sortit' : 'el pròxim'}${until ? ', ' : ''}</span>${soon}` : morrow ? 'demà' : 'després') + word;
     // the big train's words keep to one line, and its route takes the rest of the gap up to the arrival
     const w = big ? `<span class="lead">${where}</span>${rec}` : where;
     const camp = isAve ? ` <span class="st">${state.dir==='casa' ? 'fins a' : 'des de'} Camp de Tarragona</span>` : '';

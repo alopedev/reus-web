@@ -147,3 +147,11 @@ test('no wagon for a train not on its way: still to leave, already arrived, or t
   assert.equal(train(at('2026-10-01', '10:33', PICKED)).where, null);
   assert.equal(train(at('2026-10-01', '23:10', BACK)).where, null);
 });
+
+test('a train shown that has already left says so on the board, on its way or arrived; the next one never does', () => {
+  assert.deepEqual(train(at('2026-10-01', '10:00', PICKED)).rows.map(r => r.gone), [true, false]);
+  assert.equal(train(at('2026-10-01', '10:33', PICKED)).rows[0].gone, true);
+  assert.equal(train(at('2026-10-01', '09:00', PICKED)).rows[0].gone, false);
+  assert.equal(train(at('2026-10-01', '10:00', HOME)).rows[0].gone, false);
+  assert.equal(train(at('2026-10-01', '23:10', BACK)).rows[0].gone, false);
+});
