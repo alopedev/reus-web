@@ -728,10 +728,12 @@ baseline = root / "scripts/baseline" / sys.platform
 async def open_page(browser, **options):
     """A page with generous timeouts: software rendering on a two-core CI machine can take long to give a frame.
     Open-Meteo is never asked: the window keeps fair weather, so no check depends on the real weather
-    (check_weather answers for it). Nor are the lines' notices (/api/avisos, a Vercel function): check_avisos answers."""
+    (check_weather answers for it). Nor are the lines' notices (/api/avisos, a Vercel function): check_avisos answers;
+    nor Renfe's live delays (/api/retards): check_retards answers."""
     page = await browser.new_page(**options); page.set_default_timeout(120000)
     await page.route("https://api.open-meteo.com/**", lambda route: route.abort())
     await page.route("**/api/avisos", lambda route: route.abort())
+    await page.route("**/api/retards", lambda route: route.abort())
     return page
 PARITY = {"escritorio-hero": (1440, 900, False), "escritorio-mesa": (1440, 900, True), "movil-hero": (390, 844, False)}
 
@@ -941,6 +943,76 @@ async def check_avisos(browser):
         if kind == "avis":
             if not a["boxed"]: errs.append("phone: the notice in the train's sheet is not framed")
             await page.screenshot(path=str(shots / "avisos-movil.png"))
+        await page.close()
+    return errs
+
+# the live delay of the train shown (10-10, Àlex: option A, the time corrected; on time says nothing): what
+# /api/retards answers → what the board and the train's sheet say. At 10:00 on 28-09 of the frozen timetable the big
+# train is the R15 15005, Sants 10:03 → Reus 11:33
+RETARDS_JS = """() => { const big = document.querySelector('#board .big');
+  return { tach: !!big?.querySelector('#dep.tach'), nova: big?.querySelector('.nova')?.textContent.trim() ?? null,
+    text: big?.textContent.replace(/\\s+/g, ' ').trim() ?? '', arr: big?.querySelector('.arr')?.textContent.replace(/\\s+/g, ' ').trim() ?? '',
+    aviso: document.getElementById('aviso').textContent,
+    sheet: document.getElementById('detalle').open ? document.getElementById('detalle').textContent.replace(/\\s+/g, ' ').trim() : null } }"""
+LATE = {"15005": {"estat": "circula", "retard": 25, "parada": "71802"}}
+RETARDS = {
+    "late": ("200", LATE),
+    "ontime": ("200", {"15005": {"estat": "circula", "retard": 1, "parada": "71802"}}),
+    "notyet": ("200", {}),
+    "503": ("503", {}),
+    "cancel": ("200", {"15005": {"estat": "cancelat"}}),
+}
+
+async def retards_page(browser, kind, w, h):
+    import json
+    status, trens = RETARDS[kind]
+    page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce")
+    async def answer(route):
+        if status != "200": await route.fulfill(status=int(status), body="{}")
+        else: await route.fulfill(status=200, content_type="application/json", body=json.dumps({"llegit": "2026-09-28T07:59:40Z", "trens": trens}))
+    await page.route("**/api/retards", answer)   # the latest route wins over open_page's abort
+    await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
+    await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(2500)
+    return page
+
+async def check_retards(browser):
+    """Desktop: a late train has its time struck in orange and the new one beside it, «+25 min» and the countdown to the
+    new departure, and its arrival corrected; on time nothing changes; not in the feed yet or no answer, «sense dades en
+    directe encara»; cancelled, struck and «cancel·lat». Phone: the same in the row, and the train's sheet says it."""
+    errs = []
+    page = await retards_page(browser, "late", 1440, 900)
+    r = await page.evaluate(RETARDS_JS)
+    if not r["tach"]: errs.append("late: the big time is not struck")
+    if r["nova"] != "10:28": errs.append(f"late: the new time reads «{r['nova']}», expected «10:28»")
+    if "+25 min" not in r["text"] or "en 28 min" not in r["text"]: errs.append(f"late: the big row reads «{r['text']}»")
+    if "11:33" not in r["arr"] or "11:58" not in r["arr"]: errs.append(f"late: the arrival reads «{r['arr']}», expected 11:33 struck and 11:58")
+    if "amb 25 min de retard" not in r["aviso"]: errs.append(f"late: #aviso does not say the delay: «{r['aviso']}»")
+    await page.screenshot(path=str(shots / "retard-escritorio.png")); await page.close()
+    for kind in ("ontime", "notyet", "503", "cancel"):
+        page = await retards_page(browser, kind, 1440, 900)
+        r = await page.evaluate(RETARDS_JS)
+        if r["nova"]: errs.append(f"{kind}: a new time shows («{r['nova']}»)")
+        if kind == "ontime" and (r["tach"] or "el pròxim, en 3 min" not in r["text"] or "sense dades" in r["text"]):
+            errs.append(f"on time: the big row changed: «{r['text']}»")
+        if kind in ("notyet", "503") and "sense dades en directe encara" not in r["text"]:
+            errs.append(f"{kind}: the big row does not say there is no live data yet: «{r['text']}»")
+        if kind == "cancel" and (not r["tach"] or "cancel·lat" not in r["text"] or "en 3 min" in r["text"]):
+            errs.append(f"cancelled: the big row reads «{r['text']}» (struck: {r['tach']})")
+        await page.screenshot(path=str(shots / f"retard-escritorio-{kind}.png")); await page.close()
+    phone = {"late": ("10:28", "Amb 25 min de retard"), "ontime": (None, None), "notyet": (None, "sense dades"), "cancel": (None, "Cancel·lat")}
+    for kind, (nova, said) in phone.items():
+        page = await retards_page(browser, kind, 390, 844)
+        r = await page.evaluate(RETARDS_JS)
+        if r["nova"] != nova: errs.append(f"phone, {kind}: the new time reads «{r['nova']}», expected «{nova}»")
+        if kind == "late" and ("en 28 min" not in r["text"] or "11:58" not in r["arr"]): errs.append(f"phone, late: the row reads «{r['text']}»")
+        if kind == "ontime" and ("en 3 min" not in r["text"] or "sense dades" in r["text"]): errs.append(f"phone, on time: the row reads «{r['text']}»")
+        await page.screenshot(path=str(shots / f"retard-movil-{kind}.png"))
+        try: await page.click("#board button.big", timeout=CLICK_MS)
+        except Exception: errs.append(f"phone, {kind}: the big train is not clickable"); await page.close(); continue
+        await page.wait_for_timeout(600); r = await page.evaluate(RETARDS_JS)
+        if said and (not r["sheet"] or said not in r["sheet"]): errs.append(f"phone, {kind}: the sheet says «{r['sheet']}», expected «{said}»")
+        if kind == "ontime" and r["sheet"] and ("retard" in r["sheet"].lower() or "sense dades" in r["sheet"]): errs.append(f"phone, on time: the sheet says «{r['sheet']}»")
+        if kind == "late": await page.screenshot(path=str(shots / "retard-movil-hoja.png"))
         await page.close()
     return errs
 
@@ -1205,6 +1277,7 @@ async def check_hero(browser):
     errs += [f"weather: {e}" for e in await check_weather(browser)]
     errs += [f"foot: {e}" for e in await check_ruler_foot(browser)]
     errs += [f"notices: {e}" for e in await check_avisos(browser)]
+    errs += [f"live delay: {e}" for e in await check_retards(browser)]
     # 21:30, from Reus: no regional left today, but two AVE from Camp de Tarragona (22:17, 22:39)
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)

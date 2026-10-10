@@ -212,3 +212,7 @@ test('the screen reader hears it once when a delay appears, not at every new min
   assert.notEqual(a.key, train(atLive('10:00', HOME, live({}))).key);
   assert.equal(a.key, b.key);
 });
+
+test('a late train’s wagon goes by its delay: still at the platform, no wagon yet', () => {
+  assert.equal(train(atLive('10:10', HOME, live({ '15005': LATE(25) }))).where, null);
+});

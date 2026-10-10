@@ -112,13 +112,15 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   const ends = isAve ? (ida ? [v.station, CAMP] : [CAMP, v.station]) : ida ? [v.station, v.town] : [v.town, v.station];
   const buy = buyUrl(ends[0], ends[1], day, a[0]);
   const stops = stopsBetween(day, a[2], ends[0], ends[1]);
-  const where = day === now.date ? whereNow(now.min, [[ends[0], a[0]], ...(stops ?? []), [ends[1], a[1]]]) : null;
+  // a late train is where its delay puts it: the timetable's place that many minutes ago
+  const where = day === now.date ? whereNow(now.min - (late?.min ?? 0), [[ends[0], a[0]], ...(stops ?? []), [ends[1], a[1]]]) : null;
   const there = isAve ? 'Camp de Tarragona' : townName;
   const trip: Trip = { line: a[3], color: LINE[a[3]] ?? 'var(--shadow)', from: ida ? bcn : there, to: ida ? there : bcn, dep: hhmm(a[0]), arr: hhmm(a[1]),
     when: tomorrow ? 'Demà' : cancelled ? 'Cancel·lat' : leaves < now.min ? 'Ja ha sortit' : leaves === now.min ? 'Surt ara' : `Surt en ${dur(leaves-now.min)}`, length: dur(a[1]-a[0]),
     stops: stops?.length ?? null, buy,
     ave: isAve ? (ida ? `L’AVE no arriba ${atPlace(townName)}: baixa a Camp de Tarragona.` : `L’AVE no surt ${ofPlace(townName)}: surt de Camp de Tarragona.`) : '',
-    home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(a[1]), tomorrow), news: lineNews(avisos, a[3], isAve), where };
+    home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(a[1]), tomorrow), news: lineNews(avisos, a[3], isAve), where,
+    live: late ? `Amb ${late.min} min de retard: surt cap a les ${hhmm(late.dep)} i arriba cap a les ${hhmm(late.arr)}.` : lv?.kind === 'unknown' ? 'Retard: sense dades en directe encara.' : '' };
   // what a screen reader hears: the train, only when it changes (never the countdown's refresh)
   const sFrom = isAve ? (ida ? bcn : 'Camp de Tarragona') : from, sTo = isAve ? (ida ? 'Camp de Tarragona' : `Barcelona ${bcn}`) : to;
   const say = `${picked ? 'Tren triat, demà' : tomorrow ? 'Avui ja no queden trens. El primer de demà' : v.useNow ? 'Pròxim tren' : 'Tren triat'}: ${hhmm(a[0])}, ${isAve ? 'AVE ' : ''}${ofPlace(sFrom)} ${atPlace(sTo)}${cancelled ? ', cancel·lat' : late ? `, amb ${late.min} min de retard: surt cap a les ${hhmm(late.dep)}; arriba a les ${hhmm(late.arr)}` : `; arriba a les ${hhmm(a[1])}`}.`;

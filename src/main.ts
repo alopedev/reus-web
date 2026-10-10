@@ -13,6 +13,7 @@ import { pair, state } from './letters';
 import { daylight } from './light';
 import { createWeather } from './weather';
 import { createAvisos } from './avisos';
+import { createRetards } from './retards';
 
 // the page always opens on the hero: the browser must not put back the last visit's scroll (Safari does on a reload
 // or a reopened tab). The native API, not ScrollTrigger.clearScrollMemory(): ScrollTrigger is only registered later,
@@ -34,7 +35,9 @@ const scenery = createScenery(world, flaps.play);
 const weather = createWeather(w => { if(!world) return; world.setWeather(w); if(!scenery.isPlaying()) world.frame(0, 0, 1); });
 // the lines' notices: the board redraws its stamp when what is known changes
 const avisos = createAvisos(() => render());
-const { render } = setupTimetable({ world, table, scenery, weather, avisos });
+// the live delay of the train shown (Renfe's real-time feed): the board redraws when what is known changes
+const retards = createRetards(() => render());
+const { render } = setupTimetable({ world, table, scenery, weather, avisos, retards });
 render();
 // the window's size depends on the tickets and the fonts: measure it again once they are in, and repaint the still
 // frame too (reduced motion, or paused), which otherwise keeps the window where it was first painted
