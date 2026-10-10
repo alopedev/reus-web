@@ -338,11 +338,13 @@ def letters_start(i): return .06 + i * .035
 
 CHIP_RECT = """(i => { const chips = document.querySelectorAll('#letras .ficha'); const el = chips[i]; if(!el) return null;
   const b = el.getBoundingClientRect(); return {x: b.left + b.width / 2, y: b.top + b.height / 2}; })"""
-# the on-screen box of the i-th character of an element's own text (Range, not a split span: keeps kerning),
-# through whatever transform its ancestors currently carry (the wall's or the table's tilt)
+# the on-screen box of the i-th character of an element's text, over all its text nodes in order (h1.brand has a
+# span per cell of its board, h2#qe one text node), through whatever transform its ancestors currently carry
+# (the wall's or the table's tilt)
 GLYPH_RECT = """((sel, i) => { const el = document.querySelector(sel); if(!el) return null;
-  const node = [...el.childNodes].find(n => n.nodeType === 3 && n.textContent.length); if(!node) return null;
-  if(i < 0 || i >= node.textContent.length) return null;
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); let node = walk.nextNode();
+  while(node && i >= node.length){ i -= node.length; node = walk.nextNode(); }
+  if(!node || i < 0) return null;
   const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 1);
   const rects = r.getClientRects(); if(!rects.length) return null; const b = rects[0];
   return {x: b.left + b.width / 2, y: b.top + b.height / 2}; })"""
@@ -623,7 +625,7 @@ FIT = """(() => {
     errs.push(`pinned table does not fit: content ends at ${mesa.offsetTop + mesa.offsetHeight} of ${esc.clientHeight}`);
   // like a poster: proportional to the screen, never below a legible floor
   const ref = Math.min(innerWidth, innerHeight * 1.6), brand = parseFloat(getComputedStyle(q('.brand')).fontSize);
-  const expected = 6.6 * Math.max(14, ref * .01111);
+  const expected = 4.1 * Math.max(14, ref * .01111);
   if(innerWidth > innerHeight && Math.abs(brand - expected) / expected > .05) errs.push(`hero does not scale: name is ${Math.round(brand)} px for a ${Math.round(ref)} px screen`);
   return errs;
 })()"""
@@ -948,6 +950,44 @@ async def check_daylight(browser):
     await page.close()
     return errs
 
+# the name's board (flaps.ts): one letter per cell, and where each letter's glyph sits
+BOARD_JS = """(() => { const cells = [...document.querySelectorAll('.tauler .celes i')].map(c => c.getBoundingClientRect());
+  const h1 = document.querySelector('.brand'), letters = [...h1.querySelectorAll('span')].map(l => l.getBoundingClientRect());
+  return {cells: cells.map(r => [r.left, r.top, r.right, r.bottom]), letters: letters.map(r => [r.left, r.top, r.right, r.bottom]),
+    label: h1.getAttribute('aria-label'), upper: getComputedStyle(h1).textTransform, canvas: !!document.querySelector('.tauler canvas')}; })()"""
+
+async def check_board_still(page):
+    """The name is a split-flap board: eight cells and a letter of «Capacasa» centred in each, in capitals, with
+    the name for the screen reader; with reduced motion the flaps never turn (no canvas over the cells)."""
+    errs = []
+    b = await page.evaluate(BOARD_JS)
+    if len(b["cells"]) != len(NAME): errs.append(f"the board has {len(b['cells'])} cells, expected {len(NAME)}")
+    if b["label"] != NAME: errs.append(f"the name's accessible label is «{b['label']}», expected «{NAME}»")
+    if b["upper"] != "uppercase": errs.append(f"the board does not write the name in capitals ({b['upper']})")
+    if b["canvas"]: errs.append("with reduced motion the board still turns its flaps")
+    for i, (c, l) in enumerate(zip(b["cells"], b["letters"])):
+        g = await page.evaluate(f"({GLYPH_RECT})('.brand', {i})")
+        cx, cy = (c[0] + c[2]) / 2, (c[1] + c[3]) / 2
+        if not g or abs(g["x"] - cx) > 2 or abs(g["y"] - cy) > .12 * (c[3] - c[1]):
+            errs.append(f"letter {i} of the name is not centred in its cell ({g} vs cell centre {cx:.0f}, {cy:.0f})")
+    return errs
+
+async def check_flaps(browser):
+    """With motion, the board turns its flaps when the hero comes in (a canvas over the cells) and, once the last
+    flap lands, leaves the real h1 alone, in a desktop and a phone."""
+    errs = []
+    for w, h in [(1440, 900), (390, 844)]:
+        page = await open_page(browser, viewport={"width": w, "height": h})
+        jserr = []; page.on("pageerror", lambda e: jserr.append(str(e)))
+        await page.goto(parity_url)
+        try: await page.wait_for_function("document.querySelector('.tauler canvas')", timeout=60000)
+        except Exception: errs.append(f"{w}x{h}: the board never turns its flaps"); await page.close(); continue
+        try: await page.wait_for_function("!document.querySelector('.tauler canvas')", timeout=60000)
+        except Exception: errs.append(f"{w}x{h}: the flaps never stop (the canvas stays over the board)")
+        errs += [f"{w}x{h}: JS error: {e}" for e in jserr]
+        await page.close()
+    return errs
+
 async def check_hero(browser):
     """15. The hero B: its name and subtitle."""
     errs = []
@@ -958,6 +998,7 @@ async def check_hero(browser):
     if got["sub"] != SUBTITLE: errs.append(f"the subtitle is «{got['sub']}», expected «{SUBTITLE}»")
     errs += await check_hero_ticket(page)
     errs += await check_town_ticket(page)
+    errs += await check_board_still(page)
     errs += await check_hero_board(page)
     errs += await check_hero_ruler(page)
     await page.close()
@@ -975,6 +1016,7 @@ async def check_hero(browser):
     errs += [f"station: {e}" for e in await check_station(browser)]
     # the big train's route, only on a desktop
     errs += [f"route: {e}" for e in await check_journey(browser)]
+    errs += [f"board: {e}" for e in await check_flaps(browser)]
     errs += [f"light: {e}" for e in await check_daylight(browser)]
     errs += [f"weather: {e}" for e in await check_weather(browser)]
     errs += [f"foot: {e}" for e in await check_ruler_foot(browser)]
@@ -1835,7 +1877,7 @@ async def main():
             box = await page.evaluate("""(() => {
               const r = s => document.querySelector(s).getBoundingClientRect();
               const f = s => { const c = getComputedStyle(document.querySelector(s)); return c.fontFamily.split(',')[0].replace(/"/g,''); };
-              return {name: r('.brand').bottom, winTop: r('#win').top, winBottom: r('#win').bottom, info: r('#info').top,
+              return {name: r('.tauler').bottom, winTop: r('#win').top, winBottom: r('#win').bottom, info: r('#info').top,
                       texto: f('.soon'), serif: f('#dep')};
             })()""")
             if not box["name"] < box["winTop"]: failures.append(f"{name}: name overlaps window ({box['name']:.0f} ≥ {box['winTop']:.0f})")

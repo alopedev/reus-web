@@ -7,19 +7,21 @@ export interface Scenery { repaint(): void; kick(): void; isPlaying(): boolean }
 // the landscape's loop: it paints itself in, then the train sets off; it rests when the hero is out of view
 // or the tab is hidden. R repaints and P pauses, for recording only: with ?grabar in the URL (one-key shortcuts
 // would fire by accident for the public, WCAG 2.1.4)
-export function createScenery(world: World | null): Scenery {
+// onIn: the hero has come in (its texts appear); the name's board turns its flaps then (flaps.ts)
+export function createScenery(world: World | null, onIn: () => void = () => {}): Scenery {
   const PAINT = 4.6, SPEED = 22;
   let t0 = performance.now(), lastT = t0, rafId = 0, acc = 0, v = 0, playing = !reduce;
   const stage = byId('stage');
+  function show(){ if(stage.classList.contains('in')) return; stage.classList.add('in'); onIn(); }
   function repaint(){
     t0 = performance.now(); v = 0; stage.classList.remove('in');
-    if(reduce || !world){ stage.classList.add('in'); if(world) world.frame(0,0,1); return; }
+    if(reduce || !world){ show(); if(world) world.frame(0,0,1); return; }
     playing = true; kick();
   }
   function loop(t: number){
     const dt = Math.min(.05, (t-lastT)/1000); lastT = t;
     const el = (t - t0)/1000, reveal = Math.min(1, el/PAINT);
-    if(el > PAINT*.75) stage.classList.add('in');
+    if(el > PAINT*.75) show();
     const target = el > PAINT ? SPEED * (state.dir==='bcn' ? -1 : 1) : 0;
     v += (target - v) * Math.min(1, dt*.45);
     acc += dt;
