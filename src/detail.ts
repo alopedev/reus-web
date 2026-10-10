@@ -11,6 +11,7 @@ export interface Trip {
   line: string; color: string; from: string; to: string; dep: string; arr: string;
   when: string; length: string; stops: number | null; buy: string; ave: string; home: string; news: LineNews;
   where: Where | null;               // while the train is on its way: where the timetable puts it
+  live: string;                      // its live delay in a sentence (Renfe's feed); '' when on time or not known
 }
 export interface Detail { open(t: Trip): void; refresh(t: Trip): void }
 
@@ -25,6 +26,9 @@ function journeyLine(t: Trip): string {
     + `<div class="ends" aria-hidden="true"><span>${esc(t.from)}</span><span>${esc(t.to)}</span></div><p class="ara">${esc(t.where.words)}</p></div>`;
 }
 
+// the live delay under the times (option A, Àlex 10-10): the new times in orange; nothing when on time
+const retard = (t: Trip): string => t.live ? `<p class="retard">${esc(t.live)}</p>` : '';
+
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
 // the trip's detail on a phone (6B, Àlex 06-10): a sheet of paper that comes up from the bottom when a train of the
@@ -32,13 +36,14 @@ const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;'
 // from the browser. Closing it hands the focus back to the board's big train
 export function setupDetail(): Detail {
   const dialog = byId<HTMLDialogElement>('detalle');
-  let said = '', line = '', drawn = '';
+  let said = '', line = '', drawn = '', late = '';
   function open(t: Trip): void {
-    said = news(t.news); line = t.line; drawn = journeyLine(t);
+    said = news(t.news); line = t.line; drawn = journeyLine(t); late = retard(t);
     const stops = t.stops == null ? '' : t.stops === 0 ? 'sense parades' : t.stops === 1 ? '1 parada' : `${t.stops} parades`;
     dialog.innerHTML = `<div class="pliego" tabindex="-1"><button type="button" class="x" aria-label="Tancar">✕</button>
       <h3 id="detalleH"><span class="pill" style="--c:${t.color}">${esc(t.line)}</span> ${esc(t.from)} → ${esc(t.to)}</h3>
       <p class="horas">${t.dep} <span class="flecha">→</span> ${t.arr}</p>
+      ${retard(t)}
       ${journeyLine(t)}
       <p class="datos"><span>${esc(t.when)}</span> <span>${t.length} de viatge${stops ? ' · ' + stops : ''}</span></p>
       ${t.ave ? `<p class="ave">${esc(t.ave)}</p>` : ''}
@@ -54,7 +59,9 @@ export function setupDetail(): Detail {
     const el = dialog.open && t.line === line ? dialog.querySelector('.avisos') : null, html = news(t.news);
     if(el && html !== said){ el.outerHTML = said = html; }
     const way = dialog.open && t.line === line ? journeyLine(t) : drawn;
-    if(way !== drawn){ dialog.querySelector('.viatge')?.remove(); dialog.querySelector('.horas')?.insertAdjacentHTML('afterend', way); drawn = way; }
+    const now = dialog.open && t.line === line ? retard(t) : late;
+    if(now !== late){ dialog.querySelector('.retard')?.remove(); if(now) dialog.querySelector('.horas')?.insertAdjacentHTML('afterend', now); late = now; }
+    if(way !== drawn){ dialog.querySelector('.viatge')?.remove(); (dialog.querySelector('.retard') ?? dialog.querySelector('.horas'))?.insertAdjacentHTML('afterend', way); drawn = way; }
   }
   dialog.addEventListener('click', e => {
     const t = e.target as HTMLElement;
