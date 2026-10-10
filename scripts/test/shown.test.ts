@@ -216,3 +216,13 @@ test('the screen reader hears it once when a delay appears, not at every new min
 test('a late train’s wagon goes by its delay: still at the platform, no wagon yet', () => {
   assert.equal(train(atLive('10:10', HOME, live({ '15005': LATE(25) }))).where, null);
 });
+
+test('the message for home names the train by its time and says the arrival its delay gives', () => {
+  assert.equal(train(atLive('10:00', HOME, live({ '15005': LATE(25) }))).trip.home, 'Agafo l’R15 de les 10:03 a Sants. Arribo a Reus a les 11:58.');
+});
+
+test('the AVE has no live data at all: nothing is said of it, not even «no data yet»', () => {
+  const s = train(atLive('21:30', BACK, live({}, { estat: 'error' })));
+  assert.equal(s.ave, true);
+  assert.equal(s.rows[0].live, undefined);
+});

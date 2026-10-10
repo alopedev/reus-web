@@ -92,16 +92,17 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   // two trips: the train shown and the one after it, regional or AVE (after today's last AVE, tomorrow's first)
   const next = lastAve ? regs[0] : [...regs, ...aves].filter(t => t !== a && t[0] >= a[0]).sort((x, y) => x[0]-y[0])[0];
   const isAveTrip = (t: Train) => aves.includes(t) || t === lastAve;
-  // the delay Renfe gives for the train shown, only for today's (the feed knows the trains running now)
-  const liveOf = (t: Train): Live | undefined => {
-    if(day !== now.date) return undefined;
+  // the delay Renfe gives for the train shown, only for today's regionals (the feed knows the Rodalies trains running
+  // now; the AVE is not in it)
+  const liveOf = (t: Train, ave: boolean): Live | undefined => {
+    if(day !== now.date || ave) return undefined;
     const k = retards.train(t[2]);
     if(!k) return undefined;
     if(k.estat === 'cancelat') return { kind: 'cancel' };
     if(k.estat === 'circula') return k.retard >= 2 ? { kind: 'late', min: k.retard, dep: t[0] + k.retard, arr: t[1] + k.retard } : undefined;
     return t[0] >= now.min && t[0] - now.min <= SOON ? { kind: 'unknown' } : undefined;
   };
-  const lv = liveOf(a), late = lv?.kind === 'late' ? lv : undefined, cancelled = lv?.kind === 'cancel';
+  const lv = liveOf(a, isAve), late = lv?.kind === 'late' ? lv : undefined, cancelled = lv?.kind === 'cancel';
   const leaves = late ? late.dep : a[0];
   const until = live && !cancelled ? dur(leaves-now.min) : '';
   const rows: Row[] = (next ? [a, next] : [a]).map(t => ({ dep: t[0], arr: t[1], line: t[3], ave: isAveTrip(t), big: t === a,
@@ -119,7 +120,7 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
     when: tomorrow ? 'Demà' : cancelled ? 'Cancel·lat' : leaves < now.min ? 'Ja ha sortit' : leaves === now.min ? 'Surt ara' : `Surt en ${dur(leaves-now.min)}`, length: dur(a[1]-a[0]),
     stops: stops?.length ?? null, buy,
     ave: isAve ? (ida ? `L’AVE no arriba ${atPlace(townName)}: baixa a Camp de Tarragona.` : `L’AVE no surt ${ofPlace(townName)}: surt de Camp de Tarragona.`) : '',
-    home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(a[1]), tomorrow), news: lineNews(avisos, a[3], isAve), where,
+    home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(late ? late.arr : a[1]), tomorrow), news: lineNews(avisos, a[3], isAve), where,
     live: late ? `Amb ${late.min} min de retard: surt cap a les ${hhmm(late.dep)} i arriba cap a les ${hhmm(late.arr)}.` : lv?.kind === 'unknown' ? 'Retard: sense dades en directe encara.' : '' };
   // what a screen reader hears: the train, only when it changes (never the countdown's refresh)
   const sFrom = isAve ? (ida ? bcn : 'Camp de Tarragona') : from, sTo = isAve ? (ida ? 'Camp de Tarragona' : `Barcelona ${bcn}`) : to;

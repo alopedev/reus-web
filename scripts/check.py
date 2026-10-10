@@ -729,12 +729,28 @@ async def open_page(browser, **options):
     """A page with generous timeouts: software rendering on a two-core CI machine can take long to give a frame.
     Open-Meteo is never asked: the window keeps fair weather, so no check depends on the real weather
     (check_weather answers for it). Nor are the lines' notices (/api/avisos, a Vercel function): check_avisos answers;
-    nor Renfe's live delays (/api/retards): check_retards answers."""
+    Renfe's live delays (/api/retards) answer every train on time; check_retards answers its own."""
     page = await browser.new_page(**options); page.set_default_timeout(120000)
     await page.route("https://api.open-meteo.com/**", lambda route: route.abort())
     await page.route("**/api/avisos", lambda route: route.abort())
-    await page.route("**/api/retards", lambda route: route.abort())
+    await page.route("**/api/retards", on_time)
     return page
+
+def _on_time_answer():
+    """/api/retards for every check but check_retards: every train of both timetables running on time, which says
+    nothing, so no other check meets the live delay. (No answer at all would read «sense dades en directe encara».)
+    Read far in the future, so it is fresh at whatever time a check fixes the clock to."""
+    import json, re
+    numbers = set()
+    for f in ("data/red.json", "scripts/baseline/red.json"):
+        for t in json.loads((root / f).read_text())["trenes"]:
+            m = re.match(r"^\d{4}[A-Z](\d+)[A-Z]", t["n"]); numbers.add(m.group(1) if m else t["n"])
+    return json.dumps({"llegit": "2100-01-01T00:00:00Z", "trens": {n: {"estat": "circula", "retard": 0, "parada": ""} for n in numbers}})
+ON_TIME = None
+async def on_time(route):
+    global ON_TIME
+    ON_TIME = ON_TIME or _on_time_answer()
+    await route.fulfill(status=200, content_type="application/json", body=ON_TIME)
 PARITY = {"escritorio-hero": (1440, 900, False), "escritorio-mesa": (1440, 900, True), "movil-hero": (390, 844, False)}
 
 async def check_parity(browser):
