@@ -1,4 +1,9 @@
 /* the shelf: the gaze drops to the table, where paper objects explain the site */
+/* tilted in perspective, the table's near edge is wider than the screen: clipped here, or it would count as page
+   width and a phone would widen its viewport mid-transition (the wall, the table and the letters drift apart).
+   clip, not hidden: no scroll container, so the pinned table stays sticky to the viewport (body's own overflow
+   would go to the viewport and not stop the widening) */
+.retall{ overflow-x:clip; }
 #repisa{ position:relative; z-index:2; margin-top:100vh; margin-top:100svh; background:#5A4331; }
 /* the table under the window: the painted surface (canvas), the window's light, then the papers and travel things */
 .escena{ position:relative; overflow:hidden; min-height:100vh;
