@@ -25,6 +25,22 @@ jobs:
       - run: npm run build
       - run: npm run build:paridad
       - run: python scripts/check.py
+      # TEMPORARY (removed with the reference it brings): prints the difference between this run's hero frames and the
+      # references written in the cloud, to rebuild them from the log
+      - if: always()
+        run: |
+          python - <<'PY'
+          import base64, zlib
+          from pathlib import Path
+          from PIL import Image
+          for n in ("movil-hero", "escritorio-hero"):
+              shot = Path(f"screenshots/{n}-distinto.png")
+              if not shot.exists(): print(n, "same"); continue
+              a = Image.open(shot).convert("RGB").tobytes(); b = Image.open(f"scripts/baseline/linux/{n}.png").convert("RGB").tobytes()
+              d = base64.b64encode(zlib.compress(bytes((x - y) % 256 for x, y in zip(a, b)), 9)).decode()
+              print(f"DIFF {n} {len(d)}")
+              for i in range(0, len(d), 4000): print(f"D{n}:{d[i:i+4000]}")
+          PY
       # the screenshots, and any reference frame written in this run, to review or commit
       - if: always()
         uses: actions/upload-artifact@v4

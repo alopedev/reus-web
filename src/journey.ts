@@ -6,7 +6,8 @@ import { NET, hhmm, stopName } from './time';
 // every name fits (a long train, a small screen), the line folds (Àlex 08-10, option B of three): the first two
 // stops and the last two keep their names and the stretch in between turns dotted, with «· 15 parades ·» over it.
 // While the train is on its way, a paper wagon stands on the line where the timetable puts it (`now`, the share of
-// the trip already gone; Àlex 10-10, option A, and only on its way). For the eye only: the screen reader already
+// the trip already gone; Àlex 10-10, option A, and only on its way); while it is still to leave, the wagon of the
+// one on its way, between the same two stops (Àlex 10-10, «quiero que se vea más», option A without words). For the eye only: the screen reader already
 // hears the train in #aviso
 export function journey(stops: [stop: string, arr: number][] | null, dep: number, arr: number, now: number | null = null): string {
   if(!stops || !stops.length || arr <= dep) return '';
@@ -26,6 +27,11 @@ export const wagonSvg = (body: string, windows: string): string => `<svg viewBox
   + `<path d="${BODY}" fill="${body}"/><g fill="${windows}">${WINDOWS}</g><rect x="3" y="15" width="59" height="1.6" fill="#E8A35C"/>`
   + `<g fill="#2D241C">${WHEELS}</g></svg>`;
 const WAGON = wagonSvg('#F1EADC', '#6B5645');
+
+// a phone's board has no route: under the big row, a bare line from departure to arrival with the same wagon where
+// the timetable puts it (`at`, the share of its trip already gone), without words (Àlex 10-10)
+export const wagonLine = (at: number): string => `<div class="cami" aria-hidden="true"><b style="left:0"></b><b style="left:100%"></b>`
+  + `<span class="vago" style="left:${(at * 100).toFixed(2)}%">${WAGON}</span></div>`;
 
 type Side = 'up' | 'down';
 type Spot = { side: Side, left: number };

@@ -1588,7 +1588,9 @@ async def check_wagon(browser):
     its way («solo en marcha»): none for the next train, still to leave. Placed by the timetable, its middle at the
     share of the trip already gone, its wheels on the line; the name it would cover climbs over it, so no name is lost
     and none overlaps the wagon, another name or the window. On a phone, the train's sheet draws the same thing
-    simplified (option A): the line between its two ends with the wagon, and «Ara entre … i …» under it. The board
+    simplified (option A): the line between its two ends with the wagon, and «Ara entre … i …» under it. While the
+    train shown is still to leave, its route carries the wagon of the one on its way, between the same two stops, and a
+    phone's board a bare line with that wagon under the big row (Àlex 10-10, option A without words). The board
     says «ja ha sortit» of a train shown that has left, where it says «el pròxim» of the next one."""
     errs, net, day = [], _net(), "2026-09-28"
     names, mins, d0, a0 = _stops(net, day, SANTS_ID, REUS_TOWN, 543)
@@ -1599,8 +1601,24 @@ async def check_wagon(browser):
     share = (now - d0) / (a0 - d0)
     pick = "(() => { const t = document.getElementById('t'); t.value = 543; t.dispatchEvent(new Event('change')); })()"
     lead = "document.querySelector('#board .trip.big .nx')?.textContent.trim()"
+    # the next train (10:03), still at Sants, carries on its route the wagon of the one on its way (the 09:03), between
+    # the same two stops (Àlex 10-10: «quiero que se vea más», option A without words)
+    bnames, bmins, bd, ba = _stops(net, day, SANTS_ID, REUS_TOWN, 603)
+    bpos = dict(zip(bnames, [(m - bd) / (ba - bd) for m in bmins])) | {"Sants": 0, "Reus": 1}
+    f = 0 if pts[i][1] == now else (now - pts[i][1]) / (pts[i + 1][1] - pts[i][1])
+    on = bpos[pts[i][0]] + ((bpos[pts[i + 1][0]] if pts[i][1] != now else bpos[pts[i][0]]) - bpos[pts[i][0]]) * f
     page = await hero_page(browser)
-    if (await page.evaluate(WAGON))["wagon"]: errs.append("the next train, still at Sants, has a wagon on its route")
+    j = await page.evaluate(WAGON)
+    w = j["wagon"]
+    if not w: errs.append("the next train's route has no wagon for the 09:03, on its way at 10:00")
+    else:
+        mid, want = (w["l"] + w["r"]) / 2, j["rec"]["l"] + on * (j["rec"]["r"] - j["rec"]["l"])
+        if abs(mid - want) > 2: errs.append(f"the 09:03's wagon on the 10:03's route is at {mid:.0f}px, expected {want:.0f}px (between {pts[i][0]} and {pts[i + 1][0]})")
+        cut = lambda p, q: p["l"] < q["r"] - .5 and q["l"] < p["r"] - .5 and p["t"] < q["b"] - .5 and q["t"] < p["b"] - .5
+        if [s["text"] for s in j["shown"]] != bnames: errs.append(f"with the 09:03's wagon, the names shown are {[s['text'] for s in j['shown']]}, expected {bnames}")
+        for p in j["shown"]:
+            if cut(p, w): errs.append(f"«{p['text']}» overlaps the 09:03's wagon")
+            if cut(p, j["win"]): errs.append(f"«{p['text']}» overlaps the window")
     if (t := await page.evaluate(lead)) != "el pròxim,": errs.append(f"the next train's board says «{t}», expected «el pròxim,»")
     await page.evaluate(pick); await page.wait_for_timeout(400)
     # a train that has already left is not «el pròxim» (Àlex 10-10)
@@ -1625,6 +1643,14 @@ async def check_wagon(browser):
     await page.close()
     # a phone: the sheet of the train shown
     page = await hero_page(browser, 390, 844)
+    c = await page.evaluate("""(() => { const c = document.querySelector('#board .cami'); if(!c) return null;
+      const via = c.getBoundingClientRect(), w = c.querySelector('.vago')?.getBoundingClientRect();
+      return {mid: w ? (w.left + w.right) / 2 : null, l: via.left, r: via.right, hidden: c.getAttribute('aria-hidden'), text: c.textContent.trim()}; })()""")
+    if not c: errs.append("phone: the board has no line with the wagon of the 09:03, on its way at 10:00")
+    else:
+        if c["mid"] is None or abs(c["mid"] - (c["l"] + share * (c["r"] - c["l"]))) > 2: errs.append(f"phone: the board's wagon stands at {c['mid']}, expected {share:.0%} along its line")
+        if c["hidden"] != "true": errs.append("phone: the board's wagon line is not hidden from screen readers")
+        if c["text"]: errs.append(f"phone: the board's wagon line has words ({c['text']!r}): Àlex wants none")
     await page.click("#board button.big"); await page.wait_for_timeout(500)
     if await page.evaluate("!!document.querySelector('#detalle .viatge')"): errs.append("phone: the next train's sheet has a wagon")
     await page.click("#detalle .x"); await page.wait_for_timeout(300)
