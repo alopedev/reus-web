@@ -201,6 +201,9 @@ test('a late train still to reach your station stays the next one after its time
   const s = train(atLive('10:10', HOME, live({ '15005': LATE(25) })));
   assert.deepEqual(rows(s), ['R15 603 big18 min', 'R15 663 ']);
   assert.equal(s.ruler.filter(m => m.on)[0]?.dep, 603);
+  // nor has it left: the board says «el pròxim», never «ja ha sortit»
+  assert.equal(s.rows[0].gone, false);
+  assert.equal(train(atLive('10:10', { ...HOME, useNow: false, minute: 603 }, live({ '15005': LATE(25) }))).rows[0].gone, false);
   // once past Sants (its next stop is further on), it has gone: the next one is the 11:03
   assert.deepEqual(rows(train(atLive('10:10', HOME, live({ '15005': LATE(25, '71700') })))), ['R15 663 big53 min', 'AVE 720 ']);
   // and without live data the timetable decides, as before
@@ -225,4 +228,12 @@ test('the AVE has no live data at all: nothing is said of it, not even «no data
   const s = train(atLive('21:30', BACK, live({}, { estat: 'error' })));
   assert.equal(s.ave, true);
   assert.equal(s.rows[0].live, undefined);
+});
+
+test('a train shown that has already left says so on the board, on its way or arrived; the next one never does', () => {
+  assert.deepEqual(train(at('2026-10-01', '10:00', PICKED)).rows.map(r => r.gone), [true, false]);
+  assert.equal(train(at('2026-10-01', '10:33', PICKED)).rows[0].gone, true);
+  assert.equal(train(at('2026-10-01', '09:00', PICKED)).rows[0].gone, false);
+  assert.equal(train(at('2026-10-01', '10:00', HOME)).rows[0].gone, false);
+  assert.equal(train(at('2026-10-01', '23:10', BACK)).rows[0].gone, false);
 });

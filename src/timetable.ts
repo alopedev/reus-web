@@ -129,7 +129,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     const word = big ? ` <a class="buy"${to} tabindex="-1" aria-hidden="true">compra’l ↗</a>` : '';
     const lead = late ? `<span class="nova">${hhmm(late.dep)}</span><span class="nx"><span class="mes">+${late.min} min</span>${until ? ', ' : ''}</span>${soon}`
       : live?.kind === 'cancel' ? '<span class="nx mes">cancel·lat</span>'
-      : `<span class="nx">el pròxim${until ? ', ' : ''}</span>${soon}${live?.kind === 'unknown' ? ' <span class="gris">· sense dades en directe encara</span>' : ''}`;
+      : `<span class="nx">${r.gone ? 'ja ha sortit' : 'el pròxim'}${until ? ', ' : ''}</span>${soon}${live?.kind === 'unknown' ? ' <span class="gris">· sense dades en directe encara</span>' : ''}`;
     const where = (big ? lead : morrow ? 'demà' : 'després') + word;
     // the big train's words keep to one line, and its route takes the rest of the gap up to the arrival
     const w = big ? `<span class="lead">${where}</span>${rec}` : where;

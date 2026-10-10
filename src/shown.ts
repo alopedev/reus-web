@@ -14,8 +14,6 @@ import type { Retards } from './retards';
 
 // a train on the ruler: today's, regionals and AVE together in order of departure; `on` is the train shown
 export type Mark = { dep: number, ave: boolean, on: boolean };
-// one trip of the board: the train shown (big) and the one after it
-// (`day`: the trip's own day, today's or tomorrow's, so that picking it keeps it)
 // where the train shown is now, by the timetable: how far along its trip (0 at departure, 1 at arrival) and in words
 export type Where = { at: number, words: string };
 // what Renfe's real-time feed says of the train shown (10-10, Àlex: option A, the time corrected; on time says nothing)
@@ -23,7 +21,10 @@ export type Where = { at: number, words: string };
 // Renfe not answering, so a silence is never read as «on time»
 export type Live = { kind: 'late', min: number, dep: number, arr: number } | { kind: 'cancel' } | { kind: 'unknown' };
 const SOON = 60;   // a train enters Renfe's feed only once it runs: further away than this, nothing is expected yet
-export type Row = { dep: number, arr: number, line: string, ave: boolean, big: boolean, until: string, morrow: boolean, day: string, live?: Live };
+// one trip of the board: the train shown (big) and the one after it
+// (`day`: the trip's own day, today's or tomorrow's, so that picking it keeps it; `gone`: the train shown, picked,
+// has already left today, by its delay when Renfe gives one, so the board says «ja ha sortit» where it would say «el pròxim»)
+export type Row = { dep: number, arr: number, line: string, ave: boolean, big: boolean, until: string, morrow: boolean, day: string, gone: boolean, live?: Live };
 interface Common {
   key: string; say: string;          // #aviso: what a screen reader hears, only when `key` changes
   label: string; note: string;       // #lbl, #note
@@ -106,7 +107,7 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   const leaves = late ? late.dep : a[0];
   const until = live && !cancelled ? dur(leaves-now.min) : '';
   const rows: Row[] = (next ? [a, next] : [a]).map(t => ({ dep: t[0], arr: t[1], line: t[3], ave: isAveTrip(t), big: t === a,
-    until: t === a ? until : '', morrow: !!lastAve && t !== lastAve, day: t === lastAve ? now.date : nextDay ? addDays(now.date, 1) : now.date,
+    until: t === a ? until : '', gone: t === a && !tomorrow && leaves < now.min, morrow: !!lastAve && t !== lastAve, day: t === lastAve ? now.date : nextDay ? addDays(now.date, 1) : now.date,
     ...(t === a && lv ? { live: lv } : {}) }));
   // the big train links to Renfe's search for its trip and day (the AVE's trip ends at Camp de Tarragona); its stops
   // are counted in a phone's sheet and drawn on a desktop's board
