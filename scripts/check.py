@@ -1576,10 +1576,12 @@ async def check_journey(browser):
     await page.close()
     return errs
 
-WAGON = """(() => { const rec = document.querySelector('#board .trip.big .rec'), v = rec?.querySelector('.vago');
+WAGON = """(() => { const rec = document.querySelector('#board .trip.big .rec'), v = rec?.querySelector('.vago:not(.altre)'), o = rec?.querySelector('.vago.altre');
   const box = e => { const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
-  if(!v) return {wagon: null};
-  return {wagon: {...box(v), svg: !!v.querySelector('svg'), label: v.getAttribute('aria-hidden') || rec.getAttribute('aria-hidden')}, rec: box(rec),
+  const look = e => e && {...box(e), alpha: +getComputedStyle(e).opacity, parked: e.classList.contains('parat')};
+  if(!v && !o) return {wagon: null, other: null};
+  return {wagon: v && {...look(v), svg: !!v.querySelector('svg'), label: v.getAttribute('aria-hidden') || rec.getAttribute('aria-hidden')}, other: look(o), rec: box(rec),
+          count: rec.querySelectorAll('.vago').length,
           shown: [...rec.querySelectorAll('.s')].filter(s => !s.hidden).map(s => ({text: s.textContent, ...box(s)})),
           win: box(document.getElementById('win'))}; })()"""
 
@@ -1591,7 +1593,8 @@ async def check_wagon(browser):
     simplified (option A): the line between its two ends with the wagon, and «Ara entre … i …» under it. While the
     train shown is still to leave, its route carries the wagon of the one on its way, between the same two stops, and a
     phone's board a bare line with that wagon under the big row (Àlex 10-10, option A without words). The board
-    says «ja ha sortit» of a train shown that has left, where it says «el pròxim» of the next one."""
+    says «ja ha sortit» of a train shown that has left, where it says «el pròxim» of the next one. So that the one on
+    its way is not read as yours (Àlex 10-10, option B of three), it is a ghost, and yours stands solid at the departure."""
     errs, net, day = [], _net(), "2026-09-28"
     names, mins, d0, a0 = _stops(net, day, SANTS_ID, REUS_TOWN, 543)
     pts = [("Sants", d0)] + list(zip(names, mins)) + [("Reus", a0)]
@@ -1609,15 +1612,23 @@ async def check_wagon(browser):
     on = bpos[pts[i][0]] + ((bpos[pts[i + 1][0]] if pts[i][1] != now else bpos[pts[i][0]]) - bpos[pts[i][0]]) * f
     page = await hero_page(browser)
     j = await page.evaluate(WAGON)
-    w = j["wagon"]
-    if not w: errs.append("the next train's route has no wagon for the 09:03, on its way at 10:00")
+    w, o = j["wagon"], j["other"]
+    if not o: errs.append("the next train's route has no wagon for the 09:03, on its way at 10:00")
     else:
-        mid, want = (w["l"] + w["r"]) / 2, j["rec"]["l"] + on * (j["rec"]["r"] - j["rec"]["l"])
+        mid, want = (o["l"] + o["r"]) / 2, j["rec"]["l"] + on * (j["rec"]["r"] - j["rec"]["l"])
         if abs(mid - want) > 2: errs.append(f"the 09:03's wagon on the 10:03's route is at {mid:.0f}px, expected {want:.0f}px (between {pts[i][0]} and {pts[i + 1][0]})")
+        if o["alpha"] > .6: errs.append(f"the 09:03's wagon on the 10:03's route is solid (opacity {o['alpha']}): it reads as the 10:03, expected a ghost")
+    # the 10:03's own wagon waits at Sants, solid, its tail at the departure dot
+    if not w or not w["parked"]: errs.append("the 10:03, still at Sants, has no wagon parked at its departure")
+    else:
+        if w["alpha"] < 1: errs.append(f"the 10:03's parked wagon is not solid (opacity {w['alpha']})")
+        if not -8 <= w["l"] - j["rec"]["l"] <= 2: errs.append(f"the 10:03's parked wagon starts at {w['l']:.0f}px, expected at its departure ({j['rec']['l']:.0f}px)")
+    if o and w:
         cut = lambda p, q: p["l"] < q["r"] - .5 and q["l"] < p["r"] - .5 and p["t"] < q["b"] - .5 and q["t"] < p["b"] - .5
         if [s["text"] for s in j["shown"]] != bnames: errs.append(f"with the 09:03's wagon, the names shown are {[s['text'] for s in j['shown']]}, expected {bnames}")
         for p in j["shown"]:
-            if cut(p, w): errs.append(f"«{p['text']}» overlaps the 09:03's wagon")
+            for x, who in ((o, "the 09:03's wagon"), (w, "the 10:03's parked wagon")):
+                if cut(p, x): errs.append(f"«{p['text']}» overlaps {who}")
             if cut(p, j["win"]): errs.append(f"«{p['text']}» overlaps the window")
     if (t := await page.evaluate(lead)) != "el pròxim,": errs.append(f"the next train's board says «{t}», expected «el pròxim,»")
     await page.evaluate(pick); await page.wait_for_timeout(400)
@@ -1625,8 +1636,10 @@ async def check_wagon(browser):
     if (t := await page.evaluate(lead)) != "ja ha sortit": errs.append(f"the 09:03, gone at 10:00, says «{t}» on the board, expected «ja ha sortit»")
     j = await page.evaluate(WAGON)
     w = j["wagon"]
+    if j["count"] != 1 or j["other"] or (w and w["parked"]): errs.append(f"the 09:03, on its way, has {j['count']} wagons on its route (other {bool(j['other'])}), expected only its own, under way")
     if not w: errs.append("the 09:03, on its way at 10:00, has no wagon on its route")
     else:
+        if w["alpha"] < 1: errs.append(f"the 09:03's own wagon is not solid (opacity {w['alpha']})")
         if not w["svg"]: errs.append("the wagon is not a drawing (svg)")
         if w["label"] != "true": errs.append("the wagon is not hidden from screen readers")
         mid, want = (w["l"] + w["r"]) / 2, j["rec"]["l"] + share * (j["rec"]["r"] - j["rec"]["l"])
@@ -1644,11 +1657,17 @@ async def check_wagon(browser):
     # a phone: the sheet of the train shown
     page = await hero_page(browser, 390, 844)
     c = await page.evaluate("""(() => { const c = document.querySelector('#board .cami'); if(!c) return null;
-      const via = c.getBoundingClientRect(), w = c.querySelector('.vago')?.getBoundingClientRect();
-      return {mid: w ? (w.left + w.right) / 2 : null, l: via.left, r: via.right, hidden: c.getAttribute('aria-hidden'), text: c.textContent.trim()}; })()""")
+      const via = c.getBoundingClientRect(), o = c.querySelector('.vago.altre'), w = c.querySelector('.vago.parat');
+      const mid = e => { const r = e.getBoundingClientRect(); return (r.left + r.right) / 2; };
+      return {mid: o ? mid(o) : null, alpha: o ? +getComputedStyle(o).opacity : null, l: via.left, r: via.right,
+              parked: w && {l: w.getBoundingClientRect().left, alpha: +getComputedStyle(w).opacity},
+              hidden: c.getAttribute('aria-hidden'), text: c.textContent.trim()}; })()""")
     if not c: errs.append("phone: the board has no line with the wagon of the 09:03, on its way at 10:00")
     else:
         if c["mid"] is None or abs(c["mid"] - (c["l"] + share * (c["r"] - c["l"]))) > 2: errs.append(f"phone: the board's wagon stands at {c['mid']}, expected {share:.0%} along its line")
+        if c["alpha"] is not None and c["alpha"] > .6: errs.append(f"phone: the 09:03's wagon under the 10:03 is solid (opacity {c['alpha']}), expected a ghost")
+        if not c["parked"]: errs.append("phone: the 10:03's wagon is not parked at the start of the board's line")
+        elif c["parked"]["alpha"] < 1 or not -8 <= c["parked"]["l"] - c["l"] <= 2: errs.append(f"phone: the 10:03's parked wagon is not solid at the start of the line ({c['parked']}, line from {c['l']:.0f}px)")
         if c["hidden"] != "true": errs.append("phone: the board's wagon line is not hidden from screen readers")
         if c["text"]: errs.append(f"phone: the board's wagon line has words ({c['text']!r}): Àlex wants none")
     await page.click("#board button.big"); await page.wait_for_timeout(500)

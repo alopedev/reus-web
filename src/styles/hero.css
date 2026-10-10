@@ -112,6 +112,10 @@
 .cami b{ position:absolute; top:50%; width:.5rem; height:.5rem; border-radius:50%; background:var(--paper); transform:translate(-50%,-50%); }
 .cami .vago{ position:absolute; bottom:-.05rem; width:2.4rem; transform:translateX(-50%); line-height:0; }
 .cami .vago svg{ display:block; width:100%; height:auto; filter:drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+/* while the train shown waits, the one on its way is a ghost and yours stands at the departure (Àlex 10-10, option B) */
+.vago.altre{ opacity:.42; }
+.vago.altre svg{ filter:grayscale(1); }
+.rec .vago.parat, .cami .vago.parat{ transform:translateX(-.25rem); }
 #dep.swap{ animation:swap .45s ease; }
 @keyframes swap{ from{ opacity:.2; transform:translateY(8px); } to{ opacity:1; transform:none; } }
 .note{ font-size:.93rem; color:var(--soft); margin:0; text-shadow:0 1px 2px rgba(0,0,0,.35); }

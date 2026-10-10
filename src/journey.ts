@@ -7,12 +7,13 @@ import { NET, hhmm, stopName } from './time';
 // stops and the last two keep their names and the stretch in between turns dotted, with «· 15 parades ·» over it.
 // While the train is on its way, a paper wagon stands on the line where the timetable puts it (`now`, the share of
 // the trip already gone; Àlex 10-10, option A, and only on its way); while it is still to leave, the wagon of the
-// one on its way, between the same two stops (Àlex 10-10, «quiero que se vea más», option A without words). For the eye only: the screen reader already
-// hears the train in #aviso
-export function journey(stops: [stop: string, arr: number][] | null, dep: number, arr: number, now: number | null = null): string {
+// one on its way, between the same two stops (`other`; Àlex 10-10, «quiero que se vea más», option A without words),
+// a ghost, with the train shown's own wagon parked at its departure, so the other is not read as yours (Àlex 10-10,
+// option B of three). For the eye only: the screen reader already hears the train in #aviso
+export function journey(stops: [stop: string, arr: number][] | null, dep: number, arr: number, now: number | null = null, other: number | null = null): string {
   if(!stops || !stops.length || arr <= dep) return '';
   const at = (m: number) => ((m - dep) / (arr - dep) * 100).toFixed(2) + '%';
-  const wagon = now == null ? '' : `<span class="vago" style="left:${(now * 100).toFixed(2)}%">${WAGON}</span>`;
+  const wagon = wagons(now, other);
   return `<span class="rec" aria-hidden="true"><b style="left:0"></b><b style="left:100%"></b><span class="tram"></span>${stops.map(([id, m]) =>
     `<i style="left:${at(m)}" data-n="${NET.estaciones[id]?.nombre ?? id} ${hhmm(m)}"></i><span class="s" data-at="${at(m)}">${stopName(id)}</span>`).join('')}`
     + `<span class="s pleg" hidden></span>${wagon}</span>`;
@@ -28,10 +29,18 @@ export const wagonSvg = (body: string, windows: string): string => `<svg viewBox
   + `<g fill="#2D241C">${WHEELS}</g></svg>`;
 const WAGON = wagonSvg('#F1EADC', '#6B5645');
 
-// a phone's board has no route: under the big row, a bare line from departure to arrival with the same wagon where
-// the timetable puts it (`at`, the share of its trip already gone), without words (Àlex 10-10)
-export const wagonLine = (at: number): string => `<div class="cami" aria-hidden="true"><b style="left:0"></b><b style="left:100%"></b>`
-  + `<span class="vago" style="left:${(at * 100).toFixed(2)}%">${WAGON}</span></div>`;
+// the train shown's wagon under way (`now`), or, while it waits and another is on its way, that one as a ghost and
+// yours parked at the departure, drawn last so it stays on top when the two meet
+const wagons = (now: number | null, other: number | null): string => {
+  const at = (x: number) => `style="left:${(x * 100).toFixed(2)}%"`;
+  if(now != null) return `<span class="vago" ${at(now)}>${WAGON}</span>`;
+  return other == null ? '' : `<span class="vago altre" ${at(other)}>${WAGON}</span><span class="vago parat" ${at(0)}>${WAGON}</span>`;
+};
+
+// a phone's board has no route: under the big row, a bare line from departure to arrival with the same wagons, where
+// the timetable puts them (the share of their trip already gone), without words (Àlex 10-10)
+export const wagonLine = (now: number | null, other: number | null): string => `<div class="cami" aria-hidden="true"><b style="left:0"></b><b style="left:100%"></b>`
+  + `${wagons(now, other)}</div>`;
 
 type Side = 'up' | 'down';
 type Spot = { side: Side, left: number };
@@ -96,11 +105,11 @@ export function fitJourney(rec: HTMLElement): void {
     // the folded stops, for the mouse
     fold.title = dots.filter(d => d.hidden).map(d => d.dataset.n).join(', ');
   } else { rec.style.removeProperty('--a'); rec.style.removeProperty('--b'); fold.textContent = ''; fold.title = ''; }
-  // the name above the line that the wagon would cover climbs over it: no name is lost
-  const wagon = rec.querySelector<HTMLElement>('.vago');
-  if(wagon){
-    const wl = parseFloat(wagon.style.left) / 100 * W - wagon.offsetWidth / 2, wr = wl + wagon.offsetWidth;
-    for(const s of [...labels, fold]) s.classList.toggle('alt', !s.hidden && s.classList.contains('up')
-      && parseFloat(s.style.left) < wr + gap / 2 && parseFloat(s.style.left) + s.offsetWidth > wl - gap / 2);
-  }
+  // the name above the line that a wagon would cover climbs over it: no name is lost
+  const spans = [...rec.querySelectorAll<HTMLElement>('.vago')].map(v => {
+    // its own shift (centred on its place, or the parked one's tail just behind the departure)
+    const l = parseFloat(v.style.left) / 100 * W + new DOMMatrix(getComputedStyle(v).transform).m41;
+    return [l, l + v.offsetWidth]; });
+  for(const s of [...labels, fold]) s.classList.toggle('alt', !s.hidden && s.classList.contains('up')
+    && spans.some(([wl, wr]) => parseFloat(s.style.left) < wr + gap / 2 && parseFloat(s.style.left) + s.offsetWidth > wl - gap / 2));
 }

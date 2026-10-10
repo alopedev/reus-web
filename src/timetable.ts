@@ -59,9 +59,9 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
     // the ruler has one mark: the knob always stands on the train shown; now is a thin line with its word
     byId('ticks').innerHTML = v.ruler.map(m=>`<i class="${m.on ? 'on' : ''}" style="left:${pos(m.dep)}"></i>`).join('') + nowLine(now.min);
     // the wagon on the route: the train shown's own while it is on its way, else the one on its way now
-    const onWay = v.where?.at ?? v.running?.on ?? null, lineAt = v.where?.at ?? v.running?.where.at;
-    const html = v.rows.map(r => trip(r, v.buy, narrow.matches, r.big ? journey(v.stops, r.dep, r.arr, onWay) : '')
-      + (r.big && narrow.matches && lineAt != null ? wagonLine(lineAt) : '')).join('');
+    const mine = v.where?.at ?? null;
+    const html = v.rows.map(r => trip(r, v.buy, narrow.matches, r.big ? journey(v.stops, r.dep, r.arr, mine, v.running?.on ?? null) : '')
+      + (r.big && narrow.matches && (v.where || v.running) ? wagonLine(mine, v.running?.where.at ?? null) : '')).join('');
     cur = v.trip;
     // the notices of the board's regional lines: a stamp on a desktop's ticket
     const ns = notices(avisos, v.lines);
