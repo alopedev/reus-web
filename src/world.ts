@@ -11,6 +11,7 @@ export interface World {
   setWash(foldY: number, shade: number): void;             // the pigment wash on the wall (see shelf.ts)
   setWeather(w: Weather): void;                            // the weather at home, in the window (see weather.ts)
   grain(): number;                                         // px of the landscape per px of the window (check.py)
+  snap(r: DOMRect): HTMLCanvasElement | null;              // a copy of the painting in that box of the viewport (flaps.ts)
 }
 // something scattered on the landscape: position, size, and turn around the vertical axis
 type Placement = [x: number, y: number, z: number, size: [number, number, number], turn?: number];
@@ -104,7 +105,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
       skyTop:{value:new Vector3()}, skyHor:{value:new Vector3()}, sunCol:{value:new Vector3()}, sunPos:{value:new Vector2()}, sunA:{value:.85},
       aspect:{value:1}, waspect:{value:1}, hor:{value:.42}, win:{value:new Vector4(.2,.3,.8,.8)}, wrad:{value:.04}, seats:{value:1},
       wallA:{value:new Vector3()}, wallB:{value:new Vector3()}, wood:{value:new Vector3()}, seat:{value:new Vector3()},
-      foldY:{value:0}, shade:{value:0}, wx:{value:0} },
+      foldY:{value:0}, shade:{value:0}, wx:{value:0}, brd:{value:new Vector4(0,0,0,0)} },
     vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`,
     fragmentShader: watercolorFrag,
   });
@@ -125,6 +126,10 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     const win = document.getElementById('win')!, r = win.getBoundingClientRect();
     U.win.value.set(r.left/cw, 1-r.bottom/ch, r.right/cw, 1-r.top/ch);
     U.wrad.value = parseFloat(getComputedStyle(win).borderTopLeftRadius)/ch;
+    // the name's board is painted on the wall too (.pintada in hero.css); its box at rest: while the texts come in,
+    // the board cancels their rise with a transform of its own, so it never moves on the wall
+    const b = document.querySelector('.tauler')?.getBoundingClientRect();
+    if(b) U.brd.value.set(b.left/cw, 1-b.bottom/ch, b.right/cw, 1-b.top/ch);
     U.seats.value = (cw/ch > 1.15 && r.left > cw*.12) ? 1 : 0;
     const k = s * .8 * (STACKED.matches ? 2 : 1);
     const rw = Math.max(2, Math.round(r.width*k)), rh = Math.max(2, Math.round(r.height*k));
@@ -173,5 +178,16 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
   resize(); addEventListener('resize', resize);
   // 0 fair, 1 overcast, 2 rain (drops on the glass), 3 fog: the shader's wx
   function setWeather(w: Weather){ U.wx.value = ['clear', 'cloudy', 'rain', 'fog'].indexOf(w); }
-  return {frame, setTime, resize, setWash, setWeather, grain: () => grain};
+  // the painting under a box of the viewport, copied at the device's pixels: the post pass is drawn again first,
+  // since without a preserved drawing buffer the canvas can only be read in the same task that drew it
+  function snap(r: DOMRect){
+    const dpr = devicePixelRatio || 1, out = document.createElement('canvas');
+    out.width = Math.max(1, Math.round(r.width*dpr)); out.height = Math.max(1, Math.round(r.height*dpr));
+    const ctx = out.getContext('2d'); if(!ctx) return null;
+    renderer.setRenderTarget(null); renderer.render(postScene, postCam);
+    const k = canvas.width / innerWidth;
+    ctx.drawImage(canvas, r.left*k, r.top*k, r.width*k, r.height*k, 0, 0, out.width, out.height);
+    return out;
+  }
+  return {frame, setTime, resize, setWash, setWeather, grain: () => grain, snap};
 }

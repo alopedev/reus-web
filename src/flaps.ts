@@ -7,7 +7,9 @@ import { NET } from './time';
 // the town it was showing (the chosen one) and every cell walks its drum, one flap at a time, to the letter of
 // «Capacasa». The flaps are drawn on a canvas laid over the cells only while they turn; at rest it is gone and
 // what shows is the real h1 (the letters' journey measures it, the screen reader reads it). Reduced motion: the
-// board is still from the start.
+// board is still from the start. When the wall paints the board (world.ts), the flaps are cut from a copy of that
+// painting (paint), so the canvas looks like the board under it and nothing changes when it goes; without WebGL
+// they take the CSS board's colours.
 
 const DRUM = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const START = 250, STAGGER = 90, STEP = 62;   // ms: the first cell's wait, the delay from cell to cell, one flap
@@ -37,7 +39,7 @@ function rounded(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
 
-export function createFlaps(): { play(): void } {
+export function createFlaps(paint?: (r: DOMRect) => HTMLCanvasElement | null): { play(): void } {
   const board = find<HTMLElement>('.tauler'), brand = find<HTMLElement>('.brand');
   let raf = 0, canvas: HTMLCanvasElement | null = null;
 
@@ -54,7 +56,7 @@ export function createFlaps(): { play(): void } {
     canvas = cv;
     const ctx = cv.getContext('2d');
     if(!ctx){ canvas = null; return; }
-    let t0 = 0;
+    let t0 = 0, bg: HTMLCanvasElement | null = null;
 
     function draw(t: number){
       // measured every frame: the hero's entrance moves .top while the flaps turn, and a resize may change the
@@ -84,7 +86,8 @@ export function createFlaps(): { play(): void } {
           ctx!.save();
           ctx!.translate(0, hy); ctx!.scale(1, scale); ctx!.translate(0, -hy);
           ctx!.beginPath(); ctx!.rect(x, top ? y : hy, w, h / 2); ctx!.clip();
-          ctx!.fillStyle = top ? TOP : BOTTOM; ctx!.fillRect(x, y, w, h);
+          if(bg) ctx!.drawImage(bg, x * bg.width / W, y * bg.height / H, w * bg.width / W, h * bg.height / H, x, y, w, h);
+          else { ctx!.fillStyle = top ? TOP : BOTTOM; ctx!.fillRect(x, y, w, h); }
           if(scale < .999){ ctx!.fillStyle = `rgba(0,0,0,${((1 - scale) * .45).toFixed(3)})`; ctx!.fillRect(x, y, w, h); }
           ctx!.fillStyle = INK; ctx!.fillText(chr, x + w / 2, base);
           ctx!.restore();
@@ -98,7 +101,7 @@ export function createFlaps(): { play(): void } {
           else half(next, false, p * 2 - 1);        // then its back, landing under the hinge
         }
         ctx!.restore();
-        ctx!.fillStyle = HINGE; ctx!.fillRect(x, y + h / 2 - fs * .01, w, fs * .02);
+        if(!bg){ ctx!.fillStyle = HINGE; ctx!.fillRect(x, y + h / 2 - fs * .01, w, fs * .02); }   // the painted one has its own
       });
     }
     const end = Math.max(...seqs.map((s, i) => START + i * STAGGER + STEP * s.length)) + 40;
@@ -111,7 +114,7 @@ export function createFlaps(): { play(): void } {
     }
     // laid over the cells only once Young Serif is in, so the canvas never draws the letters in a fallback font
     document.fonts.ready.then(() => { if(canvas !== cv) return; board.append(cv);
-      try { draw(0); } catch { stop(); return; }
+      try { bg = paint ? paint(cv.getBoundingClientRect()) : null; draw(0); } catch { stop(); return; }
       raf = requestAnimationFrame(frame); });
   }
   return { play };

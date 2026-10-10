@@ -150,6 +150,14 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 .in .top, .in .info{ opacity:1; transform:none; }
 .in .info{ transition-delay:.25s; }
 @media (prefers-reduced-motion: reduce){ .top, .info{ transition:none; opacity:1; transform:none; } }
+/* the board painted by the watercolour (world.ts, Àlex 10-10): the wall paints its panel and cells, the CSS ones
+   stay for a browser without WebGL (#hero is .pintada only with it). Painted on the wall, it does not rise with
+   the texts: its own transform cancels .top's, in step with it (and, set at load, at once: never a transition
+   the wall would read half-way) */
+.pintada .tauler{ background:transparent; border-color:transparent; box-shadow:none; transform:translateY(-6px); }
+.pintada .tauler::after, .pintada .celes{ visibility:hidden; }
+.pintada .in .tauler{ transform:none; transition:transform 1s ease; }
+@media (prefers-reduced-motion: reduce){ .pintada .tauler{ transform:none; transition:none; } }
 
 @media (max-width:700px), (max-aspect-ratio:4/5){
   /* stacked: the ticket sits under the name, as wide as its text */

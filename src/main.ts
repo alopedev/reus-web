@@ -28,7 +28,7 @@ scrollTo({top: 0, behavior: 'instant'});
 
 const world = build3D();
 const table = createTable();
-const flaps = createFlaps();
+const flaps = createFlaps(world ? r => world.snap(r) : undefined);
 const scenery = createScenery(world, flaps.play);
 // the weather at home: the window repaints when it changes (also the still frame of reduced motion, or paused)
 const weather = createWeather(w => { if(!world) return; world.setWeather(w); if(!scenery.isPlaying()) world.frame(0, 0, 1); });

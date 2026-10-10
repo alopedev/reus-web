@@ -1022,6 +1022,128 @@ async def check_flaps(browser):
         await page.close()
     return errs
 
+# the board's box, and whether its CSS still paints a panel and cells over the wall
+TAULER_JS = """(() => { const t = document.querySelector('.tauler'), r = t.getBoundingClientRect();
+  return {rect: [r.left, r.top, r.right, r.bottom], bg: getComputedStyle(t).backgroundColor,
+    cells: getComputedStyle(t.querySelector('.celes')).visibility, gl: !!document.getElementById('gl')}; })()"""
+
+def painted_edges(img, rect):
+    """How far each edge of the board painted on the wall (dark on the light wall) falls from the board's box, in
+    px: scanned from the wall inwards along five lines per side, the first pixel at half the wall's brightness.
+    None for a side where nothing dark is painted."""
+    l, t, r, b = rect; W, H = img.size
+    def bright(x, y): p = img.getpixel((min(W - 1, max(0, int(x))), min(H - 1, max(0, int(y))))); return sum(p[:3]) / 3
+    def edge(points):
+        ref = sorted(bright(x, y) for x, y in points[:5])[2]
+        return next((i for i, (x, y) in enumerate(points) if bright(x, y) < .5 * ref), None)
+    out = {}
+    for side in ("top", "bottom", "left", "right"):
+        d = int(min(16, t - 1 if side == "top" else H - b - 1 if side == "bottom" else l - 1 if side == "left" else W - r - 1))
+        found = []
+        for f in (.2, .35, .5, .65, .8):
+            x, y = l + (r - l) * f, t + (b - t) * f
+            pts = {"top": [(x, t - d + i) for i in range(2 * d)], "bottom": [(x, b + d - i) for i in range(2 * d)],
+                   "left": [(l - d + i, y) for i in range(2 * d)], "right": [(r + d - i, y) for i in range(2 * d)]}[side]
+            i = edge(pts)
+            if i is not None: found.append(i - d)
+        out[side] = sorted(found)[len(found) // 2] if len(found) >= 3 else None
+    return out
+
+async def board_painted(page, label):
+    """The board is painted on the wall by the watercolour (Àlex, 10-10, option A): its CSS paints no panel and
+    no cells, and with the whole board hidden the wall still shows it, its edges on the board's box."""
+    errs = []
+    s = await page.evaluate(TAULER_JS)
+    if not s["gl"]: return [f"{label}: no WebGL in this browser, the painted board cannot be read"]
+    if s["bg"] not in ("transparent", "rgba(0, 0, 0, 0)"): errs.append(f"{label}: the board's CSS still paints a panel ({s['bg']}) over the wall")
+    if s["cells"] != "hidden": errs.append(f"{label}: the board's CSS still paints its cells over the wall")
+    await page.add_style_tag(content=".tauler{visibility:hidden !important}"); await page.wait_for_timeout(300)
+    shot = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
+    await page.evaluate("document.head.lastElementChild.remove()")
+    off = painted_edges(shot, s["rect"])
+    if any(v is None for v in off.values()): errs.append(f"{label}: the wall does not paint the board under the name (edges found: {off})")
+    elif any(abs(v) > 3 for v in off.values()): errs.append(f"{label}: the painted board is off its box by {off} px")
+    return errs
+
+async def check_board_painted(browser):
+    """The name's board painted by the watercolour, in a desktop and a phone: on a still frame, after the window
+    changes size, and after the hero's entrance with motion (the texts rise 6 px as they come in: the paint must
+    land where the board rests, not where it was at load)."""
+    errs = []
+    for (w, h), (w2, h2) in (((1440, 900), (1280, 800)), ((390, 844), (360, 740))):
+        page = await hero_page(browser, w, h)
+        errs += await board_painted(page, f"{w}x{h}")
+        await page.set_viewport_size({"width": w2, "height": h2}); await page.wait_for_timeout(1500)
+        errs += await board_painted(page, f"{w}x{h} resized to {w2}x{h2}")
+        await page.close()
+        page = await open_page(browser, viewport={"width": w, "height": h})
+        await page.goto(parity_url)
+        try:
+            await page.wait_for_function("document.getElementById('stage').classList.contains('in')", timeout=60000)
+            await page.wait_for_function("!document.querySelector('.tauler canvas')", timeout=60000); await page.wait_for_timeout(1500)
+            errs += await board_painted(page, f"{w}x{h} with motion")
+        except Exception: errs.append(f"{w}x{h} with motion: the hero never comes in")
+        await page.close()
+    return errs
+
+# time on the page runs N times slower (rAF and performance.now alike: the landscape's loop and the flaps), so a
+# screenshot can catch the flaps half-way even under software rendering
+SLOW_TIME = """(() => { const N = %d, now = performance.now.bind(performance), p0 = now(), raf = requestAnimationFrame.bind(window);
+  performance.now = () => p0 + (now() - p0) / N;
+  window.requestAnimationFrame = cb => raf(t => cb(p0 + (t - p0) / N)); })()"""
+
+CELLS_JS = "[...document.querySelectorAll('.tauler .celes i')].map(c => { const r = c.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; })"
+
+def cell_margins(img, cells):
+    """The pixels of each cell clear of its letter and its hinge: thin strips at both sides, above and below the hinge."""
+    out = []
+    for l, t, r, b in cells:
+        w, h = r - l, b - t
+        for x in [l + w * f for f in (.02, .05)] + [r - w * f for f in (.02, .05)]:
+            for f in (.15, .25, .35, .65, .75, .85): out.append(img.getpixel((int(x), int(t + h * f)))[:3])
+    return out
+
+async def check_flaps_painted(browser):
+    """While its flaps turn, the board still looks painted: the flaps' canvas shows the cells as the wall paints
+    them, so nothing jumps when it goes and leaves the painted board (desktop, and a phone at 3 device pixels)."""
+    errs = []
+    for w, h, dpr in [(1440, 900, 1), (390, 844, 3)]:
+        page = await open_page(browser, viewport={"width": w, "height": h}, device_scale_factor=dpr)
+        await page.add_init_script(SLOW_TIME % 4)
+        await page.goto(parity_url)
+        try: await page.wait_for_function("document.querySelector('.tauler canvas')", timeout=120000)
+        except Exception: errs.append(f"{w}x{h}: the board never turns its flaps"); await page.close(); continue
+        await page.wait_for_timeout(2500)
+        if not await page.evaluate("!!document.querySelector('.tauler canvas')"): errs.append(f"{w}x{h}: the flaps stopped before they could be seen"); await page.close(); continue
+        cells = await page.evaluate(CELLS_JS)
+        turning = Image.open(io.BytesIO(await page.screenshot(scale="css"))).convert("RGB")
+        await page.wait_for_function("!document.querySelector('.tauler canvas')", timeout=120000); await page.wait_for_timeout(1500)
+        still = Image.open(io.BytesIO(await page.screenshot(scale="css"))).convert("RGB")
+        a, b = cell_margins(turning, cells), cell_margins(still, cells)
+        # the median pixel: the flaps falling at that moment (shaded as they turn) are a minority of the strips
+        diffs = sorted(sum(abs(p - q) for p, q in zip(u, v)) / 3 for u, v in zip(a, b))
+        diff = diffs[len(diffs) // 2]
+        if diff > 6: errs.append(f"{w}x{h}: the cells change by {diff:.0f}/255 when the flaps' canvas goes (turning {a[0]}, at rest {b[0]})")
+        await page.close()
+    return errs
+
+NO_WEBGL = """(() => { const get = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function(kind, ...rest){ return /webgl/.test(kind) ? null : get.call(this, kind, ...rest); }; })()"""
+
+async def check_board_without_webgl(browser):
+    """Without WebGL nothing paints the wall: the board keeps its CSS panel and cells, in place."""
+    errs = []
+    page = await open_page(browser, viewport={"width": 1440, "height": 900}, reduced_motion="reduce")
+    await page.add_init_script(NO_WEBGL)
+    await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1200)
+    s = await page.evaluate(TAULER_JS)
+    if s["gl"]: errs.append("the check could not take WebGL away from the page")
+    if s["bg"] in ("transparent", "rgba(0, 0, 0, 0)"): errs.append("without WebGL the board has no panel")
+    if s["cells"] != "visible": errs.append("without WebGL the board has no cells")
+    if await page.evaluate("getComputedStyle(document.querySelector('.tauler')).transform") != "none": errs.append("without WebGL the board is moved off its place")
+    await page.close()
+    return errs
+
 async def check_hero(browser):
     """15. The hero B: its name and subtitle."""
     errs = []
@@ -1051,6 +1173,9 @@ async def check_hero(browser):
     # the big train's route, only on a desktop
     errs += [f"route: {e}" for e in await check_journey(browser)]
     errs += [f"board: {e}" for e in await check_flaps(browser)]
+    errs += [f"board: {e}" for e in await check_board_painted(browser)]
+    errs += [f"board: {e}" for e in await check_board_without_webgl(browser)]
+    errs += [f"board: {e}" for e in await check_flaps_painted(browser)]
     errs += [f"light: {e}" for e in await check_daylight(browser)]
     errs += [f"weather: {e}" for e in await check_weather(browser)]
     errs += [f"foot: {e}" for e in await check_ruler_foot(browser)]
