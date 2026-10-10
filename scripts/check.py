@@ -1086,6 +1086,29 @@ async def check_board_painted(browser):
         await page.close()
     return errs
 
+# from load until the hero comes in (#stage.in), the painted board's box every 50 ms: the wall reads that box
+# whenever it resizes, so it must hold still -- nothing may slide it while the texts wait to rise
+BOARD_TOPS = """(() => { const tops = window.__boardTops = [];
+  const id = setInterval(() => { const hero = document.getElementById('hero'), b = document.querySelector('.tauler');
+    if(document.getElementById('stage')?.classList.contains('in')){ clearInterval(id); window.__boardDone = true; return; }
+    if(hero && hero.classList.contains('pintada') && b) tops.push(b.getBoundingClientRect().top); }, 50); })()"""
+
+async def check_board_steady(browser):
+    """Before the hero comes in, the painted board's box never moves (letters.measure() must not leave .top
+    sliding back into place: the wall would read the board mid-slide and paint it out of its box)."""
+    errs = []
+    for w, h in [(1440, 900), (390, 844)]:
+        page = await open_page(browser, viewport={"width": w, "height": h})
+        await page.add_init_script(BOARD_TOPS)
+        await page.goto(parity_url)
+        try: await page.wait_for_function("window.__boardDone", timeout=60000)
+        except Exception: errs.append(f"{w}x{h}: the hero never comes in"); await page.close(); continue
+        tops = await page.evaluate("window.__boardTops")
+        if not tops: errs.append(f"{w}x{h}: the board was never painted before the hero came in")
+        elif max(tops) - min(tops) > 1: errs.append(f"{w}x{h}: the painted board's box moves {max(tops) - min(tops):.1f} px before the hero comes in ({min(tops):.1f} to {max(tops):.1f})")
+        await page.close()
+    return errs
+
 # time on the page runs N times slower (rAF and performance.now alike: the landscape's loop and the flaps), so a
 # screenshot can catch the flaps half-way even under software rendering
 SLOW_TIME = """(() => { const N = %d, now = performance.now.bind(performance), p0 = now(), raf = requestAnimationFrame.bind(window);
@@ -1174,6 +1197,7 @@ async def check_hero(browser):
     errs += [f"route: {e}" for e in await check_journey(browser)]
     errs += [f"board: {e}" for e in await check_flaps(browser)]
     errs += [f"board: {e}" for e in await check_board_painted(browser)]
+    errs += [f"board: {e}" for e in await check_board_steady(browser)]
     errs += [f"board: {e}" for e in await check_board_without_webgl(browser)]
     errs += [f"board: {e}" for e in await check_flaps_painted(browser)]
     errs += [f"light: {e}" for e in await check_daylight(browser)]
