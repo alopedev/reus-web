@@ -11,6 +11,7 @@ export interface World {
   setWash(foldY: number, shade: number): void;             // the pigment wash on the wall (see shelf.ts)
   setWeather(w: Weather): void;                            // the weather at home, in the window (see weather.ts)
   grain(): number;                                         // px of the landscape per px of the window (check.py)
+  snap(r: DOMRect): HTMLCanvasElement | null;              // a copy of the painting in that box of the viewport (flaps.ts)
 }
 // something scattered on the landscape: position, size, and turn around the vertical axis
 type Placement = [x: number, y: number, z: number, size: [number, number, number], turn?: number];
@@ -125,7 +126,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     const win = document.getElementById('win')!, r = win.getBoundingClientRect();
     U.win.value.set(r.left/cw, 1-r.bottom/ch, r.right/cw, 1-r.top/ch);
     U.wrad.value = parseFloat(getComputedStyle(win).borderTopLeftRadius)/ch;
-    // the name's board is painted on the wall too (.pintat in hero.css); its box at rest: while the texts come in,
+    // the name's board is painted on the wall too (.pintada in hero.css); its box at rest: while the texts come in,
     // the board cancels their rise with a transform of its own, so it never moves on the wall
     const b = document.querySelector('.tauler')?.getBoundingClientRect();
     if(b) U.brd.value.set(b.left/cw, 1-b.bottom/ch, b.right/cw, 1-b.top/ch);
@@ -174,10 +175,19 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     U.foldY.value = foldY; U.shade.value = shade;
     if(!washRaf) washRaf = requestAnimationFrame(() => { washRaf = 0; renderer.setRenderTarget(null); renderer.render(postScene, postCam); });
   }
-  // the CSS board steps aside for the painted one (hero.css): without WebGL there is no world and it stays
-  document.documentElement.classList.add('pintat');
   resize(); addEventListener('resize', resize);
   // 0 fair, 1 overcast, 2 rain (drops on the glass), 3 fog: the shader's wx
   function setWeather(w: Weather){ U.wx.value = ['clear', 'cloudy', 'rain', 'fog'].indexOf(w); }
-  return {frame, setTime, resize, setWash, setWeather, grain: () => grain};
+  // the painting under a box of the viewport, copied at the device's pixels: the post pass is drawn again first,
+  // since without a preserved drawing buffer the canvas can only be read in the same task that drew it
+  function snap(r: DOMRect){
+    const dpr = devicePixelRatio || 1, out = document.createElement('canvas');
+    out.width = Math.max(1, Math.round(r.width*dpr)); out.height = Math.max(1, Math.round(r.height*dpr));
+    const ctx = out.getContext('2d'); if(!ctx) return null;
+    renderer.setRenderTarget(null); renderer.render(postScene, postCam);
+    const k = canvas.width / innerWidth;
+    ctx.drawImage(canvas, r.left*k, r.top*k, r.width*k, r.height*k, 0, 0, out.width, out.height);
+    return out;
+  }
+  return {frame, setTime, resize, setWash, setWeather, grain: () => grain, snap};
 }
