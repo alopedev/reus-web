@@ -1195,6 +1195,7 @@ async def check_hero(browser):
     errs += [f"station: {e}" for e in await check_station(browser)]
     # the big train's route, only on a desktop
     errs += [f"route: {e}" for e in await check_journey(browser)]
+    errs += [f"wagon: {e}" for e in await check_wagon(browser)]
     errs += [f"board: {e}" for e in await check_flaps(browser)]
     errs += [f"board: {e}" for e in await check_board_painted(browser)]
     errs += [f"board: {e}" for e in await check_board_steady(browser)]
@@ -1572,6 +1573,68 @@ async def check_journey(browser):
     # a phone has no room for it (6B): its board keeps only the times
     page = await hero_page(browser, 390, 844)
     if await page.evaluate("!!document.querySelector('#board .rec')"): errs.append("the phone's board has a route")
+    await page.close()
+    return errs
+
+WAGON = """(() => { const rec = document.querySelector('#board .trip.big .rec'), v = rec?.querySelector('.vago');
+  const box = e => { const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
+  if(!v) return {wagon: null};
+  return {wagon: {...box(v), svg: !!v.querySelector('svg'), label: v.getAttribute('aria-hidden') || rec.getAttribute('aria-hidden')}, rec: box(rec),
+          shown: [...rec.querySelectorAll('.s')].filter(s => !s.hidden).map(s => ({text: s.textContent, ...box(s)})),
+          win: box(document.getElementById('win'))}; })()"""
+
+async def check_wagon(browser):
+    """Where the train shown is now (Àlex 10-10): a paper wagon on its route (option A), only while the train is on
+    its way («solo en marcha»): none for the next train, still to leave. Placed by the timetable, its middle at the
+    share of the trip already gone, its wheels on the line; the name it would cover climbs over it, so no name is lost
+    and none overlaps the wagon, another name or the window. On a phone, the train's sheet draws the same thing
+    simplified (option A): the line between its two ends with the wagon, and «Ara entre … i …» under it."""
+    errs, net, day = [], _net(), "2026-09-28"
+    names, mins, d0, a0 = _stops(net, day, SANTS_ID, REUS_TOWN, 543)
+    pts = [("Sants", d0)] + list(zip(names, mins)) + [("Reus", a0)]
+    now = 600
+    i = max(k for k, (_, m) in enumerate(pts) if m <= now)
+    words = f"Ara a {pts[i][0]}" if pts[i][1] == now else f"Ara entre {pts[i][0]} i {pts[i + 1][0]}"
+    share = (now - d0) / (a0 - d0)
+    pick = "(() => { const t = document.getElementById('t'); t.value = 543; t.dispatchEvent(new Event('change')); })()"
+    page = await hero_page(browser)
+    if (await page.evaluate(WAGON))["wagon"]: errs.append("the next train, still at Sants, has a wagon on its route")
+    await page.evaluate(pick); await page.wait_for_timeout(400)
+    j = await page.evaluate(WAGON)
+    w = j["wagon"]
+    if not w: errs.append("the 09:03, on its way at 10:00, has no wagon on its route")
+    else:
+        if not w["svg"]: errs.append("the wagon is not a drawing (svg)")
+        if w["label"] != "true": errs.append("the wagon is not hidden from screen readers")
+        mid, want = (w["l"] + w["r"]) / 2, j["rec"]["l"] + share * (j["rec"]["r"] - j["rec"]["l"])
+        if abs(mid - want) > 2: errs.append(f"the wagon's middle is at {mid:.0f}px, expected {want:.0f}px ({share:.0%} of the trip, by the timetable)")
+        if abs(w["b"] - (j["rec"]["t"] + j["rec"]["b"]) / 2) > 3: errs.append(f"the wagon's wheels are not on the line (bottom {w['b']:.0f}, line {(j['rec']['t'] + j['rec']['b']) / 2:.0f})")
+        cut = lambda p, q: p["l"] < q["r"] - .5 and q["l"] < p["r"] - .5 and p["t"] < q["b"] - .5 and q["t"] < p["b"] - .5
+        texts = [s["text"] for s in j["shown"]]
+        if texts != names: errs.append(f"with the wagon, the names shown are {texts}, expected every stop {names}")
+        for k, p in enumerate(j["shown"]):
+            if cut(p, w): errs.append(f"«{p['text']}» overlaps the wagon")
+            if cut(p, j["win"]): errs.append(f"«{p['text']}» overlaps the window")
+            for q in j["shown"][k + 1:]:
+                if cut(p, q): errs.append(f"«{p['text']}» overlaps «{q['text']}»")
+    await page.close()
+    # a phone: the sheet of the train shown
+    page = await hero_page(browser, 390, 844)
+    await page.click("#board button.big"); await page.wait_for_timeout(500)
+    if await page.evaluate("!!document.querySelector('#detalle .viatge')"): errs.append("phone: the next train's sheet has a wagon")
+    await page.click("#detalle .x"); await page.wait_for_timeout(300)
+    await page.evaluate(pick); await page.wait_for_timeout(400)
+    await page.click("#board button.big"); await page.wait_for_timeout(500)
+    s = await page.evaluate("""(() => { const v = document.querySelector('#detalle .viatge'); if(!v) return null;
+      const via = v.querySelector('.via').getBoundingClientRect(), w = v.querySelector('.vago')?.getBoundingClientRect();
+      return {ends: [...v.querySelectorAll('.ends span')].map(e => e.textContent), ara: v.querySelector('.ara')?.textContent,
+              mid: w ? (w.left + w.right) / 2 : null, l: via.left, r: via.right, hidden: v.querySelector('.via').getAttribute('aria-hidden')}; })()""")
+    if not s: errs.append("phone: the sheet of the 09:03, on its way, has no line with its wagon")
+    else:
+        if s["ends"] != ["Sants", "Reus"]: errs.append(f"phone: the sheet's line ends at {s['ends']}, expected ['Sants', 'Reus']")
+        if s["ara"] != words: errs.append(f"phone: the sheet says {s['ara']!r}, expected {words!r}")
+        if s["mid"] is None or abs(s["mid"] - (s["l"] + share * (s["r"] - s["l"]))) > 2: errs.append(f"phone: the wagon stands at {s['mid']}, expected {share:.0%} along the line")
+        if s["hidden"] != "true": errs.append("phone: the drawn line is not hidden from screen readers (the words say it)")
     await page.close()
     return errs
 

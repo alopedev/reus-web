@@ -5,14 +5,27 @@ import { NET, hhmm, stopName } from './time';
 // the stop's name above or below its dot, without its time (Àlex 09-10: the dot's place already says it). When not
 // every name fits (a long train, a small screen), the line folds (Àlex 08-10, option B of three): the first two
 // stops and the last two keep their names and the stretch in between turns dotted, with «· 15 parades ·» over it.
-// For the eye only: the screen reader already hears the train in #aviso
-export function journey(stops: [stop: string, arr: number][] | null, dep: number, arr: number): string {
+// While the train is on its way, a paper wagon stands on the line where the timetable puts it (`now`, the share of
+// the trip already gone; Àlex 10-10, option A, and only on its way). For the eye only: the screen reader already
+// hears the train in #aviso
+export function journey(stops: [stop: string, arr: number][] | null, dep: number, arr: number, now: number | null = null): string {
   if(!stops || !stops.length || arr <= dep) return '';
   const at = (m: number) => ((m - dep) / (arr - dep) * 100).toFixed(2) + '%';
+  const wagon = now == null ? '' : `<span class="vago" style="left:${(now * 100).toFixed(2)}%">${WAGON}</span>`;
   return `<span class="rec" aria-hidden="true"><b style="left:0"></b><b style="left:100%"></b><span class="tram"></span>${stops.map(([id, m]) =>
     `<i style="left:${at(m)}" data-n="${NET.estaciones[id]?.nombre ?? id} ${hhmm(m)}"></i><span class="s" data-at="${at(m)}">${stopName(id)}</span>`).join('')}`
-    + `<span class="s pleg" hidden></span></span>`;
+    + `<span class="s pleg" hidden></span>${wagon}</span>`;
 }
+
+// the wagon, side on, its nose towards the arrival (the line always runs from departure to arrival): a paper body
+// like the poster's words, windows the colour of the wall, the orange band of «ara» and dark wheels on the line
+const BODY = 'M3 5Q3 3 5.5 3H49Q55.5 3 59.5 9.5Q62 13.5 62 18V20.5H3Z';
+const WINDOWS = [7, 17, 27, 37].map(x => `<rect x="${x}" y="6.5" width="7.5" height="6" rx="1.2"/>`).join('') + '<path d="M49.5 6.5H54Q57 7.5 58.6 12.5H49.5Z"/>';
+const WHEELS = [11, 17, 46, 52].map(x => `<circle cx="${x}" cy="22.6" r="2.3"/>`).join('');
+export const wagonSvg = (body: string, windows: string): string => `<svg viewBox="0 0 64 25.5" aria-hidden="true">`
+  + `<path d="${BODY}" fill="${body}"/><g fill="${windows}">${WINDOWS}</g><rect x="3" y="15" width="59" height="1.6" fill="#E8A35C"/>`
+  + `<g fill="#2D241C">${WHEELS}</g></svg>`;
+const WAGON = wagonSvg('#F1EADC', '#6B5645');
 
 type Side = 'up' | 'down';
 type Spot = { side: Side, left: number };
@@ -77,4 +90,11 @@ export function fitJourney(rec: HTMLElement): void {
     // the folded stops, for the mouse
     fold.title = dots.filter(d => d.hidden).map(d => d.dataset.n).join(', ');
   } else { rec.style.removeProperty('--a'); rec.style.removeProperty('--b'); fold.textContent = ''; fold.title = ''; }
+  // the name above the line that the wagon would cover climbs over it: no name is lost
+  const wagon = rec.querySelector<HTMLElement>('.vago');
+  if(wagon){
+    const wl = parseFloat(wagon.style.left) / 100 * W - wagon.offsetWidth / 2, wr = wl + wagon.offsetWidth;
+    for(const s of [...labels, fold]) s.classList.toggle('alt', !s.hidden && s.classList.contains('up')
+      && parseFloat(s.style.left) < wr + gap / 2 && parseFloat(s.style.left) + s.offsetWidth > wl - gap / 2);
+  }
 }
