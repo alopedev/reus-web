@@ -1,6 +1,6 @@
 precision highp float;
 uniform sampler2D tScene; uniform vec2 res, sres; uniform float tq, reveal, aspect, waspect, hor, wrad, seats, foldY, shade;
-uniform vec3 skyTop, skyHor, sunCol, wallA, wallB, wood, seat; uniform vec2 sunPos; uniform float sunA; uniform vec4 win; uniform float wx;
+uniform vec3 skyTop, skyHor, sunCol, wallA, wallB, wood, seat; uniform vec2 sunPos; uniform float sunA; uniform vec4 win; uniform float wx; uniform vec4 brd;
 varying vec2 vUv;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
@@ -114,6 +114,26 @@ void main(){
     vec3 fcol = mix(wood*1.25, wood*.75, smoothstep(0., fw, sdW));
     col = mix(col, fcol, frame);
     col = mix(col, col*.7, ring(sdW-fw, .006)*.8);                     // shadow cast by the frame
+    // the name's split-flap board (.tauler), painted on the wall like the window and the seats (Àlex, 10-10): a dark
+    // panel with a soft shadow, and eight cells with their hinge. Its geometry in em, as hero.css lays it out:
+    // 8.58 × 1.58 em overall, the cells 0.97 × 1.32 em every 1.05 em, starting 0.13 em in (padding + border)
+    if(brd.z > brd.x){
+      vec2 bc = (brd.xy+brd.zw)*.5, bh = (brd.zw-brd.xy)*.5, bhA = bh*vec2(aspect,1.);
+      vec2 q = (uv+wobble*.5-bc)*vec2(aspect,1.);
+      float sdB = sdRR(q, bhA, bhA.y*.1);
+      float sdSh = sdRR(q-vec2(.004,-.009), bhA, bhA.y*.1);
+      col *= 1. - .38*(1.-smoothstep(-.004, .018, sdSh))*step(0., sdB);   // its shadow on the wall
+      float inB = 1.-smoothstep(0., .0025, sdB);
+      vec2 l = (uv+wobble*.5-brd.xy)/(brd.zw-brd.xy);
+      float xe = l.x*8.58 - .13, ye = (1.-l.y)*1.58 - .13;                // em, from the first cell's top-left
+      float k = clamp(floor((xe+.04)/1.05), 0., 7.);
+      float sdc = sdRR(vec2(xe - k*1.05 - .485, ye - .66), vec2(.485,.66), .07) + (fbm(uv*60.+k)-.5)*.03;
+      float inC = (1.-smoothstep(0., .02, sdc))*inB;
+      col = mix(col, wood*.32, inB);
+      col = mix(col, wood*(ye < .66 ? .62 : .5), inC);                    // the top flap lighter than the bottom one
+      col = mix(col, vec3(.08,.065,.055), ring(ye-.66, .025)*inC);        // the hinge
+      edge += ring(sdB, .003)*.5 + ring(sdc, .03)*.35*inB;
+    }
     // seats, only where there is room at the sides
     if(seats > .5){
       vec2 q = vec2(min(uv.x, 1.-uv.x)*aspect, uv.y);

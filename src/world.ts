@@ -104,7 +104,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
       skyTop:{value:new Vector3()}, skyHor:{value:new Vector3()}, sunCol:{value:new Vector3()}, sunPos:{value:new Vector2()}, sunA:{value:.85},
       aspect:{value:1}, waspect:{value:1}, hor:{value:.42}, win:{value:new Vector4(.2,.3,.8,.8)}, wrad:{value:.04}, seats:{value:1},
       wallA:{value:new Vector3()}, wallB:{value:new Vector3()}, wood:{value:new Vector3()}, seat:{value:new Vector3()},
-      foldY:{value:0}, shade:{value:0}, wx:{value:0} },
+      foldY:{value:0}, shade:{value:0}, wx:{value:0}, brd:{value:new Vector4(0,0,0,0)} },
     vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`,
     fragmentShader: watercolorFrag,
   });
@@ -125,6 +125,10 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     const win = document.getElementById('win')!, r = win.getBoundingClientRect();
     U.win.value.set(r.left/cw, 1-r.bottom/ch, r.right/cw, 1-r.top/ch);
     U.wrad.value = parseFloat(getComputedStyle(win).borderTopLeftRadius)/ch;
+    // the name's board is painted on the wall too (.pintat in hero.css); its box at rest: while the texts come in,
+    // the board cancels their rise with a transform of its own, so it never moves on the wall
+    const b = document.querySelector('.tauler')?.getBoundingClientRect();
+    if(b) U.brd.value.set(b.left/cw, 1-b.bottom/ch, b.right/cw, 1-b.top/ch);
     U.seats.value = (cw/ch > 1.15 && r.left > cw*.12) ? 1 : 0;
     const k = s * .8 * (STACKED.matches ? 2 : 1);
     const rw = Math.max(2, Math.round(r.width*k)), rh = Math.max(2, Math.round(r.height*k));
@@ -170,6 +174,8 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     U.foldY.value = foldY; U.shade.value = shade;
     if(!washRaf) washRaf = requestAnimationFrame(() => { washRaf = 0; renderer.setRenderTarget(null); renderer.render(postScene, postCam); });
   }
+  // the CSS board steps aside for the painted one (hero.css): without WebGL there is no world and it stays
+  document.documentElement.classList.add('pintat');
   resize(); addEventListener('resize', resize);
   // 0 fair, 1 overcast, 2 rain (drops on the glass), 3 fog: the shader's wx
   function setWeather(w: Weather){ U.wx.value = ['clear', 'cloudy', 'rain', 'fog'].indexOf(w); }
