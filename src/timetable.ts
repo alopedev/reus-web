@@ -12,8 +12,8 @@ import type { World } from './world';
 import type { Table } from './table';
 import type { Scenery } from './scenery';
 import type { createWeather } from './weather';
-import type { Avisos } from './avisos';
-import { notices, stamp, heard, setupNotice, type Notice } from './notice';
+import { notices, type Avisos } from './avisos';
+import { stamp, heard, setupNotice, type Notice } from './notice';
 
 // the hero's timetable: the next train, the ticket for the direction, the ruler of the day
 export function setupTimetable({ world, table, scenery, weather, avisos }: { world: World | null, table: Table, scenery: Scenery, weather: ReturnType<typeof createWeather>, avisos: Avisos }): { render(): void } {

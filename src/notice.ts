@@ -2,7 +2,7 @@ import './styles/notice.css';
 import { byId } from './dom';
 import { rag } from './paper';
 import { LINE } from './towns';
-import { gist, type Avisos } from './avisos';
+import { gist } from './avisos';
 
 // how the lines' notices show (09-10, Àlex): on a desktop, an ink stamp on the ticket when a line of the board has a
 // notice (option A), which opens a sheet with the whole text; on a phone nothing on the board, and the train's own
@@ -20,10 +20,7 @@ const pill = (l: string) => `<span class="pill" style="--c:${LINE[l] ?? 'var(--s
 // a time read by the function, in Madrid: «11:30»
 export const at = (iso: string): string => new Date(iso).toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
 
-// the notices of the board's lines; the same text on two lines (R13 and R14 share a stretch) is said once
-export function notices(avisos: Avisos, lines: string[]): Notice[] {
-  return lines.flatMap(l => { const n = avisos.line(l); return n?.estat === 'avis' ? [{ line: l, text: n.text }] : []; });
-}
+// the same text on two lines (R13 and R14 share a stretch) is said once
 const grouped = (ns: Notice[]): { lines: string[], text: string }[] => {
   const out: { lines: string[], text: string }[] = [];
   for(const n of ns){ const g = out.find(x => x.text === n.text); if(g) g.lines.push(n.line); else out.push({ lines: [n.line], text: n.text }); }
