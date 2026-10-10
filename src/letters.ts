@@ -76,16 +76,17 @@ let srcFont = 16, dstFont = 16;
 // at measure() time, never read live in state()/render() (a scroll-time layout read, which the project avoids)
 let tableW = 0;
 
-// a single character's box, measured with a Range (keeps Young Serif's kerning, unlike splitting into spans)
+// a single character's box, measured with a Range over every text node in order: h1.brand keeps one letter per
+// cell of its board (a span each), h2#qe a single text node (which keeps Young Serif's kerning)
 function glyphsOf(el: HTMLElement): (Glyph | null)[] {
-  const node = [...el.childNodes].find(n => n.nodeType === 3 && (n.textContent || '').length) as Text | undefined;
-  if(!node) return [];
-  const text = node.textContent as string;
   const out: (Glyph | null)[] = [];
-  for(let i = 0; i < text.length; i++){
-    const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 1);
-    const rects = r.getClientRects();
-    out.push(rects.length ? {x: rects[0].left + rects[0].width / 2, y: rects[0].top + rects[0].height / 2, w: rects[0].width, h: rects[0].height} : null);
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for(let node = walk.nextNode() as Text | null; node; node = walk.nextNode() as Text | null){
+    for(let i = 0; i < node.length; i++){
+      const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 1);
+      const rects = r.getClientRects();
+      out.push(rects.length ? {x: rects[0].left + rects[0].width / 2, y: rects[0].top + rects[0].height / 2, w: rects[0].width, h: rects[0].height} : null);
+    }
   }
   return out;
 }
@@ -103,7 +104,9 @@ export function measure(): void {
   const heroT = hero.style.transform, shelfT = shelf.style.transform, topT = top.style.transform, topTr = top.style.transition;
   hero.style.transform = ''; shelf.style.transform = '';
   top.style.transition = 'none'; top.style.transform = 'none';
-  entries = pair(brand.textContent || '', qe.textContent || '');
+  // the board writes the name in capitals (text-transform): the chips carry the letters as they are seen
+  const name = brand.textContent || '';
+  entries = pair(getComputedStyle(brand).textTransform === 'uppercase' ? name.toUpperCase() : name, qe.textContent || '');
   srcGlyphs = glyphsOf(brand);   // #hero is position:fixed: its rest position is already viewport-absolute
   // #repisa is a normal-flow element: even with its rotateX cleared, its rest position still moves with the
   // scroll. Cache h2's glyphs relative to #repisa's own top instead, the same local frame '50% 0' rotates around
