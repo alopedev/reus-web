@@ -15,7 +15,9 @@ Rules checked:
      screen and bounces up a little; the wall's shade follows its angle, not the scroll.
      Each paper in the air casts its shadow farther and lighter than at rest; on the pinned table
      each paper starts falling before the previous one lands and the cover opens as the last one
-     settles. Scrolling back to the top undoes everything.
+     settles. Scrolling back to the top undoes everything. While the table tilts in, its near edge (wider than the
+     screen in perspective) never makes the page wider than the screen: a phone would zoom out and the hero, the
+     table and the letters would drift apart (`check_drop_width`, also in `check.py letras`).
   7. The table is painted in watercolor once it arrives and carries its travel things
      (coffee, pen, Rodalies ticket); the page never scrolls sideways.
   8. Across 11 screen sizes (360 px to 2560 px): nothing leaves the screen sideways, tickets are
@@ -559,9 +561,31 @@ async def hero_settled(page):
     try: await page.wait_for_function("getComputedStyle(document.querySelector('.top')).transform === 'none'", timeout=15000)
     except Exception: pass
 
+async def check_drop_width(browser):
+    """While the table tilts in, the page never gets wider than the screen. In perspective the table's near edge is
+    wider than the screen; if that counts as page width, a phone widens its layout viewport (innerWidth grows, iOS
+    zooms out): the fixed wall then fills the wider viewport while the table keeps the screen's width, and the
+    letters, measured on the old width, fly off their glyphs (Àlex's iPhone, 10-10). Mobile emulation (is_mobile)
+    reproduces that widening in Chromium."""
+    errs = []
+    for name, opts in {"phone": dict(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, device_scale_factor=3),
+                       "desktop": dict(viewport={"width": 1440, "height": 900})}.items():
+        page = await open_page(browser, **opts)
+        await page.goto(page_url); await hero_settled(page)
+        w0 = await page.evaluate("innerWidth")
+        wide = []
+        for f in (.03, .06, .12, .24, .36, .6):
+            await page.evaluate(f"scrollTo({{top: {f} * reus.hingeAt(0), behavior: 'instant'}})")
+            await hinge_caught_up(page)
+            m = await page.evaluate("({sw: document.scrollingElement.scrollWidth, iw: innerWidth, p: reus.dropped()})")
+            if m["sw"] > w0 + 1 or m["iw"] != w0: wide.append(f"p={m['p']:.2f} (page {m['sw']} px, viewport {m['iw']} px)")
+        if wide: errs.append(f"{name}: the page gets wider than the {w0} px screen while the table tilts in: {', '.join(wide)}")
+        await page.close()
+    return errs
+
 async def check_letters_suite(browser):
     """Quick mode: only the letters' journey checks, on desktop and mobile (like paridad)."""
-    failures = []
+    failures = await check_drop_width(browser)
     for name, (w, h) in VIEWPORTS.items():
         page = await open_page(browser, viewport={"width": w, "height": h})
         errors = []
@@ -2047,6 +2071,7 @@ async def main():
             failures += [f"{name}: {e}" for e in await check_backstage(page, name)]
             failures += [f"{name}: {e}" for e in await check_letters(page, name)]
             await page.close()
+        failures += await check_drop_width(browser)
         failures += await check_sizes(browser)
         failures += [f"compartir: {e}" for e in check_share()]
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]

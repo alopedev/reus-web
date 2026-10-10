@@ -66,6 +66,8 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 **Un trayecto de mañana pulsado sigue siendo de mañana (10-10, PR #38):** opción A de tres (Àlex). Antes, a las 21:30 de Reus a Sants, pulsar «R15 05:36 demà» enseñaba el 05:36 de hoy, ya salido («Ja ha sortit», talón y compra de hoy). Ahora cada fila lleva su día (`Row.day`, `data-d`), `pick()` lo guarda en `state.day` (la regla elige siempre de hoy: `null`) y `shown()` lee el horario de ese día: se ve como el tablero de mañana de las 23:10, con «· demà» en la etiqueta («Avui ja no queden regionals · demà» o «Avui ja no en queden · demà») y la regla en «ara» con el reloj. Pasada la medianoche, ese día es hoy y el tren se elige como cualquier otro. La clave de `#aviso` incluye el día. Test en `npm test` (15) y en `check.py hero` (a las 21:30). Capturas en `trayecto-manana/` de los archivos del proyecto.
 
+**La página ya no se ensancha en la transición (10-10, en PR):** en el iPhone de Àlex, a media transición hacia la mesa, las letras del cartel volaban lejos de su sitio, la mesa salía más estrecha que la pantalla con el paisaje a un lado y el folleto encima del texto. Causa (anterior al cartel de paletas: pasaba igual antes del PR #36): inclinada en perspectiva, el borde cercano de `#repisa` es más ancho que la pantalla (hasta 541 px en un móvil de 390; 2073 en 1440) y contaba como ancho de página; el móvil ensancha entonces su ventana (`innerWidth` crece, iOS aleja el zoom), la pared fija llena la ventana ancha, la mesa conserva el ancho de la pantalla y las letras, medidas con el ancho de antes, se desvían. Arreglo: `#repisa` va dentro de `.retall` (`overflow-x:clip`, `table.css`): lo que sobresale se recorta en el borde, que ya no se veía. `clip` y no `hidden` para no crear un contenedor de scroll (la mesa fija sigue pegada); en `body` no sirve, porque su `overflow` pasa a la ventana y no evita el ensanche. `check_drop_width` (en `check.py letras` y en la suite) recorre la transición con un móvil emulado (`is_mobile`, que reproduce el ensanche en Chromium) y en escritorio.
+
 **Transición hero → mesa y viaje de letras:** hechos (`src/shelf.ts`, `src/letters.ts`). Con «Capacasa», tres letras se funden en el hueco de «Qué es».
 
 ## Siguiente paso
@@ -77,6 +79,8 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 3. Grabar el vídeo para X y LinkedIn
 
 ## Lecciones técnicas
+
+- Un elemento en flujo con `transform` en perspectiva cuenta su caja proyectada como ancho de página: si se sale por los lados, un móvil ensancha su ventana (`innerWidth`) y lo fijo deja de casar con lo que no lo es. `check.py` solo lo ve con `is_mobile=True`; sin él, Chromium deja `innerWidth` quieto y solo crece `scrollWidth`
 
 - Nunca suavizar los ángulos de pared/mesa con un bucle propio: con frames lentos deja ver el fondo. La suavidad va en las curvas
 - `check.py` corre con render por software a ~2 fps: los checks nuevos deben esperar a que la bisagra alcance el scroll (`hinge_caught_up`), no un tiempo fijo, y usar `behavior:'instant'`
