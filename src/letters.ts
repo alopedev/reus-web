@@ -100,10 +100,13 @@ export function measure(): void {
   // clear it too, or measuring before it settles would cache a few px of vertical offset that never goes away.
   // .top transitions its transform, so the override needs transition:none too, or it would itself animate in
   // over the next second instead of applying instantly -- read straight back out by the very next line
-  const top = find<HTMLElement>('.top');
+  // The painted board (.pintada) cancels .top's rise with a transform of its own, to be undone the same way
+  const top = find<HTMLElement>('.top'), board = find<HTMLElement>('.tauler');
   const heroT = hero.style.transform, shelfT = shelf.style.transform, topT = top.style.transform, topTr = top.style.transition;
+  const boardT = board.style.transform, boardTr = board.style.transition;
   hero.style.transform = ''; shelf.style.transform = '';
   top.style.transition = 'none'; top.style.transform = 'none';
+  board.style.transition = 'none'; board.style.transform = 'none';
   // the board writes the name in capitals (text-transform): the chips carry the letters as they are seen
   const name = brand.textContent || '';
   entries = pair(getComputedStyle(brand).textTransform === 'uppercase' ? name.toUpperCase() : name, qe.textContent || '');
@@ -117,6 +120,7 @@ export function measure(): void {
   tableW = document.documentElement.clientWidth;
   hero.style.transform = heroT; shelf.style.transform = shelfT;
   top.style.transform = topT; top.style.transition = topTr;
+  board.style.transform = boardT; board.style.transition = boardTr;
   resetChips();
   measured = true;
 }

@@ -25,21 +25,6 @@ jobs:
       - run: npm run build
       - run: npm run build:paridad
       - run: python scripts/check.py
-      # TEMPORARY (painted board): the new hero reference frames as a difference from the repo's, to rebuild them
-      - if: always()
-        run: |
-          python - <<'PY'
-          import zlib, base64, pathlib
-          from PIL import Image
-          for n in ("escritorio-hero", "movil-hero"):
-              p = pathlib.Path(f"screenshots/{n}-distinto.png")
-              if not p.exists(): print(n, "unchanged"); continue
-              new = Image.open(p).convert("RGB"); old = Image.open(f"scripts/baseline/linux/{n}.png").convert("RGB")
-              d = bytes((a - b) & 255 for a, b in zip(new.tobytes(), old.tobytes()))
-              z = base64.b64encode(zlib.compress(d, 9)).decode()
-              print(f"DIFF {n} {new.size} {len(z)}")
-              for i in range(0, len(z), 4000): print(f"{n}|{i}|{z[i:i+4000]}")
-          PY
       # the screenshots, and any reference frame written in this run, to review or commit
       - if: always()
         uses: actions/upload-artifact@v4
