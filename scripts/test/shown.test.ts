@@ -155,3 +155,28 @@ test('a train shown that has already left says so on the board, on its way or ar
   assert.equal(train(at('2026-10-01', '10:00', HOME)).rows[0].gone, false);
   assert.equal(train(at('2026-10-01', '23:10', BACK)).rows[0].gone, false);
 });
+
+// the train on its way right now, shown without picking it (Àlex 10-10: «quiero que se vea más»)
+test('the regional on its way now comes with the next train: when it left, where it is, and how far along', () => {
+  const s = train(at('2026-10-01', '10:00', HOME));
+  assert.ok(s.running);
+  assert.equal(s.running.dep, 543);
+  assert.equal(s.running.line, 'R15');
+  assert.equal(s.running.where.words, 'Ara entre Torredembarra i Altafulla');
+  assert.equal(s.running.where.at.toFixed(4), ((600 - 543) / 90).toFixed(4));
+});
+
+test('no train on its way to add: the train shown is itself on its way, or none has left yet', () => {
+  assert.equal(train(at('2026-10-01', '10:00', PICKED)).running, null);
+  assert.equal(train(at('2026-10-01', '05:00', HOME)).running, null);
+});
+
+test('the wagon of the train on its way stands between the same two stops on the route of the train shown', () => {
+  // Reus → Sants at 07:30: the R14 of 07:06 on its way, the R15 of 07:36 shown, with other times between stops
+  const s = train(at('2026-10-01', '07:30', BACK)), r = s.running!, big = s.rows[0];
+  assert.deepEqual([r.dep, r.line, big.dep, big.line], [426, 'R14', 456, 'R15']);
+  const [from, to, f] = r.where.seg;
+  const pos = (id: string) => (s.stops!.find(([x]) => x === id)![1] - big.dep) / (big.arr - big.dep);
+  assert.ok(f > 0 && f < 1);
+  assert.equal(r.on.toFixed(4), (pos(from) + (pos(to) - pos(from)) * f).toFixed(4));
+});
