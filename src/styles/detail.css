@@ -19,6 +19,14 @@ dialog#detalle:not([open]){ display:none; }
 .pliego .horas{ margin:0; font:400 2.4rem/1.1 var(--serif); letter-spacing:-.01em; }
 .pliego .flecha{ font-size:.8em; opacity:.75; }
 .pliego .datos{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:.2rem 1rem; margin:.5rem 0 0; font-size:1rem; }
+.pliego .viatge{ margin:1rem 0 .2rem; }
+/* where the train is now (Àlex 10-10, option A): its two ends, the ink wagon on the line between them, the words under */
+.pliego .via{ position:relative; height:1.5px; margin:2.2rem .35rem 0; background:rgba(45,36,28,.55); }
+.pliego .via b{ position:absolute; top:50%; width:.6rem; height:.6rem; border-radius:50%; background:var(--shadow); transform:translate(-50%,-50%); }
+.pliego .via .vago{ position:absolute; bottom:-.05rem; width:2.7rem; transform:translateX(-50%); line-height:0; }
+.pliego .via .vago svg{ display:block; width:100%; height:auto; }
+.pliego .ends{ display:flex; justify-content:space-between; margin-top:.45rem; font-size:.93rem; opacity:.8; }
+.pliego .ara{ margin:.55rem 0 0; font-size:1rem; }
 .pliego .ave{ margin:.35rem 0 0; font-size:.93rem; opacity:.8; }
 .pliego .x{ position:absolute; top:.5rem; right:.5rem; min-width:max(2.75rem, 44px); min-height:max(2.75rem, 44px); font-size:1.2rem;
   background:none; border:0; cursor:pointer; color:inherit; }
