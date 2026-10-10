@@ -14,7 +14,8 @@ import { lineNews, type Avisos } from './avisos';
 // a train on the ruler: today's, regionals and AVE together in order of departure; `on` is the train shown
 export type Mark = { dep: number, ave: boolean, on: boolean };
 // one trip of the board: the train shown (big) and the one after it
-export type Row = { dep: number, arr: number, line: string, ave: boolean, big: boolean, until: string, morrow: boolean };
+// (`day`: the trip's own day, today's or tomorrow's, so that picking it keeps it)
+export type Row = { dep: number, arr: number, line: string, ave: boolean, big: boolean, until: string, morrow: boolean, day: string };
 interface Common {
   key: string; say: string;          // #aviso: what a screen reader hears, only when `key` changes
   label: string; note: string;       // #lbl, #note
@@ -40,8 +41,19 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   const after = (list: Train[]) => list.filter(([dep]) => dep >= start + (v.useNow?2:0));
   let regs = after(ida ? d.r : d.b), aves = after(ida ? d.ar : d.ab), tomorrow = false, nextDay = false;
   // no regional left today: tomorrow's first ones, after the AVE still to come today, if there is one
-  const lastAve = regs.length ? undefined : aves[0];
+  let lastAve = regs.length ? undefined : aves[0];
   if(!regs.length){ ({d, exact} = dayData(addDays(now.date,1), v.town, v.station)); nextDay = true; regs = ida ? d.r : d.b; aves = ida ? d.ar : d.ab; tomorrow = !lastAve; }
+  // one of tomorrow's trips picked on the board: that train, on its own day (past midnight its day is today, and it is
+  // chosen like any other). The ruler is today's, so it stands on now, as with tomorrow's first trains
+  let morrowLabel = '';
+  const picked = !v.useNow && !!v.day && v.day > now.date;
+  if(picked){
+    // the label says what is left today, from now (the board only offers tomorrow's trips when no regional is)
+    const left = (ave: boolean) => today.some(x => x.ave === ave && x.t[0] >= now.min + 2);
+    morrowLabel = left(false) ? 'Demà' : left(true) ? 'Avui ja no queden regionals · demà' : 'Avui ja no en queden · demà';
+    ({d, exact} = dayData(v.day!, v.town, v.station)); nextDay = true;
+    regs = after(ida ? d.r : d.b); aves = after(ida ? d.ar : d.ab); lastAve = undefined; tomorrow = true;
+  }
   const note = exact ? '' : `Horari aproximat: ${nextDay ? 'demà' : 'avui'} encara no hi ha horari oficial.`;
   const clamp = (m: number) => Math.min(1439, Math.max(300, m));
   // safety net (decision 3): no direct train at all today nor tomorrow in this direction. Only reachable for a
@@ -54,7 +66,7 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   // the train shown: the one chosen, or the first to leave, regional or AVE (today's last AVE when no regional is
   // left); the board adds the one after it
   const ave = lastAve ?? aves[0];
-  const isAve = !!lastAve || (!!ave && (!regs.length || ave[0] < regs[0][0] || (!v.useNow && !tomorrow && v.ave && ave[0] === start)));
+  const isAve = !!lastAve || (!!ave && (!regs.length || ave[0] < regs[0][0] || (!v.useNow && (!tomorrow || picked) && v.ave && ave[0] === start)));
   const a = isAve ? ave : regs[0];
   const live = v.useNow && !tomorrow;
   const day = tomorrow ? addDays(now.date, 1) : now.date;
@@ -63,7 +75,7 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   const isAveTrip = (t: Train) => aves.includes(t) || t === lastAve;
   const until = live ? dur(a[0]-now.min) : '';
   const rows = (next ? [a, next] : [a]).map(t => ({ dep: t[0], arr: t[1], line: t[3], ave: isAveTrip(t), big: t === a,
-    until: t === a ? until : '', morrow: !!lastAve && t !== lastAve }));
+    until: t === a ? until : '', morrow: !!lastAve && t !== lastAve, day: t === lastAve ? now.date : nextDay ? addDays(now.date, 1) : now.date }));
   // the big train links to Renfe's search for its trip and day (the AVE's trip ends at Camp de Tarragona); its stops
   // are counted in a phone's sheet and drawn on a desktop's board
   const ends = isAve ? (ida ? [v.station, CAMP] : [CAMP, v.station]) : ida ? [v.station, v.town] : [v.town, v.station];
@@ -77,10 +89,10 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
     home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(a[1]), tomorrow), news: lineNews(avisos, a[3], isAve) };
   // what a screen reader hears: the train, only when it changes (never the countdown's refresh)
   const sFrom = isAve ? (ida ? bcn : 'Camp de Tarragona') : from, sTo = isAve ? (ida ? 'Camp de Tarragona' : `Barcelona ${bcn}`) : to;
-  const say = `${tomorrow ? 'Avui ja no queden trens. El primer de demà' : v.useNow ? 'Pròxim tren' : 'Tren triat'}: ${hhmm(a[0])}, ${isAve ? 'AVE ' : ''}${ofPlace(sFrom)} ${atPlace(sTo)}; arriba a les ${hhmm(a[1])}.`;
-  return { kind: 'train', key: a[0] + v.dir + isAve + v.town + v.station, say,
-    label: lastAve ? 'Avui ja no queden regionals' : tomorrow ? 'Avui ja no en queden · demà' : '', note,
-    knob: tomorrow ? null : a[0], valuetext: tomorrow ? 'avui ja no queden trens' : `${isAve ? 'AVE' : 'tren'} de les ${hhmm(a[0])}`,
+  const say = `${picked ? 'Tren triat, demà' : tomorrow ? 'Avui ja no queden trens. El primer de demà' : v.useNow ? 'Pròxim tren' : 'Tren triat'}: ${hhmm(a[0])}, ${isAve ? 'AVE ' : ''}${ofPlace(sFrom)} ${atPlace(sTo)}; arriba a les ${hhmm(a[1])}.`;
+  return { kind: 'train', key: a[0] + v.dir + isAve + v.town + v.station + day, say,
+    label: picked ? morrowLabel : lastAve ? 'Avui ja no queden regionals' : tomorrow ? 'Avui ja no en queden · demà' : '', note,
+    knob: tomorrow ? null : a[0], valuetext: picked ? `${isAve ? 'AVE' : 'tren'} de demà de les ${hhmm(a[0])}` : tomorrow ? 'avui ja no queden trens' : `${isAve ? 'AVE' : 'tren'} de les ${hhmm(a[0])}`,
     light: tomorrow ? a[0] : start, day,
     // the ruler has one mark: the knob always stands on the train shown (every tick is a train, the AVE like the rest)
     ruler: today.map(({t, ave:w}) => ({dep: t[0], ave: w, on: !tomorrow && w === isAve && t[0] === a[0]})),
