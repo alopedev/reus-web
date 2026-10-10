@@ -126,3 +126,24 @@ test('a trip of tomorrow picked on the board stays tomorrow’s: its own day, ne
   assert.equal(u.say, 'Tren triat: 05:36, de Reus a Barcelona Sants; arriba a les 07:07.');
   assert.equal(u.knob, 336);
 });
+
+// where the train shown is now, by the timetable (the wagon on its route, «Ara entre …» in a phone's sheet)
+const PICKED: ViewState = { ...HOME, useNow: false, minute: 543 };
+
+test('a train on its way: how far along it is and the two stops it is between', () => {
+  const s = train(at('2026-10-01', '10:00', PICKED));
+  assert.equal(s.rows[0].dep, 543);
+  assert.ok(s.where);
+  assert.equal(s.where.at.toFixed(4), ((600 - 543) / 90).toFixed(4));
+  assert.equal(s.where.words, 'Ara entre Torredembarra i Altafulla');
+});
+
+test('a train standing at one of its stops: «Ara a …»', () => {
+  assert.equal(train(at('2026-10-01', '09:58', PICKED)).where?.words, 'Ara a Torredembarra');
+});
+
+test('no wagon for a train not on its way: still to leave, already arrived, or tomorrow’s', () => {
+  assert.equal(train(at('2026-10-01', '10:00', HOME)).where, null);
+  assert.equal(train(at('2026-10-01', '10:33', PICKED)).where, null);
+  assert.equal(train(at('2026-10-01', '23:10', BACK)).where, null);
+});

@@ -58,7 +58,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
     }
     // the ruler has one mark: the knob always stands on the train shown; now is a thin line with its word
     byId('ticks').innerHTML = v.ruler.map(m=>`<i class="${m.on ? 'on' : ''}" style="left:${pos(m.dep)}"></i>`).join('') + nowLine(now.min);
-    const html = v.rows.map(r => trip(r, v.buy, narrow.matches, r.big ? journey(v.stops, r.dep, r.arr) : '')).join('');
+    const html = v.rows.map(r => trip(r, v.buy, narrow.matches, r.big ? journey(v.stops, r.dep, r.arr, v.where?.at ?? null) : '')).join('');
     cur = v.trip;
     // the notices of the board's regional lines: a stamp on a desktop's ticket
     const ns = notices(avisos, v.lines);

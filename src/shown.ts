@@ -1,6 +1,6 @@
 import type { ViewState } from './state';
 import type { Trip } from './detail';
-import { addDays, hhmm, dur, dayData, NET, BCN, bcnName, CAMP, stopsBetween, type Train } from './time';
+import { addDays, hhmm, dur, dayData, NET, BCN, bcnName, CAMP, stopsBetween, stopName, type Train } from './time';
 import { buyUrl } from './buy';
 import { homeText } from './home';
 import { ofPlace, atPlace } from './ca';
@@ -15,6 +15,8 @@ import { lineNews, type Avisos } from './avisos';
 export type Mark = { dep: number, ave: boolean, on: boolean };
 // one trip of the board: the train shown (big) and the one after it
 // (`day`: the trip's own day, today's or tomorrow's, so that picking it keeps it)
+// where the train shown is now, by the timetable: how far along its trip (0 at departure, 1 at arrival) and in words
+export type Where = { at: number, words: string };
 export type Row = { dep: number, arr: number, line: string, ave: boolean, big: boolean, until: string, morrow: boolean, day: string };
 interface Common {
   key: string; say: string;          // #aviso: what a screen reader hears, only when `key` changes
@@ -28,6 +30,7 @@ interface Common {
 export type Shown = Common & ({ kind: 'none' } | {
   kind: 'train', ave: boolean, rows: Row[], buy: string, stops: [stop: string, arr: number][] | null,
   trip: Trip,                        // the train's sheet on a phone
+  where: Where | null,               // where it is now, by the timetable; null when it is not on its way
   lines: string[],                   // the board's regional lines, whose notices go on the stamp
 });
 
@@ -81,12 +84,13 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   const ends = isAve ? (ida ? [v.station, CAMP] : [CAMP, v.station]) : ida ? [v.station, v.town] : [v.town, v.station];
   const buy = buyUrl(ends[0], ends[1], day, a[0]);
   const stops = stopsBetween(day, a[2], ends[0], ends[1]);
+  const where = day === now.date ? whereNow(now.min, [[ends[0], a[0]], ...(stops ?? []), [ends[1], a[1]]]) : null;
   const there = isAve ? 'Camp de Tarragona' : townName;
   const trip: Trip = { line: a[3], color: LINE[a[3]] ?? 'var(--shadow)', from: ida ? bcn : there, to: ida ? there : bcn, dep: hhmm(a[0]), arr: hhmm(a[1]),
     when: tomorrow ? 'Demà' : a[0] < now.min ? 'Ja ha sortit' : a[0] === now.min ? 'Surt ara' : `Surt en ${dur(a[0]-now.min)}`, length: dur(a[1]-a[0]),
     stops: stops?.length ?? null, buy,
     ave: isAve ? (ida ? `L’AVE no arriba ${atPlace(townName)}: baixa a Camp de Tarragona.` : `L’AVE no surt ${ofPlace(townName)}: surt de Camp de Tarragona.`) : '',
-    home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(a[1]), tomorrow), news: lineNews(avisos, a[3], isAve) };
+    home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(a[1]), tomorrow), news: lineNews(avisos, a[3], isAve), where };
   // what a screen reader hears: the train, only when it changes (never the countdown's refresh)
   const sFrom = isAve ? (ida ? bcn : 'Camp de Tarragona') : from, sTo = isAve ? (ida ? 'Camp de Tarragona' : `Barcelona ${bcn}`) : to;
   const say = `${picked ? 'Tren triat, demà' : tomorrow ? 'Avui ja no queden trens. El primer de demà' : v.useNow ? 'Pròxim tren' : 'Tren triat'}: ${hhmm(a[0])}, ${isAve ? 'AVE ' : ''}${ofPlace(sFrom)} ${atPlace(sTo)}; arriba a les ${hhmm(a[1])}.`;
@@ -96,7 +100,16 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
     light: tomorrow ? a[0] : start, day,
     // the ruler has one mark: the knob always stands on the train shown (every tick is a train, the AVE like the rest)
     ruler: today.map(({t, ave:w}) => ({dep: t[0], ave: w, on: !tomorrow && w === isAve && t[0] === a[0]})),
-    ave: isAve, rows, buy, stops, trip, lines: [...new Set(rows.filter(r => !r.ave).map(r => r.line))] };
+    ave: isAve, rows, buy, stops, trip, where, lines: [...new Set(rows.filter(r => !r.ave).map(r => r.line))] };
+}
+
+// a train between its departure and its arrival: the share of its trip already gone and the two stops on either side
+// (or the one it stands at, that minute)
+function whereNow(min: number, pts: [stop: string, at: number][]): Where | null {
+  const dep = pts[0][1], arr = pts[pts.length - 1][1];
+  if(min <= dep || min >= arr) return null;
+  const i = pts.findIndex(([, m]) => m > min) - 1, at = (min - dep) / (arr - dep);
+  return { at, words: pts[i][1] === min ? `Ara a ${stopName(pts[i][0])}` : `Ara entre ${stopName(pts[i][0])} i ${stopName(pts[i + 1][0])}` };
 }
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
