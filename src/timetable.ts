@@ -111,7 +111,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
         + `<span class="w">${w}</span> <span class="t arr">→ ${hhmm(r.arr)}</span> <span class="mas" aria-hidden="true">›</span>`;
       const where = isAve ? (state.dir==='casa' ? ' a' : ' des de') + ' Camp de Tarragona' : '';
       const label = `${isAve ? 'AVE' : r.line} de les ${hhmm(r.dep)}${where}${big && until ? ', surt en ' + until : morrow ? ', demà' : ''}, arriba a les ${hhmm(r.arr)}. Veure el detall i comprar`;
-      return `<button type="button" class="trip${big ? ' big' : ' tt'}" data-m="${r.dep}"${isAve ? ' data-ave' : ''} aria-haspopup="dialog" aria-label="${label}">${cells}</button>`;
+      return `<button type="button" class="trip${big ? ' big' : ' tt'}" data-m="${r.dep}" data-d="${r.day}"${isAve ? ' data-ave' : ''} aria-haspopup="dialog" aria-label="${label}">${cells}</button>`;
     }
     // the big train's time and «compra’l ↗» open Renfe in a new tab; the word repeats the link for the eye only
     const to = ` href="${buy.replace(/&/g, '&amp;')}" target="_blank" rel="noopener"`;
@@ -127,7 +127,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
       + `<span class="w">${w}</span> <span class="t arr">→ ${hhmm(r.arr)}</span>${camp}`;
     if(big) return `<div class="trip big">${cells}</div>`;
     const label = `${isAve ? 'AVE' : r.line} de les ${hhmm(r.dep)}${isAve ? (state.dir==='casa' ? ' a' : ' des de') + ' Camp de Tarragona' : ''}, arriba a les ${hhmm(r.arr)}`;
-    return `<button type="button" class="trip tt" data-m="${r.dep}"${isAve ? ' data-ave' : ''} aria-label="${label}">${cells}</button>`;
+    return `<button type="button" class="trip tt" data-m="${r.dep}" data-d="${r.day}"${isAve ? ' data-ave' : ''} aria-label="${label}">${cells}</button>`;
   }
   // the stamp sits on the ticket, outside its route, so a new route never takes it away; redrawn only when it changes
   let stamped = '', noticed = '[]', shownNotices: Notice[] = [];
@@ -141,13 +141,14 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
     tk.querySelector('.segell')?.remove(); stamped = html; tk.classList.toggle('sellat', !!html);
     if(html){ tk.insertAdjacentHTML('beforeend', html); if(had) tk.querySelector<HTMLElement>('.segell')?.focus({preventScroll:true}); }
   }
-  function pick(m: number, ave = false){ state.useNow = false; state.minute = m; state.ave = ave; render(); }
+  // a trip of the board keeps its day (tomorrow's stays tomorrow's); the ruler's trains are today's
+  function pick(m: number, ave = false, day: string | null = null){ state.useNow = false; state.minute = m; state.ave = ave; state.day = day; render(); }
   nowBtn.addEventListener('click', ()=>{ state.useNow = true; render(); tIn.focus({preventScroll:true}); });
   // the chosen trip becomes the big one: the focus moves to the ruler, which now stands on it
   // on a phone, any trip opens the sheet with its detail, after becoming the train shown
   byId('board').addEventListener('click', e=>{
     const b = (e.target as Element).closest<HTMLElement>('.tt, button.big'); if(!b) return;
-    if(b.matches('.tt')) pick(+b.dataset.m!, 'ave' in b.dataset);
+    if(b.matches('.tt')) pick(+b.dataset.m!, 'ave' in b.dataset, b.dataset.d!);
     if(narrow.matches){ if(cur) detail.open(cur); }
     else tIn.focus({preventScroll:true});
   });
@@ -160,7 +161,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos }: { wor
   function snap(){
     const v = +tIn.value; if(!marks.length) return;
     const near = marks.reduce((b, x) => Math.abs(x.dep-v) < Math.abs(b.dep-v) ? x : b, marks[0]);
-    state.useNow = false; state.minute = near.dep; state.ave = near.ave;
+    state.useNow = false; state.minute = near.dep; state.ave = near.ave; state.day = null;
     if(!rq) rq = requestAnimationFrame(()=>{ rq=0; render(); });
   }
   tIn.addEventListener('input', snap); tIn.addEventListener('change', snap); tIn.addEventListener('pointerup', ()=> setTimeout(snap, 0));

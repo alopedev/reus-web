@@ -1031,6 +1031,13 @@ async def check_hero(browser):
     if b["soon"] != "en 47 min": errs.append(f"at 21:30 from Reus .soon reads «{b['soon']}», expected «en 47 min»")
     if "Avui ja no queden regionals" not in b["info"]: errs.append("at 21:30 from Reus the board does not say «Avui ja no queden regionals»")
     errs += [f"at 21:30 from Reus: {e}" for e in buy_link(b, CAMP_ID, SANTS_ID, "28/09/2026")]
+    # picking tomorrow's trip keeps it tomorrow's: never today's 05:36, long gone
+    await page.click("#board .tt"); await page.wait_for_timeout(300)
+    b = await page.evaluate(BOARD)
+    dia = await page.evaluate("document.querySelector('.tk .fecha')?.dataset.dia")
+    if b["dep"] != "05:36" or dia != "2026-09-29": errs.append(f"at 21:30 from Reus, tomorrow's 05:36 picked: the train shown is {b['dep']} on {dia}, expected 05:36 on 2026-09-29")
+    if "· demà" not in b["info"]: errs.append(f"at 21:30 from Reus, tomorrow's 05:36 picked: the board does not say «demà» ({b['info']})")
+    errs += [f"at 21:30 from Reus, tomorrow's 05:36 picked: {e}" for e in buy_link(b, REUS_TOWN, SANTS_ID, "29/09/2026")]
     await page.close()
     # «ara» at both ends of the day (00:30 is clamped to the ruler's start, 23:59 is its end) never leaves the screen
     for at, when in (("2026-09-28T22:30:00Z", "00:30"), ("2026-09-28T21:59:00Z", "23:59")):

@@ -6,7 +6,7 @@ import { shown, type Shown } from '../../src/shown.ts';
 import type { ViewState } from '../../src/state.ts';
 
 const REUS = '71400', SANTS = '71801', FRANCA = '79400', GIRONA = '79300';
-const HOME: ViewState = { dir: 'casa', useNow: true, minute: null, ave: false, town: REUS, station: SANTS };
+const HOME: ViewState = { dir: 'casa', useNow: true, minute: null, day: null, ave: false, town: REUS, station: SANTS };
 const BACK: ViewState = { ...HOME, dir: 'bcn' };
 // no notices known yet
 const quiet = { line: () => undefined, read: () => null };
@@ -99,4 +99,30 @@ test('what the sheet says of the line follows the notices: pending, a notice, no
     { kind: 'avis', line: 'R15', text: 'Per carretera', read: '2026-10-01T08:00:00Z' });
   assert.deepEqual(news(() => ({ estat: 'normal' }), '2026-10-01T08:00:00Z'), { kind: 'normal', line: 'R15', read: '2026-10-01T08:00:00Z' });
   assert.deepEqual(news(() => ({ estat: 'error' }), null), { kind: 'error', line: 'R15' });
+});
+
+test('a trip of tomorrow picked on the board stays tomorrow’s: its own day, never today’s train at that hour', () => {
+  // 21:30, Reus → Sants: today's last AVE, then tomorrow's first regional; the second row is tomorrow's
+  assert.deepEqual(train(at('2026-10-01', '21:30', BACK)).rows.map(r => r.day), ['2026-10-01', '2026-10-02']);
+  const s = train(at('2026-10-01', '21:30', { ...BACK, useNow: false, minute: 336, day: '2026-10-02' }));
+  assert.deepEqual(rows(s), ['R15 336 big', 'R15 366 ']);
+  assert.equal(s.day, '2026-10-02');
+  assert.equal(s.label, 'Avui ja no queden regionals · demà');
+  assert.equal(s.trip.when, 'Demà');
+  assert.match(s.trip.home, /^Demà agafo /);
+  assert.match(s.buy, /FechaIdaSel=02%2F10%2F2026/);
+  assert.equal(s.say, 'Tren triat, demà: 05:36, de Reus a Barcelona Sants; arriba a les 07:07.');
+  assert.equal(s.knob, null);                                // the ruler is today's: it stands on now
+  assert.equal(s.valuetext, 'tren de demà de les 05:36');
+  assert.ok(s.ruler.every(m => !m.on));
+  assert.equal(s.light, 336);
+  // 23:10, nothing left today: the second of tomorrow's trips becomes the big one, still tomorrow's
+  const t = train(at('2026-10-01', '23:10', { ...BACK, useNow: false, minute: 366, day: '2026-10-02' }));
+  assert.equal(rows(t)[0], 'R15 366 big');
+  assert.equal(t.label, 'Avui ja no en queden · demà');
+  assert.ok(t.rows.every(r => r.day === '2026-10-02'));
+  // past midnight that day is today: the same train, chosen as any other of today's
+  const u = train(at('2026-10-02', '00:10', { ...BACK, useNow: false, minute: 336, day: '2026-10-02' }));
+  assert.equal(u.say, 'Tren triat: 05:36, de Reus a Barcelona Sants; arriba a les 07:07.');
+  assert.equal(u.knob, 336);
 });
