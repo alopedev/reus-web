@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { shown, type Shown } from '../../src/shown.ts';
 import type { ViewState } from '../../src/state.ts';
+import type { Known } from '../../src/retards.ts';
 
 const REUS = '71400', SANTS = '71801', FRANCA = '79400', GIRONA = '79300';
 const HOME: ViewState = { dir: 'casa', useNow: true, minute: null, day: null, ave: false, town: REUS, station: SANTS };
@@ -146,4 +147,68 @@ test('no wagon for a train not on its way: still to leave, already arrived, or t
   assert.equal(train(at('2026-10-01', '10:00', HOME)).where, null);
   assert.equal(train(at('2026-10-01', '10:33', PICKED)).where, null);
   assert.equal(train(at('2026-10-01', '23:10', BACK)).where, null);
+});
+
+// the live delay of the train shown (Renfe's real-time feed, src/retards.ts): a fake of what the page knows of each
+// train by its number. Sants → Reus at 10:00 on 01-10, the big train is the R15 15005 (Sants 10:03, Reus 11:33), and
+// the one after it the 15007 (11:03)
+const live = (trens: Record<string, Known>, fallback?: Known) => ({ train: (n: string) => trens[n] ?? fallback });
+const atLive = (hm: string, v: ViewState, r: ReturnType<typeof live>): Shown => { const [h, m] = hm.split(':').map(Number); return shown({ date: '2026-10-01', min: h * 60 + m }, v, quiet, r); };
+const LATE = (min: number, parada = '71802'): Known => ({ estat: 'circula', retard: min, parada });
+
+test('a late train: its new times and the countdown to the new departure', () => {
+  const s = train(atLive('10:00', HOME, live({ '15005': LATE(25) })));
+  assert.deepEqual(s.rows[0].live, { kind: 'late', min: 25, dep: 628, arr: 718 });
+  assert.equal(s.rows[0].until, '28 min');
+  assert.equal(s.rows[1].live, undefined);
+  assert.equal(s.trip.when, 'Surt en 28 min');
+  assert.equal(s.say, 'Pròxim tren: 10:03, de Sants a Reus, amb 25 min de retard: surt cap a les 10:28; arriba a les 11:58.');
+});
+
+test('on time says nothing: a minute late is on time, and so is early', () => {
+  for(const min of [0, 1, -2]){
+    const s = train(atLive('10:00', HOME, live({ '15005': LATE(min) })));
+    assert.equal(s.rows[0].live, undefined, String(min));
+    assert.equal(s.rows[0].until, '3 min');
+  }
+});
+
+test('no delay for a train that is not today’s: tomorrow’s first ones carry their numbers, not their delay', () => {
+  const s = train(atLive('23:10', BACK, live({}, LATE(25))));
+  assert.equal(s.rows[0].live, undefined);
+});
+
+test('a train due within the hour that is not in the feed yet, or no answer from Renfe: «no live data yet»', () => {
+  for(const k of [{ estat: 'sense' }, { estat: 'error' }] as Known[])
+    assert.deepEqual(train(atLive('10:00', HOME, live({}, k))).rows[0].live, { kind: 'unknown' }, k.estat);
+  // before the first answer nothing is said, so the page does not blink «no data» as it loads
+  assert.equal(train(atLive('10:00', HOME, live({}))).rows[0].live, undefined);
+  // further than an hour away nothing is expected: a train enters the feed only once it runs
+  const picked = train(atLive('10:00', { ...HOME, useNow: false, minute: 663 }, live({}, { estat: 'sense' })));
+  assert.equal(picked.rows[0].dep, 663);
+  assert.equal(picked.rows[0].live, undefined);
+});
+
+test('a cancelled train is said so', () => {
+  const s = train(atLive('10:00', HOME, live({ '15005': { estat: 'cancelat' } })));
+  assert.deepEqual(s.rows[0].live, { kind: 'cancel' });
+  assert.equal(s.trip.when, 'Cancel·lat');
+  assert.equal(s.say, 'Pròxim tren: 10:03, de Sants a Reus, cancel·lat.');
+});
+
+test('a late train still to reach your station stays the next one after its time has gone', () => {
+  // 10:10: the 10:03 runs 25 min late and has not reached Sants yet (its next stop is Passeig de Gràcia)
+  const s = train(atLive('10:10', HOME, live({ '15005': LATE(25) })));
+  assert.deepEqual(rows(s), ['R15 603 big18 min', 'R15 663 ']);
+  assert.equal(s.ruler.filter(m => m.on)[0]?.dep, 603);
+  // once past Sants (its next stop is further on), it has gone: the next one is the 11:03
+  assert.deepEqual(rows(train(atLive('10:10', HOME, live({ '15005': LATE(25, '71700') })))), ['R15 663 big53 min', 'AVE 720 ']);
+  // and without live data the timetable decides, as before
+  assert.deepEqual(rows(train(atLive('10:10', HOME, live({})))), ['R15 663 big53 min', 'AVE 720 ']);
+});
+
+test('the screen reader hears it once when a delay appears, not at every new minute of it', () => {
+  const a = train(atLive('10:00', HOME, live({ '15005': LATE(25) }))), b = train(atLive('10:00', HOME, live({ '15005': LATE(27) })));
+  assert.notEqual(a.key, train(atLive('10:00', HOME, live({}))).key);
+  assert.equal(a.key, b.key);
 });
