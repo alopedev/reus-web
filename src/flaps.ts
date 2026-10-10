@@ -57,9 +57,11 @@ export function createFlaps(): { play(): void } {
     let t0 = 0;
 
     function draw(t: number){
-      // measured every frame from the layout (offset*, never the transformed boxes): the hero's entrance moves
-      // .top while the flaps turn, and a resize may change the root's size
+      // measured every frame: the hero's entrance moves .top while the flaps turn, and a resize may change the
+      // root's size. Each cell is placed by its box relative to the canvas's, brought back to the canvas's own
+      // pixels (z) in case the wall is scaled
       const W = cv.clientWidth, H = cv.clientHeight, dpr = devicePixelRatio || 1;
+      const cr = cv.getBoundingClientRect(), z = cr.width ? W / cr.width : 1;
       if(cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)){ cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx!.clearRect(0, 0, W, H);
@@ -71,7 +73,8 @@ export function createFlaps(): { play(): void } {
       const asc = m.fontBoundingBoxAscent ?? fs * .9, desc = m.fontBoundingBoxDescent ?? fs * .25;
       const radius = fs * .065;
       cells.forEach((c, i) => {
-        const x = c.offsetLeft, y = c.offsetTop, w = c.offsetWidth, h = c.offsetHeight;
+        const b = c.getBoundingClientRect();
+        const x = (b.left - cr.left) * z, y = (b.top - cr.top) * z, w = b.width * z, h = b.height * z;
         const base = y + (h - asc - desc) / 2 + asc;
         const seq = seqs[i], n = (t - (START + i * STAGGER)) / STEP;
         const k = Math.max(0, Math.min(seq.length - 1, Math.floor(n))), turning = n > 0 && k < seq.length - 1;
@@ -103,10 +106,13 @@ export function createFlaps(): { play(): void } {
       if(!t0) t0 = now;
       const t = now - t0;
       if(t >= end){ stop(); return; }   // the last flap has landed: the real letters underneath take over
-      draw(t); raf = requestAnimationFrame(frame);
+      try { draw(t); } catch { stop(); return; }   // a frame that cannot be drawn leaves the real letters, never a stuck canvas
+      raf = requestAnimationFrame(frame);
     }
     // laid over the cells only once Young Serif is in, so the canvas never draws the letters in a fallback font
-    document.fonts.ready.then(() => { if(canvas !== cv) return; board.append(cv); draw(0); raf = requestAnimationFrame(frame); });
+    document.fonts.ready.then(() => { if(canvas !== cv) return; board.append(cv);
+      try { draw(0); } catch { stop(); return; }
+      raf = requestAnimationFrame(frame); });
   }
   return { play };
 }

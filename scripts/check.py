@@ -974,16 +974,26 @@ async def check_board_still(page):
 
 async def check_flaps(browser):
     """With motion, the board turns its flaps when the hero comes in (a canvas over the cells) and, once the last
-    flap lands, leaves the real h1 alone, in a desktop and a phone."""
+    flap lands, leaves the real h1 alone, in a desktop and a phone (at 3 device pixels per CSS pixel, like an
+    iPhone). The board keeps its size while they turn: a canvas that takes part in its layout made it grow with
+    its own pixels (10-10, seen on an iPhone)."""
     errs = []
-    for w, h in [(1440, 900), (390, 844)]:
-        page = await open_page(browser, viewport={"width": w, "height": h})
+    size = "(() => { const b = document.querySelector('.tauler').getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height)]; })()"
+    for w, h, dpr in [(1440, 900, 1), (390, 844, 3)]:
+        page = await open_page(browser, viewport={"width": w, "height": h}, device_scale_factor=dpr)
         jserr = []; page.on("pageerror", lambda e: jserr.append(str(e)))
         await page.goto(parity_url)
         try: await page.wait_for_function("document.querySelector('.tauler canvas')", timeout=60000)
         except Exception: errs.append(f"{w}x{h}: the board never turns its flaps"); await page.close(); continue
+        turning = []
+        for _ in range(4):
+            if not await page.evaluate("!!document.querySelector('.tauler canvas')"): break
+            turning.append(await page.evaluate(size)); await page.wait_for_timeout(150)
         try: await page.wait_for_function("!document.querySelector('.tauler canvas')", timeout=60000)
         except Exception: errs.append(f"{w}x{h}: the flaps never stop (the canvas stays over the board)")
+        still = await page.evaluate(size)
+        grown = [t for t in turning if abs(t[0] - still[0]) > 1 or abs(t[1] - still[1]) > 1]
+        if grown: errs.append(f"{w}x{h}: the board measures {grown[0][0]}x{grown[0][1]} while its flaps turn and {still[0]}x{still[1]} at rest")
         errs += [f"{w}x{h}: JS error: {e}" for e in jserr]
         await page.close()
     return errs

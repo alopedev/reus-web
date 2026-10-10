@@ -11,7 +11,9 @@
 .brand{ font-family:var(--serif); font-weight:400; margin:0; font-size:1em; line-height:1.32em; text-align:center;
   text-transform:uppercase; color:var(--paper); }
 .brand span{ display:block; }
-.tauler canvas{ width:100%; height:100%; }
+/* out of the grid: a canvas in it would size the board by its own pixels, and every frame that resizes them
+   (devicePixelRatio) would grow the board again */
+.tauler canvas{ position:absolute; inset:0; width:100%; height:100%; }
 /* the glass in front of the cells: a faint light on its upper half */
 .tauler::after{ content:''; position:absolute; inset:0 0 50%; border-radius:.07em .07em 0 0; pointer-events:none;
   background:linear-gradient(rgba(255,255,255,.09), rgba(255,255,255,0) 90%); }
