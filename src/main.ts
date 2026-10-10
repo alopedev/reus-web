@@ -6,6 +6,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { build3D } from './world';
 import { createTable } from './table';
 import { createScenery } from './scenery';
+import { createFlaps } from './flaps';
 import { setupTimetable } from './timetable';
 import { setupShelf, dropped, hingeAt } from './shelf';
 import { pair, state } from './letters';
@@ -27,7 +28,8 @@ scrollTo({top: 0, behavior: 'instant'});
 
 const world = build3D();
 const table = createTable();
-const scenery = createScenery(world);
+const flaps = createFlaps();
+const scenery = createScenery(world, flaps.play);
 // the weather at home: the window repaints when it changes (also the still frame of reduced motion, or paused)
 const weather = createWeather(w => { if(!world) return; world.setWeather(w); if(!scenery.isPlaying()) world.frame(0, 0, 1); });
 // the lines' notices: the board redraws its stamp when what is known changes
