@@ -119,8 +119,11 @@ export function measure(): void {
   dstFont = parseFloat(getComputedStyle(qe).fontSize) || 16;
   tableW = document.documentElement.clientWidth;
   hero.style.transform = heroT; shelf.style.transform = shelfT;
-  top.style.transform = topT; top.style.transition = topTr;
-  board.style.transform = boardT; board.style.transition = boardTr;
+  // transforms back while transitions are still off, flushed, and only then the transitions: restored together,
+  // .top would slide its 6 px back over a second, the board with it, and the wall could read it mid-slide
+  top.style.transform = topT; board.style.transform = boardT;
+  void top.offsetWidth;
+  top.style.transition = topTr; board.style.transition = boardTr;
   resetChips();
   measured = true;
 }
