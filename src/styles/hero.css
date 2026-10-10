@@ -85,6 +85,18 @@
    with a dot at every stop, placed by the time it reaches it; names above or below, like the ruler's */
 .big .w{ display:flex; align-items:center; }
 .big .lead{ flex:none; white-space:nowrap; }
+/* the live delay (option A, Àlex 10-10): the time struck by hand in orange and the new one beside it, like a station
+   board corrected; the arrival too. Cancelled: struck. On time: nothing. No live data yet: said, softly */
+#dep.tach{ position:relative; opacity:.62; }
+#dep.tach::after{ content:""; position:absolute; left:-4%; right:-4%; top:52%; height:.075em; background:#E8A35C; transform:rotate(-8deg);
+  box-shadow:.03em .03em 0 var(--shadow); border-radius:.05em; pointer-events:none;
+  -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:120px; mask-size:120px; }
+.big .nova{ font-family:var(--serif); font-weight:400; font-size:2.5rem; line-height:1; color:#E8A35C; text-shadow:.06em .06em 0 var(--shadow); margin-right:.35em; vertical-align:-.12em; }
+.big .mes{ color:#E8A35C; font-weight:700; }
+.big .gris{ color:var(--soft); opacity:.8; }
+.big .arr s{ font-size:.8em; opacity:.6; text-decoration-color:#E8A35C; text-decoration-thickness:.09em; margin-right:.25em; }
+.big .arr .nv{ color:#E8A35C; }
+.big .arr.off{ opacity:.5; }
 .rec{ position:relative; flex:1 1 0; min-width:0; height:1.5px; margin-left:1.4rem; }
 .rec.off{ visibility:hidden; }
 /* the line, solid; folded (a long train), solid up to the second stop (--a), dotted to the last but one (--b), solid
@@ -190,6 +202,9 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .info{ row-gap:.3rem; }
   .board{ column-gap:.6rem; }
   #dep{ font-size:3.2rem; } .trip .t{ font-size:1.2rem; } .trip .w{ font-size:.85rem; }
+  /* the live delay on a phone: the new time over the countdown, in the narrow column between the two times */
+  .big .w.viu{ display:flex; flex-direction:column; white-space:nowrap; line-height:1.08; }
+  .big .nova{ font-size:1.45rem; margin:0; vertical-align:baseline; }
   /* on a phone the board keeps only the times (6B, Àlex 06-10): every trip is a button ending in «›», the big one
      too, and opens its detail in a sheet (detail.ts). The «›» stands in a column of its own, so the arrivals still
      line up */
