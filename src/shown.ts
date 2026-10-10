@@ -13,11 +13,12 @@ import { lineNews, type Avisos } from './avisos';
 
 // a train on the ruler: today's, regionals and AVE together in order of departure; `on` is the train shown
 export type Mark = { dep: number, ave: boolean, on: boolean };
-// one trip of the board: the train shown (big) and the one after it
-// (`day`: the trip's own day, today's or tomorrow's, so that picking it keeps it)
 // where the train shown is now, by the timetable: how far along its trip (0 at departure, 1 at arrival) and in words
 export type Where = { at: number, words: string };
-export type Row = { dep: number, arr: number, line: string, ave: boolean, big: boolean, until: string, morrow: boolean, day: string };
+// one trip of the board: the train shown (big) and the one after it
+// (`day`: the trip's own day, today's or tomorrow's, so that picking it keeps it; `gone`: the train shown, picked,
+// has already left today, so the board says «ja ha sortit» where it would say «el pròxim»)
+export type Row = { dep: number, arr: number, line: string, ave: boolean, big: boolean, until: string, morrow: boolean, day: string, gone: boolean };
 interface Common {
   key: string; say: string;          // #aviso: what a screen reader hears, only when `key` changes
   label: string; note: string;       // #lbl, #note
@@ -78,7 +79,7 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   const isAveTrip = (t: Train) => aves.includes(t) || t === lastAve;
   const until = live ? dur(a[0]-now.min) : '';
   const rows = (next ? [a, next] : [a]).map(t => ({ dep: t[0], arr: t[1], line: t[3], ave: isAveTrip(t), big: t === a,
-    until: t === a ? until : '', morrow: !!lastAve && t !== lastAve, day: t === lastAve ? now.date : nextDay ? addDays(now.date, 1) : now.date }));
+    until: t === a ? until : '', gone: t === a && !tomorrow && a[0] < now.min, morrow: !!lastAve && t !== lastAve, day: t === lastAve ? now.date : nextDay ? addDays(now.date, 1) : now.date }));
   // the big train links to Renfe's search for its trip and day (the AVE's trip ends at Camp de Tarragona); its stops
   // are counted in a phone's sheet and drawn on a desktop's board
   const ends = isAve ? (ida ? [v.station, CAMP] : [CAMP, v.station]) : ida ? [v.station, v.town] : [v.town, v.station];

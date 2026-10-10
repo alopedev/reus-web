@@ -1588,7 +1588,8 @@ async def check_wagon(browser):
     its way («solo en marcha»): none for the next train, still to leave. Placed by the timetable, its middle at the
     share of the trip already gone, its wheels on the line; the name it would cover climbs over it, so no name is lost
     and none overlaps the wagon, another name or the window. On a phone, the train's sheet draws the same thing
-    simplified (option A): the line between its two ends with the wagon, and «Ara entre … i …» under it."""
+    simplified (option A): the line between its two ends with the wagon, and «Ara entre … i …» under it. The board
+    says «ja ha sortit» of a train shown that has left, where it says «el pròxim» of the next one."""
     errs, net, day = [], _net(), "2026-09-28"
     names, mins, d0, a0 = _stops(net, day, SANTS_ID, REUS_TOWN, 543)
     pts = [("Sants", d0)] + list(zip(names, mins)) + [("Reus", a0)]
@@ -1597,9 +1598,13 @@ async def check_wagon(browser):
     words = f"Ara a {pts[i][0]}" if pts[i][1] == now else f"Ara entre {pts[i][0]} i {pts[i + 1][0]}"
     share = (now - d0) / (a0 - d0)
     pick = "(() => { const t = document.getElementById('t'); t.value = 543; t.dispatchEvent(new Event('change')); })()"
+    lead = "document.querySelector('#board .trip.big .nx')?.textContent.trim()"
     page = await hero_page(browser)
     if (await page.evaluate(WAGON))["wagon"]: errs.append("the next train, still at Sants, has a wagon on its route")
+    if (t := await page.evaluate(lead)) != "el pròxim,": errs.append(f"the next train's board says «{t}», expected «el pròxim,»")
     await page.evaluate(pick); await page.wait_for_timeout(400)
+    # a train that has already left is not «el pròxim» (Àlex 10-10)
+    if (t := await page.evaluate(lead)) != "ja ha sortit": errs.append(f"the 09:03, gone at 10:00, says «{t}» on the board, expected «ja ha sortit»")
     j = await page.evaluate(WAGON)
     w = j["wagon"]
     if not w: errs.append("the 09:03, on its way at 10:00, has no wagon on its route")
