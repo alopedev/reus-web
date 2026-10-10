@@ -24,21 +24,6 @@ jobs:
       - run: npm run build
       - run: npm run build:paridad
       - run: python scripts/check.py
-      # TEMPORARY (removed in the commit that brings the references): the difference between each frame that
-      # no longer matches and the reference in the repo, printed to the log (zlib + base64, bytes mod 256)
-      - if: always()
-        run: |
-          python - <<'PY'
-          import base64, glob, zlib
-          from PIL import Image
-          for f in sorted(glob.glob('screenshots/*-distinto.png')):
-              name = f.split('/')[-1][:-len('-distinto.png')]
-              a = Image.open(f).convert('RGB'); b = Image.open(f'scripts/baseline/linux/{name}.png').convert('RGB')
-              d = bytes((x - y) % 256 for x, y in zip(a.tobytes(), b.tobytes()))
-              z = base64.b64encode(zlib.compress(d, 9)).decode()
-              print(f'DIFF {name} {a.size[0]}x{a.size[1]} {len(z)}')
-              for i in range(0, len(z), 4000): print(f'D {name} {i // 4000:05d} ' + z[i:i + 4000])
-          PY
       # the screenshots, and any reference frame written in this run, to review or commit
       - if: always()
         uses: actions/upload-artifact@v4
