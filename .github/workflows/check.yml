@@ -20,6 +20,7 @@ jobs:
           python-version: '3.12'
       - run: python scripts/check_datos.py   # the network timetable (data/red.json), in seconds
       - run: npm ci
+      - run: npm test             # the rules of which train is shown (src/shown.ts), in a second
       - run: pip install playwright pillow && python -m playwright install --with-deps chromium
       - run: npm run build
       - run: npm run build:paridad
