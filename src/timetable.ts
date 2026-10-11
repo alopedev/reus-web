@@ -1,5 +1,5 @@
 import { reduce, state } from './state';
-import { madridNow, lastDay, source, NET, bcnName, bcnShort } from './time';
+import { madridNow, firstDay, lastDay, source, NET, bcnName, bcnShort } from './time';
 import { shown, type Mark } from './shown';
 import { board } from './board';
 import { cut } from './paper';
@@ -15,6 +15,7 @@ import type { createWeather } from './weather';
 import { notices, type Avisos } from './avisos';
 import type { Retards } from './retards';
 import { stamp, heard, setupNotice, type Notice } from './notice';
+import { dateSpan } from './ca';
 
 // the hero's timetable: the next train, the ticket for the direction, the ruler of the day
 export function setupTimetable({ world, table, scenery, weather, avisos, retards }: { world: World | null, table: Table, scenery: Scenery, weather: ReturnType<typeof createWeather>, avisos: Avisos, retards: Retards }): { render(): void } {
@@ -169,9 +170,8 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   // on the minute, like the clock: the countdown, «ara» and the clock's hands move together (away from now too)
   const tick = () => { render(); setTimeout(tick, Math.max(1000, 60050 - Date.now() % 60000)); };
   setTimeout(tick, Math.max(1000, 60050 - Date.now() % 60000));
-  { const day = (iso: string) => new Date(iso+'T12:00:00Z').toLocaleDateString('ca-ES',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
-    byId('hasta').textContent = `Horaris fins al ${day(lastDay())}.`;
-    // Renfe's licence asks for its exact words, in Spanish (data.renfe.com/legal); the date that follows is ours
-    byId('fuente').textContent = `${source.fuente}. Dades del ${day(source.actualizado)}.`; }
+  // Renfe's licence asks for its exact words, in Spanish (data.renfe.com/legal); the rest is ours. The live delays
+  // (Renfe's real-time feed) and the weather (Open-Meteo) are CC BY 4.0
+  byId('fuente').textContent = `${source.fuente}. Horaris ${dateSpan(firstDay(), lastDay())}. Retards en directe: Renfe, CC BY 4.0. Temps: Open-Meteo, CC BY 4.0.`;
   return { render };
 }

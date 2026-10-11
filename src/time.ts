@@ -79,4 +79,5 @@ export function dayData(iso: string, town: string, station: string = SANTS): {d:
   return {d:{r:direct(day, station, town), b:direct(day, town, station), ar:ave ? direct(day, station, CAMP) : [], ab:ave ? direct(day, CAMP, station) : []}, exact};
 }
 // the last day the timetable covers
+export const firstDay = (): string => Object.keys(NET.dias).sort()[0];
 export const lastDay = (): string => Object.keys(NET.dias).sort().pop()!;

@@ -12,3 +12,14 @@ export function atPlace(n: string): string {
   if(/^Els? /.test(n)) return 'a' + n.slice(1);                       // «al Prat», «als …»
   return 'a ' + article(n);
 }
+
+// the days a timetable covers, in running text: «de l’11 al 24 d’octubre del 2026», «del 28 de setembre a l’1 d’octubre
+// del 2026»; the month and the year are said once when both days share them. 1 and 11 take «l’» (l’u, l’onze)
+const MONTHS = ['gener', 'febrer', 'març', 'abril', 'maig', 'juny', 'juliol', 'agost', 'setembre', 'octubre', 'novembre', 'desembre'];
+const ofMonth = (m: number): string => (vowel(MONTHS[m - 1]) ? 'd’' : 'de ') + MONTHS[m - 1];
+const day = (d: number, of: 'de' | 'a'): string => d === 1 || d === 11 ? `${of} l’${d}` : `${of === 'de' ? 'del' : 'al'} ${d}`;
+export function dateSpan(first: string, last: string): string {
+  const [y1, m1, d1] = first.split('-').map(Number), [y2, m2, d2] = last.split('-').map(Number);
+  const head = day(d1, 'de') + (m1 === m2 && y1 === y2 ? '' : ' ' + ofMonth(m1) + (y1 === y2 ? '' : ` del ${y1}`));
+  return `${head} ${day(d2, 'a')} ${ofMonth(m2)} del ${y2}`;
+}

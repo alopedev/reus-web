@@ -54,8 +54,9 @@ Rules checked:
      train shown changes (never on the 30 s refresh) and names its time; the ticket's arrows read «Canviar el sentit»; the recording shortcuts (R, P) work only with ?grabar in the URL; the
      «horari aproximat» note speaks impersonally. Modo rápido: `python3 scripts/check.py a11y`.
   14. The site reads the network timetable (data/red.json; the parity build, its frozen copy
-     scripts/baseline/red.json): the back of the ticket credits «Origen de los datos: Renfe Operadora» with the
-     date the data was updated, as Renfe's licence asks. Modo rápido: `python3 scripts/check.py red`.
+     scripts/baseline/red.json): the back of the ticket credits «Origen de los datos: Renfe Operadora», as Renfe's
+     licence asks, with the days the timetable covers, says the regionals' live delay shows and credits Renfe's live
+     feed and Open-Meteo (CC BY 4.0). Modo rápido: `python3 scripts/check.py red`.
   15. The hero B (docs/plan.md, 28-09): the site is called «Capacasa» (title and h1) with the subtitle «El tren cap
      a casa, i el de tornada a Barcelona». One ticket, «Bitllet · Sants ▶▶▷ Reus»: the three arrows turn the trip around
      (the route reads «Reus → Sants», the live region names the new train, the focus stays on them); the stub carries
@@ -919,7 +920,6 @@ async def check_red(browser):
     import json
     red = json.loads((root / "scripts/baseline/red.json").read_text()) if (root / "scripts/baseline/red.json").exists() else None
     if not red: return ["no frozen network timetable at scripts/baseline/red.json for the parity build"]
-    y, m, d = map(int, red["actualizado"].split("-"))
     page = await open_page(browser, viewport={"width": 1440, "height": 900}, reduced_motion="reduce")
     await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
     await page.goto(parity_url); await page.wait_for_timeout(1500)
@@ -927,8 +927,12 @@ async def check_red(browser):
     await page.close()
     errs = []
     if red["fuente"] not in text: errs.append(f"the back of the ticket does not credit «{red['fuente']}» (it reads «{text[-90:]}»)")
-    if catalan_date(y, m, d) not in text: errs.append(f"the back of the ticket does not give the data's update date, {catalan_date(y, m, d)}")
-    if "Open-Meteo" not in text: errs.append("the back of the ticket does not credit Open-Meteo for the weather (CC BY 4.0)")
+    # the days the frozen timetable covers (28-09 to 11-10), in one span since 11-10
+    if "Horaris del 28 de setembre a l’11 d’octubre del 2026." not in text: errs.append(f"the back of the ticket does not give the days the timetable covers (it reads «{text[-160:]}»)")
+    # the live delays show since the PR #45 (11-10): the back says so, and credits both CC BY 4.0 sources
+    if "retards no surten" in text or "retard en directe dels regionals" not in text: errs.append(f"the back of the ticket does not say the regionals' live delay shows («{text[:120]}»)")
+    for credit in ("Retards en directe: Renfe, CC BY 4.0.", "Temps: Open-Meteo, CC BY 4.0."):
+        if credit not in text: errs.append(f"the back of the ticket does not credit «{credit}»")
     return errs
 
 # the weather at home (08-10): Open-Meteo's answer → what the window paints. None: Open-Meteo fails (a 503)
@@ -2114,6 +2118,8 @@ def check_share(folder="dist"):
     m = Metas(); m.feed((root / folder / "index.html").read_text(encoding="utf-8")); t = m.tags
     out = [f"<meta> {k} is missing or empty" for k in ("description", "og:type", "og:title", "og:description", "og:url",
            "og:image", "og:image:width", "og:image:height", "og:image:alt", "twitter:card") if not t.get(k)]
+    # the image's tickets turn with three arrows since 09-10, not «⇄»: screen readers on LinkedIn and X read this
+    if "⇄" in t.get("og:image:alt", ""): out.append("og:image:alt still describes the tickets with «⇄» (they carry ▶▶▷ since 09-10)")
     if t.get("twitter:card") and t["twitter:card"] != "summary_large_image": out.append(f"twitter:card is {t['twitter:card']}, expected summary_large_image")
     img = t.get("og:image", "")
     if img and not img.startswith(SITE): out.append(f"og:image must be an absolute URL on {SITE} (crawlers don't resolve relative ones): {img}")
