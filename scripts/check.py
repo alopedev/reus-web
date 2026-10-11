@@ -1193,6 +1193,69 @@ async def check_flaps(browser):
         await page.close()
     return errs
 
+# the window's box on screen with a margin for the painted wobble of its edge, in CSS px
+WIN_BOX = """(() => { const r = document.getElementById('win').getBoundingClientRect(), m = 12;
+  return [Math.floor(r.left - m), Math.floor(r.top - m), Math.ceil(r.right + m), Math.ceil(r.bottom + m)]; })()"""
+
+# Date stands still at that instant, and every timer and frame runs as usual
+FIXED_DATE = """(() => { const at = Date.parse('%s'), D = Date;
+  window.Date = class extends D { constructor(...a){ super(...(a.length ? a : [at])); } static now(){ return at; } }; })()"""
+
+def wall_difference(a, b, box):
+    """How many pixels of the wall (everything but the window's box) differ between two screenshots, and by how much at most."""
+    a, b = Image.open(io.BytesIO(a)).convert("RGB"), Image.open(io.BytesIO(b)).convert("RGB")
+    d = ImageChops.difference(a, b).convert("L")
+    d.paste(0, tuple(box))
+    hist = d.histogram()
+    return sum(hist[9:]), max((v for v in range(256) if hist[v]), default=0)
+
+async def check_wall_kept(browser):
+    """Once painted, the wall stays as it is: each frame of the moving landscape repaints only the window (the
+    watercolour pass is most of the GPU's work, and outside the window nothing moves), and what the screen shows
+    of the wall is the same as a still frame at that hour. Also after the wall changes: a wash on the way to the
+    table and back, and another hour on the ruler (its light)."""
+    errs = []
+    for w, h, dpr in [(1440, 900, 1), (390, 844, 3)]:
+        tag = f"{w}x{h}"
+        still = await open_page(browser, viewport={"width": w, "height": h}, device_scale_factor=dpr, reduced_motion="reduce")
+        await still.clock.set_fixed_time("2026-09-28T08:00:00Z")
+        await still.goto(parity_url); await still.evaluate("document.fonts.ready")
+        page = await open_page(browser, viewport={"width": w, "height": h}, device_scale_factor=dpr)
+        await page.add_init_script(FIXED_DATE % "2026-09-28T08:00:00Z")   # page.clock blocks screenshots while the landscape runs
+        jserr = []; page.on("pageerror", lambda e: jserr.append(str(e)))
+        await page.goto(parity_url)
+        try: await page.wait_for_function("document.getElementById('stage').classList.contains('in') && !document.querySelector('.tauler canvas')", timeout=60000)
+        except Exception: errs.append(f"{tag}: the hero never comes in"); await still.close(); await page.close(); continue
+        await hero_settled(page); await page.wait_for_timeout(2500)
+        box = await page.evaluate(WIN_BOX)
+        area = (box[2] - box[0]) * (box[3] - box[1]) / (w * h)
+        shares = []
+        for _ in range(4): shares.append(await page.evaluate("window.reus.acuarela()")); await page.wait_for_timeout(400)
+        if max(shares) > min(.6, area * 1.3): errs.append(f"{tag}: once painted, each frame repaints {max(shares):.0%} of the screen (the window is {area:.0%})")
+        # only the painting is compared: the texts on the wall hide (the station clock's second hand turns with motion)
+        for pg in (page, still): await pg.add_style_tag(content="#stage{visibility:hidden!important}")
+        async def same_wall(when):
+            box = await page.evaluate(WIN_BOX)   # the board may have grown a line and moved the window
+            shot, ref = await page.screenshot(), await still.screenshot()
+            n, worst = wall_difference(shot, ref, [round(v * dpr) for v in box])
+            if n > 50:
+                d = ImageChops.difference(Image.open(io.BytesIO(shot)).convert("RGB"), Image.open(io.BytesIO(ref)).convert("RGB")).convert("L").point(lambda v: 255 if v > 8 else 0)
+                d.paste(80, tuple(round(v * dpr) for v in box)); bb = d.point(lambda v: 255 if v == 255 else 0).getbbox()
+                errs.append(f"{tag}: {when}, around {bb}, the wall differs from a still frame at that hour in {n} px (by up to {worst})")
+        await same_wall("moving")
+        # a wash on the way to the table, and back to the hero
+        await page.evaluate("scrollTo({top: innerHeight * .3, behavior: 'instant'})"); await page.wait_for_timeout(2000)
+        await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await page.wait_for_timeout(2500)
+        await same_wall("after a wash and back")
+        # another hour on the ruler: 23:00, another light on the wall
+        at_night = "(() => { const t = document.getElementById('t'); t.value = 1380; t.dispatchEvent(new Event('input', {bubbles: true})); })()"
+        await page.evaluate(at_night); await still.evaluate(at_night)
+        await page.wait_for_timeout(2500); await still.wait_for_timeout(1500)
+        await same_wall("at another hour")
+        errs += [f"{tag}: JS error: {e}" for e in jserr]
+        await still.close(); await page.close()
+    return errs
+
 # the board's box, and whether its CSS still paints a panel and cells over the wall
 TAULER_JS = """(() => { const t = document.querySelector('.tauler'), r = t.getBoundingClientRect();
   return {rect: [r.left, r.top, r.right, r.bottom], bg: getComputedStyle(t).backgroundColor,
@@ -1372,6 +1435,7 @@ async def check_hero(browser):
     errs += [f"board: {e}" for e in await check_board_steady(browser)]
     errs += [f"board: {e}" for e in await check_board_without_webgl(browser)]
     errs += [f"board: {e}" for e in await check_flaps_painted(browser)]
+    errs += [f"wall: {e}" for e in await check_wall_kept(browser)]
     errs += [f"light: {e}" for e in await check_daylight(browser)]
     errs += [f"weather: {e}" for e in await check_weather(browser)]
     errs += [f"foot: {e}" for e in await check_ruler_foot(browser)]

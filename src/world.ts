@@ -1,5 +1,5 @@
 import type { BufferGeometry } from 'three';
-import { BoxGeometry, Color, ColorManagement, ConeGeometry, CylinderGeometry, DirectionalLight, Float32BufferAttribute, Group, HemisphereLight, IcosahedronGeometry, InstancedMesh, LinearFilter, LinearSRGBColorSpace, Mesh, MeshPhongMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, RGBAFormat, Scene, ShaderMaterial, Vector2, Vector3, Vector4, WebGLRenderTarget, WebGLRenderer } from 'three';
+import { BoxGeometry, Color, ColorManagement, ConeGeometry, CylinderGeometry, DirectionalLight, Float32BufferAttribute, Group, HemisphereLight, IcosahedronGeometry, InstancedMesh, LinearFilter, LinearSRGBColorSpace, NearestFilter, Mesh, MeshPhongMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, RGBAFormat, Scene, ShaderMaterial, Vector2, Vector3, Vector4, WebGLRenderTarget, WebGLRenderer } from 'three';
 import { daylight, type Hour } from './light';
 import type { Weather } from './weather';
 import watercolorFrag from './shaders/watercolor.frag?raw';
@@ -12,6 +12,7 @@ export interface World {
   setWeather(w: Weather): void;                            // the weather at home, in the window (see weather.ts)
   grain(): number;                                         // px of the landscape per px of the window (check.py)
   snap(r: DOMRect): HTMLCanvasElement | null;              // a copy of the painting in that box of the viewport (flaps.ts)
+  painted(): number;                                       // share of the canvas the last watercolour pass painted (check.py)
 }
 // something scattered on the landscape: position, size, and turn around the vertical axis
 type Placement = [x: number, y: number, z: number, size: [number, number, number], turn?: number];
@@ -112,6 +113,16 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
   const postScene = new Scene(), postCam = new OrthographicCamera(-1,1,1,-1,0,1);
   postScene.add(new Mesh(new PlaneGeometry(2,2), post));
   const U = post.uniforms;
+  // the painting is kept in `kept` and copied to the screen. Outside the window nothing moves once the wall is
+  // painted (the wall, the board, the seats do not depend on the time of the landscape), and the watercolour pass
+  // is most of the GPU's work: so a frame repaints only the window's box, unless the wall itself changes (the
+  // paint-in, a wash, a new size or light). The copy is exact: nearest texels, the same 8 bits per channel
+  const kept = new WebGLRenderTarget(2, 2, {format:RGBAFormat, minFilter:NearestFilter, magFilter:NearestFilter, depthBuffer:false});
+  const copy = new ShaderMaterial({ uniforms:{ tKept:{value:kept.texture}, size:{value:new Vector2(2,2)} },
+    vertexShader:`void main(){ gl_Position=vec4(position.xy,0.,1.); }`,
+    fragmentShader:`uniform sampler2D tKept; uniform vec2 size; void main(){ gl_FragColor = texture2D(tKept, gl_FragCoord.xy/size); }` });
+  const copyScene = new Scene(); copyScene.add(new Mesh(new PlaneGeometry(2,2), copy));
+  let wallKept = false, share = 1;
   // the stacked hero (phones, portrait tablets; the same media query as hero.css) has a small window: its landscape
   // is painted twice as fine, since the brush strokes are sized in the target's pixels and would read as pixels there
   const STACKED = matchMedia('(max-width:700px), (max-aspect-ratio:4/5)');
@@ -123,6 +134,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     const W = Math.max(2, Math.round(cw*s)), H = Math.max(2, Math.round(ch*s));
     renderer.setPixelRatio(1); renderer.setSize(W, H, false);
     U.sres.value.set(W, H); U.aspect.value = W/H;
+    kept.setSize(W, H); copy.uniforms.size.value.set(W, H); wallKept = false;
     const win = document.getElementById('win')!, r = win.getBoundingClientRect();
     U.win.value.set(r.left/cw, 1-r.bottom/ch, r.right/cw, 1-r.top/ch);
     U.wrad.value = parseFloat(getComputedStyle(win).borderTopLeftRadius)/ch;
@@ -146,6 +158,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     const p = daylight(min);
     U.skyTop.value.set(...p.top); U.skyHor.value.set(...p.hor); U.sunCol.value.set(...p.sun); U.sunPos.value.set(...p.sunUV); U.sunA.value = p.glow;
     U.wallA.value.set(...p.wallA); U.wallB.value.set(...p.wallB); U.wood.value.set(...p.wood); U.seat.value.set(...p.seat);
+    wallKept = false;
     hemi.color.set(p.hemi[0]); hemi.groundColor.set(p.hemi[1]); hemi.intensity = p.hemi[2]*LUX;
     sun.color.set(p.dir[0]); sun.intensity = p.dir[1]*LUX; sun.position.set(...p.dir[2]);
     // Safari on iPhone paints the strip around the Dynamic Island in one flat colour, read at load: the top edge of
@@ -165,8 +178,25 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     const hx = -(((offset % RW)+RW) % RW); headlands[0].position.x = hx - RW/2; headlands[1].position.x = hx + RW/2;
     U.tq.value = time; U.reveal.value = reveal;
     renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, camera);
-    renderer.setRenderTarget(null); renderer.render(postScene, postCam);
+    paint();
     washed = true;
+  }
+  // the watercolour pass onto the screen. While the wall changes (painting in, a wash), all of it, straight to the
+  // screen; once it rests, all of it once into `kept`, then only the window's box, with a margin for the painted
+  // wobble of its edge (up to .003 of the screen) and its rounded corners
+  function paint(){
+    if(U.reveal.value < 1 || U.shade.value > 0){
+      wallKept = false; share = 1;
+      renderer.setRenderTarget(null); renderer.render(postScene, postCam); return;
+    }
+    const W = kept.width, H = kept.height, w = U.win.value, m = .006;
+    const x0 = Math.max(0, Math.floor((w.x - m)*W) - 2), y0 = Math.max(0, Math.floor((w.y - m)*H) - 2);
+    const x1 = Math.min(W, Math.ceil((w.z + m)*W) + 2), y1 = Math.min(H, Math.ceil((w.w + m)*H) + 2);
+    kept.scissorTest = wallKept; kept.scissor.set(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
+    share = wallKept ? (x1 - x0)*(y1 - y0)/(W*H) : 1;
+    renderer.setRenderTarget(kept); renderer.render(postScene, postCam);
+    wallKept = true;
+    renderer.setRenderTarget(null); renderer.render(copyScene, postCam);
   }
   // the wash follows the scroll directly (no smoothing of its own). It must show even when the loop is not
   // running (paused, or before the landscape starts), so it redraws just the post pass over the scene
@@ -174,8 +204,9 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
   // before the animation frames: when the loop paints in that same frame it already paints this wash, and a
   // second full-screen pass would only double the cost (washed: the latest wash is on screen)
   function setWash(foldY: number, shade: number){
+    if(U.foldY.value !== foldY || U.shade.value !== shade) wallKept = false;
     U.foldY.value = foldY; U.shade.value = shade; washed = false;
-    if(!washRaf) washRaf = requestAnimationFrame(() => { washRaf = 0; if(washed) return; renderer.setRenderTarget(null); renderer.render(postScene, postCam); washed = true; });
+    if(!washRaf) washRaf = requestAnimationFrame(() => { washRaf = 0; if(washed) return; paint(); washed = true; });
   }
   resize(); addEventListener('resize', resize);
   // 0 fair, 1 overcast, 2 rain (drops on the glass), 3 fog: the shader's wx
@@ -186,10 +217,10 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     const dpr = devicePixelRatio || 1, out = document.createElement('canvas');
     out.width = Math.max(1, Math.round(r.width*dpr)); out.height = Math.max(1, Math.round(r.height*dpr));
     const ctx = out.getContext('2d'); if(!ctx) return null;
-    renderer.setRenderTarget(null); renderer.render(postScene, postCam);
+    paint();
     const k = canvas.width / innerWidth;
     ctx.drawImage(canvas, r.left*k, r.top*k, r.width*k, r.height*k, 0, 0, out.width, out.height);
     return out;
   }
-  return {frame, setTime, resize, setWash, setWeather, grain: () => grain, snap};
+  return {frame, setTime, resize, setWash, setWeather, grain: () => grain, snap, painted: () => share};
 }
