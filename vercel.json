@@ -1,5 +1,13 @@
 {
   "regions": ["cdg1"],
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "reus-web.vercel.app" }],
+      "destination": "https://capacasa.alope.dev/$1",
+      "permanent": true
+    }
+  ],
   "headers": [
     {
       "source": "/assets/(.*)",

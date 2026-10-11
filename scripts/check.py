@@ -87,7 +87,8 @@ Usage: npm run build && npm run build:paridad && python3 scripts/check.py [parid
        (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute; a11y: only check 13; red: only check 14;
         hero: only check 15; mesa: only check 16; compartir: only check 17, in a second; pintado: only the one-paint-per-frame part of check 6)
 """
-import asyncio, functools, html.parser, http.server, io, os, pathlib, sys, threading
+import asyncio, functools, html.parser, http.server, io, json, os, pathlib, sys, threading
+import xml.etree.ElementTree as ET
 from PIL import Image, ImageChops, ImageStat
 from playwright.async_api import async_playwright
 
@@ -2103,15 +2104,24 @@ async def check_town_fit(browser):
         await page.close()
     return failures
 
-SITE = "https://reus-web.vercel.app/"
+SITE = "https://capacasa.alope.dev/"   # D1 (Àlex, 11-10): the site's address; reus-web.vercel.app sends here (vercel.json)
 def check_share(folder="dist"):
     """Check 17: the link preview's tags and image, read from the build (no browser needed)."""
     class Metas(html.parser.HTMLParser):
-        def __init__(self): super().__init__(); self.tags = {}
+        def __init__(self): super().__init__(); self.tags = {}; self.links = {}; self.icons = []; self.ld = False; self.data = []
         def handle_starttag(self, tag, attrs):
             a = dict(attrs)
             if tag == "meta" and (a.get("property") or a.get("name")): self.tags[a.get("property") or a.get("name")] = a.get("content") or ""
+            if tag == "link" and a.get("rel"): self.links[a["rel"]] = a.get("href") or ""
+            if tag == "link" and a.get("rel") in ("icon", "apple-touch-icon"): self.icons.append(a)
+            self.ld = tag == "script" and a.get("type") == "application/ld+json"
+        def handle_endtag(self, tag): self.ld = False
+        def handle_data(self, data):
+            if self.ld: self.data.append(data)
     m = Metas(); m.feed((root / folder / "index.html").read_text(encoding="utf-8")); t = m.tags
+    if m.links.get("canonical") != SITE: out_canon = [f"<link rel=canonical> is {m.links.get('canonical')!r}, expected {SITE}"]
+    else: out_canon = []
+    if t.get("og:url") and t["og:url"] != SITE: out_canon.append(f"og:url is {t['og:url']}, expected {SITE}")
     out = [f"<meta> {k} is missing or empty" for k in ("description", "og:type", "og:title", "og:description", "og:url",
            "og:image", "og:image:width", "og:image:height", "og:image:alt", "twitter:card") if not t.get(k)]
     if t.get("twitter:card") and t["twitter:card"] != "summary_large_image": out.append(f"twitter:card is {t['twitter:card']}, expected summary_large_image")
@@ -2125,7 +2135,45 @@ def check_share(folder="dist"):
             if (str(w), str(h)) != (t.get("og:image:width"), t.get("og:image:height")): out.append(f"og:image is {w}×{h}, the tags say {t.get('og:image:width')}×{t.get('og:image:height')}")
             if (w, h) != (1200, 630): out.append(f"og:image is {w}×{h}, expected 1200×630")
             if f.stat().st_size >= 1_000_000: out.append(f"og:image weighs {f.stat().st_size // 1000} kB, keep it under 1 MB")
-    return out
+    # search engines: robots.txt lets everything in and names the sitemap, which lists the one page
+    robots = root / folder / "robots.txt"
+    if not robots.is_file(): out.append(f"robots.txt is not in {folder}/ (put it in src/public/)")
+    else:
+        lines = [l.strip() for l in robots.read_text().splitlines()]
+        if "User-agent: *" not in lines or any(l.startswith("Disallow:") and l != "Disallow:" for l in lines): out.append("robots.txt must let every crawler in")
+        if f"Sitemap: {SITE}sitemap.xml" not in lines: out.append(f"robots.txt must name the sitemap, Sitemap: {SITE}sitemap.xml")
+    sitemap = root / folder / "sitemap.xml"
+    if not sitemap.is_file(): out.append(f"sitemap.xml is not in {folder}/ (put it in src/public/)")
+    else:
+        locs = [e.text for e in ET.parse(sitemap).getroot().iter("{http://www.sitemaps.org/schemas/sitemap/0.9}loc")]
+        if locs != [SITE]: out.append(f"sitemap.xml lists {locs}, expected [{SITE}]")
+    # the icon (opción A, Àlex 11-10: a flap of the name's board with its «C»): an SVG for the tab, /favicon.ico for
+    # browsers that ask for it on their own, and a 180 × 180 opaque PNG for a phone's home screen
+    svg = next((i for i in m.icons if i.get("rel") == "icon" and i.get("type") == "image/svg+xml"), None)
+    if not svg: out.append("no <link rel=icon type=image/svg+xml>")
+    elif not (root / folder / svg["href"].lstrip("/")).is_file(): out.append(f"the tab icon {svg['href']} is not in {folder}/")
+    ico = root / folder / "favicon.ico"
+    if not ico.is_file(): out.append(f"favicon.ico is not in {folder}/ (browsers ask for it on their own)")
+    elif 32 not in [s[0] for s in Image.open(ico).info.get("sizes", [])]: out.append(f"favicon.ico has no 32 × 32 picture ({Image.open(ico).info.get('sizes')})")
+    touch = next((i for i in m.icons if i.get("rel") == "apple-touch-icon"), None)
+    if not touch: out.append("no <link rel=apple-touch-icon>")
+    elif not (root / folder / touch["href"].lstrip("/")).is_file(): out.append(f"the home screen icon {touch['href']} is not in {folder}/")
+    else:
+        im = Image.open(root / folder / touch["href"].lstrip("/"))
+        if im.size != (180, 180): out.append(f"the home screen icon is {im.size[0]}×{im.size[1]}, expected 180×180")
+        if im.mode in ("RGBA", "LA") and im.getextrema()[-1][0] < 255: out.append("the home screen icon has see-through pixels (iOS paints them black)")
+    # structured data: what the site is, for search engines (schema.org WebApplication)
+    try: ld = [json.loads(d) for d in m.data]
+    except ValueError as e: ld = []; out.append(f"the JSON-LD block is not valid JSON: {e}")
+    app = next((d for d in ld if d.get("@type") == "WebApplication"), None)
+    if not app: out.append("no JSON-LD WebApplication in index.html")
+    else:
+        want = {"@context": "https://schema.org", "name": "Capacasa", "url": SITE, "inLanguage": "ca", "isAccessibleForFree": True}
+        out += [f"JSON-LD {k} is {app.get(k)!r}, expected {v!r}" for k, v in want.items() if app.get(k) != v]
+        if not app.get("description"): out.append("JSON-LD description is missing")
+        if (app.get("author") or {}).get("name") != "Àlex Olivé" or (app.get("author") or {}).get("url") != "https://alope.dev": out.append(f"JSON-LD author is {app.get('author')}, expected Àlex Olivé, https://alope.dev")
+        if (app.get("offers") or {}).get("price") not in ("0", 0): out.append(f"JSON-LD offers is {app.get('offers')}, expected a price of 0")
+    return out_canon + out
 
 PHONE = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), d = document.getElementById('detalle'), a = d.querySelector('.comprar');
   const q = a ? new URL(a.href).searchParams : null;
@@ -2273,6 +2321,26 @@ async def check_station(browser):
     await page.close()
     return errs
 
+async def check_own_fonts(browser):
+    """The two letters come from the site itself, not from Google Fonts (privacy, plan de lanzamiento §6): no request
+    leaves for fonts.googleapis.com or fonts.gstatic.com, and Young Serif and Literata 500/700 are loaded."""
+    errs = []
+    page = await open_page(browser, viewport={"width": 1440, "height": 900}, reduced_motion="reduce")
+    asked = []; page.on("request", lambda r: asked.append(r.url))
+    await page.clock.set_fixed_time("2026-09-28T08:00:00Z")   # 10:00 in Madrid
+    await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1500)
+    google = sorted({u.split("/")[2] for u in asked if "fonts.googleapis.com" in u or "fonts.gstatic.com" in u})
+    if google: errs.append(f"the page still asks {', '.join(google)} for its fonts")
+    # FontFace.weight is one weight ('500', 'normal') or a variable font's range ('200 900')
+    faces = await page.evaluate("""[...document.fonts].filter(f => f.status === 'loaded').map(f => [f.family.replace(/"/g, ''), f.weight])""")
+    def weights(w):
+        n = [{"normal": 400, "bold": 700}.get(x) or int(x) for x in w.split()]
+        return range(n[0], n[-1] + 1)
+    for family, weight in (("Young Serif", 400), ("Literata", 500), ("Literata", 700)):
+        if not any(f == family and weight in weights(w) for f, w in faces): errs.append(f"{family} {weight} is not loaded (loaded: {faces})")
+    await page.close()
+    return errs
+
 async def check_offline(browser):
     """17. Without a connection the site opens again, from what the first visit kept (src/sw.js)."""
     errs = []
@@ -2280,10 +2348,14 @@ async def check_offline(browser):
     page = await ctx.new_page(); page.set_default_timeout(120000)
     errors = []; page.on("pageerror", lambda e: errors.append(str(e)))
     await page.clock.set_fixed_time("2026-09-28T08:00:00Z")   # 10:00 in Madrid
+    # a visitor from before 11-10 keeps Google's fonts in a cache of their own: the fonts now come with each build,
+    # so that cache is dropped when the new worker takes over
+    await page.add_init_script("caches.open('capacasa-fuentes')")
     await page.goto(parity_url)
     try: await page.wait_for_function("navigator.serviceWorker && navigator.serviceWorker.controller !== null", timeout=60000)
     except Exception:
         errs.append("no offline worker takes over the page after the first visit"); await ctx.close(); return errs
+    if "capacasa-fuentes" in await page.evaluate("caches.keys()"): errs.append("the offline worker keeps the old cache of Google's fonts")
     kept = await page.evaluate("""(async () => { const k = (await caches.keys()).find(k => k.startsWith('capacasa-') && k !== 'capacasa-fuentes');
       return k ? (await (await caches.open(k)).keys()).map(r => new URL(r.url).pathname) : []; })()""")
     for f in ["/"] + [p for p in await page.evaluate("[...document.querySelectorAll('script[src], link[rel=stylesheet][href^=\"/\"]')].map(e => new URL(e.src || e.href).pathname)")]:
@@ -2293,6 +2365,10 @@ async def check_offline(browser):
         await page.reload(); await page.wait_for_timeout(1500)
         board = await page.evaluate("(() => ({dep: document.getElementById('dep')?.textContent || '', worker: !!navigator.serviceWorker.controller}))()")
         if board["dep"] != "10:03": errs.append(f"offline the board shows «{board['dep']}», expected the 10:03")
+        await page.evaluate("document.fonts.ready")
+        loaded = await page.evaluate("""[...document.fonts].filter(f => f.status === 'loaded').map(f => f.family.replace(/"/g, '') + ' ' + f.weight)""")
+        for face in ("Young Serif 400", "Literata 500", "Literata 700"):
+            if face not in loaded: errs.append(f"offline {face} is not loaded (loaded: {loaded})")
     except Exception as e: errs.append(f"offline the page does not open again ({str(e)[:80]})")
     errs += [f"JS error offline: {e}" for e in errors]
     await ctx.close()
@@ -2319,6 +2395,9 @@ async def main():
             failures += await check_table_at_load(browser)
             failures += await check_table_follows(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · mesa"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["fuentes"]:
+            failures += await check_own_fonts(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · fuentes"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["sinred"]:
             failures += await check_offline(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · sinred"); sys.exit(1 if failures else 0)
@@ -2381,6 +2460,7 @@ async def main():
         failures += [f"compartir: {e}" for e in check_share()]
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
         failures += [f"sinred: {e}" for e in await check_offline(browser)]
+        failures += [f"fuentes: {e}" for e in await check_own_fonts(browser)]
         failures += [f"red: {e}" for e in await check_red(browser)]
         failures += [f"hero: {e}" for e in await check_hero(browser)]
         failures += [f"mesa: {e}" for e in await check_table_at_load(browser)]

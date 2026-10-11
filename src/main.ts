@@ -1,3 +1,4 @@
+import './styles/fonts.css';
 import './styles/base.css';
 import './styles/hero.css';
 import './styles/table.css';
@@ -14,6 +15,7 @@ import { daylight } from './light';
 import { createWeather } from './weather';
 import { createAvisos } from './avisos';
 import { createRetards } from './retards';
+import { counted } from './visites';
 
 // the page always opens on the hero: the browser must not put back the last visit's scroll (Safari does on a reload
 // or a reopened tab). The native API, not ScrollTrigger.clearScrollMemory(): ScrollTrigger is only registered later,
@@ -55,6 +57,6 @@ if(import.meta.env.PROD && 'serviceWorker' in navigator)
   addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); }, {once: true});
 
 // visits (P1-4): Vercel Web Analytics, no cookies, page views only. Vercel serves the script once Analytics is
-// enabled for the project; nowhere else is it there, so neither check.py nor `npm run dev` asks for it
-if(import.meta.env.PROD && location.hostname.endsWith('.vercel.app'))
+// enabled for the project; nowhere else is it there, so neither check.py nor `npm run dev` asks for it (src/visites.ts)
+if(import.meta.env.PROD && counted(location.hostname))
   document.head.append(Object.assign(document.createElement('script'), {src: '/_vercel/insights/script.js'}));
