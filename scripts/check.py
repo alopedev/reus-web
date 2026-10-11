@@ -707,6 +707,27 @@ async def check_table_follows(browser):
         if settled["lienzo"] != fresh["lienzo"]: errs.append(f"{name}: the painted table stays {settled['lienzo']} after the papers settle; measured afresh it is {fresh['lienzo']}")
     return errs
 
+# counts the painted table's draws (its own WebGL context on #lienzo), from before the page's scripts run
+COUNT_TABLE_DRAWS = """(() => { window.__mesaDraws = 0; const draw = WebGLRenderingContext.prototype.drawArrays;
+  WebGLRenderingContext.prototype.drawArrays = function(...a){ if(this.canvas && this.canvas.id === 'lienzo') window.__mesaDraws++; return draw.apply(this, a); }; })()"""
+
+async def check_table_at_load(browser):
+    """At load the table is out of sight under the hero (the wall covers the screen until you scroll), yet it gets
+    painted then, while the landscape is being painted. Nobody can see it: it is painted at once, in a draw or two
+    (a second if the papers settle when the fonts arrive), never animated frame after frame alongside the landscape."""
+    errs = []
+    for name, (w, h) in {"1440x900": (1440, 900), "390x844": (390, 844)}.items():
+        page = await open_page(browser, viewport={"width": w, "height": h})
+        await page.add_init_script(COUNT_TABLE_DRAWS)
+        await page.goto(page_url)
+        try: await page.wait_for_function("document.getElementById('lienzo')?.dataset.pintada === '1'", timeout=12000)
+        except Exception: errs.append(f"{name}: the table never gets painted at load"); await page.close(); continue
+        await page.wait_for_timeout(5000)   # past the 3.4 s an animated paint-in would take
+        draws, y = await page.evaluate("[window.__mesaDraws, scrollY]"); await page.close()
+        if y: errs.append(f"{name}: the page scrolled to {y} on its own (the check proves nothing)"); continue
+        if draws > 2: errs.append(f"{name}: the hidden table is drawn {draws} times at load; painted at once it takes 1 or 2")
+    return errs
+
 async def check_still_window(browser):
     """With reduced motion the still frame is painted where #win is once the page is laid out (tickets and fonts in):
     at 10:00, the sky just inside the top of #win and the wall just above its painted frame look clearly different. A
@@ -2203,6 +2224,7 @@ async def main():
             failures += await check_hero(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · hero"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["mesa"]:
+            failures += await check_table_at_load(browser)
             failures += await check_table_follows(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · mesa"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["sinred"]:
@@ -2259,6 +2281,7 @@ async def main():
         failures += [f"sinred: {e}" for e in await check_offline(browser)]
         failures += [f"red: {e}" for e in await check_red(browser)]
         failures += [f"hero: {e}" for e in await check_hero(browser)]
+        failures += [f"mesa: {e}" for e in await check_table_at_load(browser)]
         failures += [f"mesa: {e}" for e in await check_table_follows(browser)]
         failures += [f"reduced: {e}" for e in await check_still_window(browser)]
         # reduced motion: a still frame and every paper already in place
