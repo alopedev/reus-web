@@ -2305,6 +2305,26 @@ async def check_station(browser):
     await page.close()
     return errs
 
+async def check_own_fonts(browser):
+    """The two letters come from the site itself, not from Google Fonts (privacy, plan de lanzamiento §6): no request
+    leaves for fonts.googleapis.com or fonts.gstatic.com, and Young Serif and Literata 500/700 are loaded."""
+    errs = []
+    page = await open_page(browser, viewport={"width": 1440, "height": 900}, reduced_motion="reduce")
+    asked = []; page.on("request", lambda r: asked.append(r.url))
+    await page.clock.set_fixed_time("2026-09-28T08:00:00Z")   # 10:00 in Madrid
+    await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1500)
+    google = sorted({u.split("/")[2] for u in asked if "fonts.googleapis.com" in u or "fonts.gstatic.com" in u})
+    if google: errs.append(f"the page still asks {', '.join(google)} for its fonts")
+    # FontFace.weight is one weight ('500', 'normal') or a variable font's range ('200 900')
+    faces = await page.evaluate("""[...document.fonts].filter(f => f.status === 'loaded').map(f => [f.family.replace(/"/g, ''), f.weight])""")
+    def weights(w):
+        n = [{"normal": 400, "bold": 700}.get(x) or int(x) for x in w.split()]
+        return range(n[0], n[-1] + 1)
+    for family, weight in (("Young Serif", 400), ("Literata", 500), ("Literata", 700)):
+        if not any(f == family and weight in weights(w) for f, w in faces): errs.append(f"{family} {weight} is not loaded (loaded: {faces})")
+    await page.close()
+    return errs
+
 async def check_offline(browser):
     """17. Without a connection the site opens again, from what the first visit kept (src/sw.js)."""
     errs = []
@@ -2312,10 +2332,14 @@ async def check_offline(browser):
     page = await ctx.new_page(); page.set_default_timeout(120000)
     errors = []; page.on("pageerror", lambda e: errors.append(str(e)))
     await page.clock.set_fixed_time("2026-09-28T08:00:00Z")   # 10:00 in Madrid
+    # a visitor from before 11-10 keeps Google's fonts in a cache of their own: the fonts now come with each build,
+    # so that cache is dropped when the new worker takes over
+    await page.add_init_script("caches.open('capacasa-fuentes')")
     await page.goto(parity_url)
     try: await page.wait_for_function("navigator.serviceWorker && navigator.serviceWorker.controller !== null", timeout=60000)
     except Exception:
         errs.append("no offline worker takes over the page after the first visit"); await ctx.close(); return errs
+    if "capacasa-fuentes" in await page.evaluate("caches.keys()"): errs.append("the offline worker keeps the old cache of Google's fonts")
     kept = await page.evaluate("""(async () => { const k = (await caches.keys()).find(k => k.startsWith('capacasa-') && k !== 'capacasa-fuentes');
       return k ? (await (await caches.open(k)).keys()).map(r => new URL(r.url).pathname) : []; })()""")
     for f in ["/"] + [p for p in await page.evaluate("[...document.querySelectorAll('script[src], link[rel=stylesheet][href^=\"/\"]')].map(e => new URL(e.src || e.href).pathname)")]:
@@ -2325,6 +2349,10 @@ async def check_offline(browser):
         await page.reload(); await page.wait_for_timeout(1500)
         board = await page.evaluate("(() => ({dep: document.getElementById('dep')?.textContent || '', worker: !!navigator.serviceWorker.controller}))()")
         if board["dep"] != "10:03": errs.append(f"offline the board shows «{board['dep']}», expected the 10:03")
+        await page.evaluate("document.fonts.ready")
+        loaded = await page.evaluate("""[...document.fonts].filter(f => f.status === 'loaded').map(f => f.family.replace(/"/g, '') + ' ' + f.weight)""")
+        for face in ("Young Serif 400", "Literata 500", "Literata 700"):
+            if face not in loaded: errs.append(f"offline {face} is not loaded (loaded: {loaded})")
     except Exception as e: errs.append(f"offline the page does not open again ({str(e)[:80]})")
     errs += [f"JS error offline: {e}" for e in errors]
     await ctx.close()
@@ -2351,6 +2379,9 @@ async def main():
             failures += await check_table_at_load(browser)
             failures += await check_table_follows(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · mesa"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["fuentes"]:
+            failures += await check_own_fonts(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · fuentes"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["sinred"]:
             failures += await check_offline(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · sinred"); sys.exit(1 if failures else 0)
@@ -2413,6 +2444,7 @@ async def main():
         failures += [f"compartir: {e}" for e in check_share()]
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
         failures += [f"sinred: {e}" for e in await check_offline(browser)]
+        failures += [f"fuentes: {e}" for e in await check_own_fonts(browser)]
         failures += [f"red: {e}" for e in await check_red(browser)]
         failures += [f"hero: {e}" for e in await check_hero(browser)]
         failures += [f"mesa: {e}" for e in await check_table_at_load(browser)]

@@ -13,6 +13,8 @@
     "check:datos": "python3 scripts/check_datos.py"
   },
   "dependencies": {
+    "@fontsource-variable/literata": "5.3.0",
+    "@fontsource/young-serif": "5.3.0",
     "gsap": "3.15.0",
     "three": "0.186.1"
   },

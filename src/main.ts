@@ -1,3 +1,4 @@
+import './styles/fonts.css';
 import './styles/base.css';
 import './styles/hero.css';
 import './styles/table.css';
