@@ -63,9 +63,16 @@
 .cuaderno li{ line-height:1.35; }
 .cuaderno li + li{ margin-top:.6rem; }
 .folleto{ grid-area:folleto; transform:rotate(-2.5deg); }
-.mini{ position:relative; height:7.4rem; margin:.25rem 0 1rem; background:#8B6F55; }
-.mini .w{ position:absolute; left:28%; top:12%; width:44%; height:56%; border:.3rem solid #4A3A2C; border-radius:.75rem; background:linear-gradient(#EAD9BF 55%, #4E7189 55% 64%, #CDB57E 64%); }
-.mini .n{ position:absolute; width:1.4rem; height:1.4rem; border-radius:50%; background:var(--shadow); color:var(--paper); font-size:.8rem; font-weight:700; line-height:1.4rem; text-align:center; }
+/* the leaflet's legend: each piece of the hero as on the wall, then what it does */
+.folleto .llegenda{ margin-top:.9rem; }
+.llegenda li{ display:grid; grid-template-columns:5.6rem 1fr; gap:.7rem; align-items:baseline; }
+.llegenda li + li{ margin-top:.45rem; }
+.llegenda .clau{ font-family:var(--serif); font-size:1.05rem; white-space:nowrap; }
+.llegenda .hora{ font-size:1.55rem; line-height:1; }
+.llegenda .pill{ font-size:.8rem; }
+.llegenda .fletxes{ display:inline-block; width:1.55em; height:.55em; vertical-align:.12em; }
+.llegenda .regla{ width:5.4rem; height:1.1rem; vertical-align:-.2rem; overflow:visible; }
+.llegenda .rellotge{ width:2rem; height:2rem; vertical-align:-.6rem; }
 .cuaderno{ grid-area:cuaderno; display:grid; grid-template-columns:1fr 1fr; transform:rotate(1deg); }
 .cuaderno .hoja{ position:relative; }
 .cuaderno .papel{ height:100%; padding:1.6rem 1.75rem; }

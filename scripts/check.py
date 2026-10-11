@@ -114,6 +114,13 @@ async def settle(page):
     except Exception: pass
     await page.wait_for_timeout(500)
 
+# «Com llegir-la» (Àlex 11-10, option C): what each piece of the hero means, in the words of both phone and desktop
+LEAFLET = ["El pròxim tren. D’aquí, a comprar-lo a Renfe.",
+           "Toca el poble o l’estació per canviar-los; les fletxes giren el sentit.",
+           "El de després. Toca’l per triar-lo.",
+           "El dia: cada ratlla, un tren; la boleta, el que mires; el taronja, ara.",
+           "Si mires un altre tren, et torna a ara."]
+
 async def check_shelf(page, name):
     """The shelf below the hero: the page scrolls (no written hint since 09-10: fewer words on the wall), the three
     paper objects, nothing sticking out sideways."""
@@ -135,7 +142,12 @@ async def check_shelf(page, name):
       const notebook = {items: items.length, bare: items.filter(li => !li.querySelector('.tec')).length,
         concepts: items.map(li => [...li.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim()),
         extra: [...document.querySelectorAll('#cuaderno .tachado, #cuaderno .lema, #cuaderno .izq h2, #cuaderno .izq li')].length};
-      return {missing, wide, sideways, notebook, heading: q('#qe') ? f(q('#qe')) : null, body: q('#repisa p') ? f(q('#repisa p')) : null};
+      // the leaflet is a legend (Àlex 11-10, option C): each line opens with the piece of the hero it explains, drawn
+      // as on the wall and hidden from the reader, who hears the words
+      const rows = [...document.querySelectorAll('#folleto li')];
+      const leaflet = {drawing: !!q('#folleto .mini'), keys: rows.filter(li => li.querySelector('.clau[aria-hidden="true"]')).length,
+        words: rows.map(li => li.querySelector('.que')?.textContent.trim())};
+      return {missing, wide, sideways, notebook, leaflet, heading: q('#qe') ? f(q('#qe')) : null, body: q('#repisa p') ? f(q('#repisa p')) : null};
     })()""")
     if shelf["missing"]: errs.append(f"shelf is missing {', '.join(shelf['missing'])}")
     if shelf["sideways"]: errs.append("the page scrolls sideways")
@@ -145,6 +157,9 @@ async def check_shelf(page, name):
     if nb["concepts"] != ["Un paisatge en 3D, pintat en directe", "Horaris de Renfe, al dia cada matí", "Provat a cada canvi"]:
         errs.append(f"the notebook lists {nb['concepts']}")
     if nb["extra"]: errs.append("the notebook still has crossed-out words, the motto or a second page of content")
+    lf = shelf["leaflet"]
+    if lf["drawing"] or lf["keys"] != len(LEAFLET) or lf["words"] != LEAFLET:
+        errs.append(f"the leaflet should be the legend of the hero's pieces ({lf['keys']} keys, drawing: {lf['drawing']}): {lf['words']}")
     try:
         await page.wait_for_function("document.getElementById('lienzo')?.dataset.pintada === '1'", timeout=12000)
         px = await page.evaluate("""(() => { const c = document.getElementById('lienzo'), g = c.getContext('webgl'), p = new Uint8Array(4);
