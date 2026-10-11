@@ -79,6 +79,18 @@
 .cuaderno .guarda{ display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; }
 .guarda b{ font-family:var(--serif); font-weight:400; font-size:1.6rem; color:#7A4B3A; transform:rotate(-2deg); }
 .guarda span{ margin-top:.4rem; font-size:.95rem; opacity:.7; }
+/* the owner's name on the inside of the cover (11-10): who made the site, a raised link to alope.dev and the privacy sheet */
+.guarda .firma{ margin:1.1rem 0 0; padding-top:1rem; border-top:1px solid rgba(45,36,28,.3); }
+.guarda .firma span{ display:block; margin:0; opacity:1; }
+.guarda .nom{ font:400 1.35rem/1.2 var(--serif); color:#7A4B3A; transform:rotate(-2deg); }
+.guarda .enllacos{ margin-top:.6rem !important; font-size:.93rem; word-spacing:.15em; }
+.guarda .enllacos a, .guarda .priv{ font:700 .93rem var(--texto); color:inherit; text-decoration:none; background:none; border:0; padding:.35rem 0;
+  cursor:pointer; text-shadow:var(--alzado-papel); }
+.guarda .enllacos a:hover, .guarda .priv:hover{ text-shadow:var(--alzado-papel-hover); }
+.guarda .enllacos a:active, .guarda .priv:active{ text-shadow:none; }
+.guarda .enllacos a:focus-visible, .guarda .priv:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; border-radius:.2rem; }
+.guarda .enllacos .sr{ position:absolute; }
+#privacitat .txt{ margin:0 0 .8rem; font:500 1.05rem/1.45 var(--texto); }
 .reverso{ grid-area:reverso; max-width:38.75rem; transform:rotate(-1.2deg); filter:drop-shadow(calc(.3rem * var(--lejos)) calc(.3rem * var(--caida)) 0 var(--tinta)); }
 .reverso .papel{ box-shadow:none; padding:1.25rem 2.1rem; clip-path:polygon(0 0,100% 0,100% 40%,98.4% 50%,100% 60%,100% 100%,0 100%,0 60%,1.6% 50%,0 40%); }
 .reverso .fuente{ margin-top:.5rem; font-size:.93rem; opacity:.8; }

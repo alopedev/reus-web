@@ -110,7 +110,9 @@
     </article>
 
     <article class="cuaderno vib b" id="cuaderno" aria-labelledby="h-hizo">
-      <div class="hoja izq"><div class="papel cara guarda" aria-hidden="true"><b>Llibre de viatge</b><span>De Barcelona a casa</span></div><div class="tapa" aria-hidden="true"><b>Llibre<br>de viatge</b><span>De Barcelona a casa</span></div></div>
+      <div class="hoja izq"><div class="papel cara guarda"><b aria-hidden="true">Llibre de viatge</b><span aria-hidden="true">De Barcelona a casa</span>
+        <p class="firma"><span class="nom">Àlex Olivé</span>
+          <span class="enllacos"><a href="https://alope.dev" target="_blank" rel="noopener">alope.dev ↗<span class="sr"> (s’obre en una altra pestanya)</span></a> · <button type="button" class="priv" aria-haspopup="dialog">Privacitat</button></span></p></div><div class="tapa" aria-hidden="true"><b>Llibre<br>de viatge</b><span>De Barcelona a casa</span></div></div>
       <div class="papel hoja der">
         <span class="kicker">Llibre de viatge · tècnica</span>
         <h2 id="h-hizo">Com s’ha fet</h2>
@@ -136,6 +138,13 @@
 </main>
 </div>
 <div id="letras" aria-hidden="true"></div>
+<!-- who gets what (11-10): opened from the signature on the inside of the notebook's cover -->
+<dialog id="privacitat" aria-labelledby="privH"><div class="sheet"><div class="pp"><button type="button" class="x" aria-label="Tancar">✕</button>
+  <h3 id="privH">Privacitat</h3>
+  <p class="txt">Sense cookies i sense registre.</p>
+  <p class="txt">La web s’allotja a Vercel, que compta les visites de manera anònima, i el temps de la finestra arriba d’Open-Meteo.</p>
+  <p class="qui">Àlex Olivé · <a class="mes" href="https://alope.dev" target="_blank" rel="noopener">alope.dev ↗<span class="sr"> (s’obre en una altra pestanya)</span></a></p>
+</div></div></dialog>
 <script type="module" src="./main.ts"></script>
 </body>
 </html>

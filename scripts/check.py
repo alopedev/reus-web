@@ -908,6 +908,41 @@ async def check_a11y(browser):
     await page.close()
     return errs
 
+async def check_firma(browser):
+    """The site is signed (11-10, option A of three): the inside of the notebook's cover carries «Àlex Olivé» with a
+    raised link to alope.dev (new tab) and a «Privacitat» button that opens a cut sheet, short (Àlex, 11-10): no cookies,
+    no sign-up, hosted on Vercel, the weather from Open-Meteo; Esc closes it and the focus goes back to the button. Claude is
+    not named on the page (D2). Desktop and phone. Modo rápido: `python3 scripts/check.py firma`."""
+    errs = []
+    for name, (w, h) in {"escritorio": (1440, 900), "movil": (390, 844)}.items():
+        page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce", has_touch=w < 600)
+        await page.goto(page_url); await page.wait_for_timeout(1500)
+        await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})"); await page.wait_for_timeout(1500)
+        g = await page.evaluate("""(() => { const g = document.querySelector('#cuaderno .guarda'); if(!g) return null;
+          const a = g.querySelector('a[href^="https://alope.dev"]'), b = g.querySelector('button.priv');
+          const hidden = el => !!el.closest('[aria-hidden="true"]');
+          return {text: g.textContent.replace(/\\s+/g, ' ').trim(), link: a && {tab: a.target === '_blank', hidden: hidden(a), shadow: getComputedStyle(a).textShadow},
+                  button: b && {hidden: hidden(b), text: b.textContent.trim()}, claude: /Claude/.test(document.body.innerText)}; })()""")
+        if not g: errs.append(f"{name}: the notebook has no inside cover"); await page.close(); continue
+        if "Àlex Olivé" not in g["text"]: errs.append(f"{name}: the inside cover is not signed «Àlex Olivé» («{g['text']}»)")
+        if "Fet per" in g["text"]: errs.append(f"{name}: the signature still says «Fet per» (Àlex, 11-10: just the name)")
+        if not g["link"]: errs.append(f"{name}: the signature has no link to alope.dev")
+        elif not g["link"]["tab"] or g["link"]["hidden"] or g["link"]["shadow"] == "none": errs.append(f"{name}: the alope.dev link should open a new tab, be heard and look raised ({g['link']})")
+        if g["claude"]: errs.append(f"{name}: the page names Claude (D2: only Àlex signs the site)")
+        if not g["button"] or g["button"]["text"] != "Privacitat" or g["button"]["hidden"]: errs.append(f"{name}: no «Privacitat» button on the inside cover ({g['button']})"); await page.close(); continue
+        await page.click("#cuaderno .guarda button.priv"); await page.wait_for_timeout(400)
+        d = await page.evaluate("""(() => { const d = document.getElementById('privacitat'); return d && {open: d.open, text: d.textContent.replace(/\\s+/g, ' ')}; })()""")
+        if not d or not d["open"]: errs.append(f"{name}: «Privacitat» does not open the #privacitat sheet")
+        else:
+            for words in ("Sense cookies", "Vercel", "Open-Meteo"):
+                if words not in d["text"]: errs.append(f"{name}: the privacy sheet does not mention {words}")
+            await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
+            back = await page.evaluate("[!document.getElementById('privacitat').open, document.activeElement?.matches('#cuaderno .guarda button.priv')]")
+            if back != [True, True]: errs.append(f"{name}: Esc should close the privacy sheet and give the focus back to its button ({back})")
+        await page.screenshot(path=str(shots / f"{name}-firma.png"))
+        await page.close()
+    return errs
+
 MONTHS = ["gener", "febrer", "març", "abril", "maig", "juny", "juliol", "agost", "setembre", "octubre", "novembre", "desembre"]
 
 def catalan_date(y, m, d):
@@ -2315,6 +2350,9 @@ async def main():
         if sys.argv[1:] == ["letras"]:
             failures += await check_letters_suite(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · letras"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["firma"]:
+            failures += await check_firma(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · firma"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["red"]:
             failures += await check_red(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · red"); sys.exit(1 if failures else 0)
@@ -2388,6 +2426,7 @@ async def main():
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
         failures += [f"sinred: {e}" for e in await check_offline(browser)]
         failures += [f"red: {e}" for e in await check_red(browser)]
+        failures += [f"firma: {e}" for e in await check_firma(browser)]
         failures += [f"hero: {e}" for e in await check_hero(browser)]
         failures += [f"mesa: {e}" for e in await check_table_at_load(browser)]
         failures += [f"mesa: {e}" for e in await check_table_follows(browser)]

@@ -14,6 +14,7 @@ import { daylight } from './light';
 import { createWeather } from './weather';
 import { createAvisos } from './avisos';
 import { createRetards } from './retards';
+import { setupPrivacy } from './privacy';
 
 // the page always opens on the hero: the browser must not put back the last visit's scroll (Safari does on a reload
 // or a reopened tab). The native API, not ScrollTrigger.clearScrollMemory(): ScrollTrigger is only registered later,
@@ -44,6 +45,7 @@ render();
 document.fonts && document.fonts.ready.then(()=> { if(!world) return; world.resize(); if(!scenery.isPlaying()) world.frame(0, 0, 1); });
 scenery.repaint();
 setupShelf(world);
+setupPrivacy();
 
 // what check.py reads from the page (modules keep everything else private)
 declare global { interface Window { reus: { hingeAt: typeof hingeAt, dropped: typeof dropped, ScrollTrigger: typeof ScrollTrigger, paisaje: () => number | null, playing: () => boolean, letras: { pair: typeof pair, state: typeof state }, daylight: typeof daylight, tiempo: () => string, avisos: () => unknown, acuarela: () => number | null } } }
