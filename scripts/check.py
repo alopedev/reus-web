@@ -2108,11 +2108,12 @@ SITE = "https://capacasa.alope.dev/"   # D1 (Àlex, 11-10): the site's address; 
 def check_share(folder="dist"):
     """Check 17: the link preview's tags and image, read from the build (no browser needed)."""
     class Metas(html.parser.HTMLParser):
-        def __init__(self): super().__init__(); self.tags = {}; self.links = {}; self.ld = False; self.data = []
+        def __init__(self): super().__init__(); self.tags = {}; self.links = {}; self.icons = []; self.ld = False; self.data = []
         def handle_starttag(self, tag, attrs):
             a = dict(attrs)
             if tag == "meta" and (a.get("property") or a.get("name")): self.tags[a.get("property") or a.get("name")] = a.get("content") or ""
             if tag == "link" and a.get("rel"): self.links[a["rel"]] = a.get("href") or ""
+            if tag == "link" and a.get("rel") in ("icon", "apple-touch-icon"): self.icons.append(a)
             self.ld = tag == "script" and a.get("type") == "application/ld+json"
         def handle_endtag(self, tag): self.ld = False
         def handle_data(self, data):
@@ -2146,6 +2147,21 @@ def check_share(folder="dist"):
     else:
         locs = [e.text for e in ET.parse(sitemap).getroot().iter("{http://www.sitemaps.org/schemas/sitemap/0.9}loc")]
         if locs != [SITE]: out.append(f"sitemap.xml lists {locs}, expected [{SITE}]")
+    # the icon (opción A, Àlex 11-10: a flap of the name's board with its «C»): an SVG for the tab, /favicon.ico for
+    # browsers that ask for it on their own, and a 180 × 180 opaque PNG for a phone's home screen
+    svg = next((i for i in m.icons if i.get("rel") == "icon" and i.get("type") == "image/svg+xml"), None)
+    if not svg: out.append("no <link rel=icon type=image/svg+xml>")
+    elif not (root / folder / svg["href"].lstrip("/")).is_file(): out.append(f"the tab icon {svg['href']} is not in {folder}/")
+    ico = root / folder / "favicon.ico"
+    if not ico.is_file(): out.append(f"favicon.ico is not in {folder}/ (browsers ask for it on their own)")
+    elif 32 not in [s[0] for s in Image.open(ico).info.get("sizes", [])]: out.append(f"favicon.ico has no 32 × 32 picture ({Image.open(ico).info.get('sizes')})")
+    touch = next((i for i in m.icons if i.get("rel") == "apple-touch-icon"), None)
+    if not touch: out.append("no <link rel=apple-touch-icon>")
+    elif not (root / folder / touch["href"].lstrip("/")).is_file(): out.append(f"the home screen icon {touch['href']} is not in {folder}/")
+    else:
+        im = Image.open(root / folder / touch["href"].lstrip("/"))
+        if im.size != (180, 180): out.append(f"the home screen icon is {im.size[0]}×{im.size[1]}, expected 180×180")
+        if im.mode in ("RGBA", "LA") and im.getextrema()[-1][0] < 255: out.append("the home screen icon has see-through pixels (iOS paints them black)")
     # structured data: what the site is, for search engines (schema.org WebApplication)
     try: ld = [json.loads(d) for d in m.data]
     except ValueError as e: ld = []; out.append(f"the JSON-LD block is not valid JSON: {e}")
