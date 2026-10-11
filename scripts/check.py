@@ -15,7 +15,8 @@ Rules checked:
      screen and bounces up a little; the wall's shade follows its angle, not the scroll.
      Each paper in the air casts its shadow farther and lighter than at rest; on the pinned table
      each paper starts falling before the previous one lands and the cover opens as the last one
-     settles. Scrolling back to the top undoes everything. While the table tilts in, its near edge (wider than the
+     settles. While the wall turns, the watercolour is painted once per frame, never twice (`check.py pintado`).
+     Scrolling back to the top undoes everything. While the table tilts in, its near edge (wider than the
      screen in perspective) never makes the page wider than the screen: a phone would zoom out and the hero, the
      table and the letters would drift apart (`check_drop_width`, also in `check.py letras`).
   7. The table is painted in watercolor once it arrives and carries its travel things
@@ -82,9 +83,9 @@ Rules checked:
 Also saves screenshots to screenshots/ for a visual review.
 
 Needs: pip install playwright && playwright install chromium
-Usage: npm run build && npm run build:paridad && python3 scripts/check.py [paridad|letras|a11y|red|hero|mesa]   (or: npm run check)
+Usage: npm run build && npm run build:paridad && python3 scripts/check.py [paridad|letras|a11y|red|hero|mesa|pintado]   (or: npm run check)
        (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute; a11y: only check 13; red: only check 14;
-        hero: only check 15; mesa: only check 16; compartir: only check 17, in a second)
+        hero: only check 15; mesa: only check 16; compartir: only check 17, in a second; pintado: only the one-paint-per-frame part of check 6)
 """
 import asyncio, functools, html.parser, http.server, io, os, pathlib, sys, threading
 from PIL import Image, ImageChops, ImageStat
@@ -327,6 +328,33 @@ async def check_wash(page, name):
     back = [brightness(img, near), brightness(img, far)]
     if max(abs(back[0] - base[0]), abs(back[1] - base[1])) > 10: errs.append(f"the wash leaves a trace back at the top ({base[0]:.0f}/{base[1]:.0f} → {back[0]:.0f}/{back[1]:.0f})")
     return errs
+
+# every draw onto the screen of the landscape's canvas (#gl), keyed by the frame it belongs to: the document
+# timeline's time stands still for the whole of one rendering update (scroll events, animation frames, observers)
+SCREEN_DRAWS = """window.__pasadas = [];
+for (const P of [WebGL2RenderingContext.prototype, WebGLRenderingContext.prototype]) for (const fn of ['drawElements', 'drawArrays']) {
+  const draw = P[fn];
+  P[fn] = function(...a) { if (this.canvas.id === 'gl' && !this.getParameter(this.FRAMEBUFFER_BINDING)) __pasadas.push(document.timeline.currentTime); return draw.apply(this, a); };
+}"""
+
+async def check_one_paint(page):
+    """While the wall turns away, the watercolour is painted once per frame: the landscape's loop paints it with
+    the wash it has, and the wash only paints on its own in a frame the loop leaves alone. Painted twice, every
+    frame of the transition costs a second full-screen pass of the most expensive shader (rendimiento, 11-10).
+    Needs SCREEN_DRAWS as an init script; the landscape must be moving (no reduced motion)."""
+    if not await page.evaluate("!!document.getElementById('gl')"): return []
+    await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await hinge_caught_up(page)
+    await page.evaluate("__pasadas = []")
+    for i in range(1, 25):
+        await page.evaluate(f"scrollTo({{top: reus.hingeAt(0) * {i / 30}, behavior: 'instant'}})")
+        await page.wait_for_timeout(120)
+    await hinge_caught_up(page); await page.wait_for_timeout(500)
+    frames = {}
+    for t in await page.evaluate("__pasadas"): frames[t] = frames.get(t, 0) + 1
+    twice = sum(1 for n in frames.values() if n > 1)
+    await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await hinge_caught_up(page)
+    if not frames: return ["no watercolour painted while the wall turns away"]
+    return [f"the watercolour is painted more than once in {twice} of {len(frames)} frames while the wall turns away"] if twice else []
 
 # --- Fase 3 · el viaje de letras (h1.brand -> h2#qe) --------------------------------------------------------
 # The pairing for the site's name: chip i is the i-th letter of NAME (source order is preserved on the wall side);
@@ -2230,6 +2258,14 @@ async def main():
         if sys.argv[1:] == ["sinred"]:
             failures += await check_offline(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · sinred"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["pintado"]:
+            for name, (w, h) in VIEWPORTS.items():
+                page = await open_page(browser, viewport={"width": w, "height": h})
+                await page.add_init_script(SCREEN_DRAWS)
+                await page.goto(page_url); await hero_settled(page)
+                failures += [f"{name}: {e}" for e in await check_one_paint(page)]
+                await page.close()
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · pintado"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["a11y"]:
             failures += await check_a11y(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · a11y"); sys.exit(1 if failures else 0)
@@ -2238,6 +2274,7 @@ async def main():
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · paridad"); sys.exit(1 if failures else 0)
         for name, (w, h) in VIEWPORTS.items():
             page = await open_page(browser, viewport={"width": w, "height": h})
+            await page.add_init_script(SCREEN_DRAWS)
             errors = []
             page.on("pageerror", lambda e: errors.append(str(e)))
             await page.goto(page_url)
@@ -2270,6 +2307,7 @@ async def main():
             failures += [f"{name}: {e}" for e in await check_rhythm(page)]
             failures += [f"{name}: {e}" for e in await check_overlap(page)]
             failures += [f"{name}: {e}" for e in await check_fall(page)]
+            failures += [f"{name}: {e}" for e in await check_one_paint(page)]
             failures += [f"{name}: {e}" for e in await check_wash(page, name)]
             failures += [f"{name}: {e}" for e in await check_backstage(page, name)]
             failures += [f"{name}: {e}" for e in await check_letters(page, name)]
