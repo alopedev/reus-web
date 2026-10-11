@@ -16,7 +16,7 @@ Rules checked:
   6. No duplicates: within the same day, no two trains share n, and no two trains are the same
      physical train under another number: two trains that stop at the same two or more stations,
      in the same order, leaving each within a minute of the other (the two Renfe feeds often
-     differ by a minute at one station, e.g. Passeig de Gràcia).
+     differ by a minute at one station, e.g. Passeig de Gràcia) — arriving, where either one ends.
   7. Stations: the Barcelona ones carry barcelona: true; every town carries a non-empty
      comarca and lineas; Camp de Tarragona (04104) carries lineas == ["AVE"] or including AVE.
   8. Coverage: at least the 74 towns with a direct train to Barcelona (by stops.txt name)
@@ -228,12 +228,16 @@ def check_duplicados(d):
                 bad.append(f"{day}: n={n!r} appears twice (trains #{seen_n[n]} and #{idx})")
             else:
                 seen_n[n] = idx
-            seq = {stop[0]: stop[2] for stop in t.get("s", []) if isinstance(stop, list) and len(stop) == 3}
+            seq = {stop[0]: stop[1:] for stop in t.get("s", []) if isinstance(stop, list) and len(stop) == 3}
             order = [stop[0] for stop in t.get("s", []) if isinstance(stop, list) and len(stop) == 3]
             for other, (oseq, oorder) in seen_seq.items():
                 shared = [x for x in order if x in oseq]
+                # where either train ends, compare the arrival: the other may wait there and go on
+                # (the R16 18055 ends at Tortosa; the same train, as 18189, waits 8 min for Ulldecona)
+                ends = {order[-1], oorder[-1]} if order and oorder else set()
+                when = lambda times, x: times[x][0 if x in ends else 1]
                 if len(shared) >= 2 and shared == [x for x in oorder if x in seq] \
-                        and all(abs(seq[x] - oseq[x]) <= 1 for x in shared):
+                        and all(abs(when(seq, x) - when(oseq, x)) <= 1 for x in shared):
                     bad.append(f"{day}: trains #{other} (n={trenes[other].get('n')!r}) and #{idx} (n={n!r}) "
                                f"leave {len(shared)} shared stations within a minute of each other — same physical train")
             seen_seq[idx] = (seq, order)
