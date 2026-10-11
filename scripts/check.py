@@ -621,6 +621,16 @@ async def check_motion(page, name, reduced=False):
         if abs(sh["x"] - sh["rest"]) > 1 or sh["a"] < .99: errs.append(f"the {paper}'s shadow is not at rest at the end ({sh['x']:.1f} px at {sh['a']:.2f}, rest {sh['rest']:.1f} px)")
     return errs
 
+# the departure board's cells never overlap (on a 320 px phone the big time ran over «en 13 min · sense dades» and its arrow)
+BOARD_OVERLAP = """(() => { const errs = [];
+  // the ink, not the grid cell: a cell that does not wrap spills out of its box
+  const ink = el => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect(); };
+  document.querySelectorAll('#board .trip').forEach(row => { const cells = [...row.children].filter(c => ink(c).width);
+    cells.forEach((a, i) => cells.slice(i + 1).forEach(b => { const x = ink(a), y = ink(b);
+      // a line's box is taller than its letters: stacked cells (the AVE's «fins a Camp de Tarragona» under its arrival) share 3 px
+      if(Math.min(x.right, y.right) - Math.max(x.left, y.left) > 4 && Math.min(x.bottom, y.bottom) - Math.max(x.top, y.top) > 4)
+        errs.push(`board cells overlap: «${a.textContent.trim()}» and «${b.textContent.trim()}»`); })); });
+  return errs; })()"""
 SIZES = {"320x568": (320, 568), "360x740": (360, 740), "390x844": (390, 844), "430x932": (430, 932), "768x1024": (768, 1024), "1000x1300": (1000, 1300),
          "1024x768": (1024, 768), "1280x720": (1280, 720), "1366x768": (1366, 768), "1440x900": (1440, 900), "1920x1080": (1920, 1080), "2560x1440": (2560, 1440)}
 FIT = """(() => {
@@ -643,6 +653,7 @@ FIT = """(() => {
     const low = Math.max(...[...document.querySelectorAll('.tk')].map(t => t.getBoundingClientRect().bottom));
     if(low > win.top - .022 * innerHeight - 4) errs.push(`a ticket touches the window's frame (${Math.round(low)} vs frame at ${Math.round(win.top - .022 * innerHeight)})`);
   }
+  errs.push(...""" + BOARD_OVERLAP + """);
   const pages = [...document.querySelectorAll('.cuaderno .hoja')].map(h => h.offsetWidth); if(Math.min(...pages) < 240) errs.push(`notebook page only ${Math.min(...pages)} px wide`);
   const esc = q('.escena'), mesa = q('.mesa');
   if(getComputedStyle(esc).position === 'sticky' && mesa.offsetTop + mesa.offsetHeight > esc.clientHeight - 40)
@@ -1047,6 +1058,11 @@ async def check_retards(browser):
         if kind == "ontime" and r["sheet"] and ("retard" in r["sheet"].lower() or "sense dades" in r["sheet"]): errs.append(f"phone, on time: the sheet says «{r['sheet']}»")
         if kind == "late": await page.screenshot(path=str(shots / "retard-movil-hoja.png"))
         await page.close()
+    # the narrowest phone: whatever the live delay writes beside the big time fits beside it
+    for kind in RETARDS:
+        page = await retards_page(browser, kind, 320, 568)
+        errs += [f"320 px, {kind}: {e}" for e in await page.evaluate(BOARD_OVERLAP)]
+        await page.screenshot(path=str(shots / f"retard-movil320-{kind}.png")); await page.close()
     return errs
 
 SUBTITLE = "El tren cap a casa, i el de tornada a Barcelona"
