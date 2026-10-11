@@ -627,8 +627,9 @@ BOARD_OVERLAP = """(() => { const errs = [];
   const ink = el => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect(); };
   document.querySelectorAll('#board .trip').forEach(row => { const cells = [...row.children].filter(c => ink(c).width);
     cells.forEach((a, i) => cells.slice(i + 1).forEach(b => { const x = ink(a), y = ink(b);
-      // a line's box is taller than its letters: stacked cells (the AVE's «fins a Camp de Tarragona» under its arrival) share 3 px
-      if(Math.min(x.right, y.right) - Math.max(x.left, y.left) > 4 && Math.min(x.bottom, y.bottom) - Math.max(x.top, y.top) > 4)
+      // a line's box is taller than its letters: stacked cells (the AVE's «fins a Camp de Tarragona» under its arrival) share
+      // a sliver that grows with the root (3 px at 1440, 5 at 2560), so they must share a third of the shorter one to collide
+      if(Math.min(x.right, y.right) - Math.max(x.left, y.left) > 4 && Math.min(x.bottom, y.bottom) - Math.max(x.top, y.top) > Math.min(x.height, y.height) / 3)
         errs.push(`board cells overlap: «${a.textContent.trim()}» and «${b.textContent.trim()}»`); })); });
   return errs; })()"""
 SIZES = {"320x568": (320, 568), "360x740": (360, 740), "390x844": (390, 844), "430x932": (430, 932), "768x1024": (768, 1024), "1000x1300": (1000, 1300),
