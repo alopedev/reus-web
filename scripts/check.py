@@ -88,7 +88,7 @@ Usage: npm run build && npm run build:paridad && python3 scripts/check.py [parid
        (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute; a11y: only check 13; red: only check 14;
         hero: only check 15; mesa: only check 16; compartir: only check 17, in a second; pintado: only the one-paint-per-frame part of check 6)
 """
-import asyncio, functools, html.parser, http.server, io, os, pathlib, sys, threading
+import asyncio, functools, html.parser, http.server, io, os, pathlib, re, sys, threading
 from PIL import Image, ImageChops, ImageStat
 from playwright.async_api import async_playwright
 
@@ -1449,7 +1449,7 @@ async def check_hero(browser):
     errs = []
     page = await hero_page(browser)
     got = await page.evaluate("({title: document.title, name: document.querySelector('.brand').textContent.trim(), sub: document.querySelector('.sub').textContent.trim()})")
-    if got["title"] != NAME: errs.append(f"the page's title is «{got['title']}», expected «{NAME}»")
+    if not got["title"].startswith(NAME + " - "): errs.append(f"the page's title is «{got['title']}», expected «{NAME} - …»")
     if got["name"] != NAME: errs.append(f"the name on the wall is «{got['name']}», expected «{NAME}»")
     if got["sub"] != SUBTITLE: errs.append(f"the subtitle is «{got['sub']}», expected «{SUBTITLE}»")
     errs += await check_hero_ticket(page)
@@ -2147,6 +2147,8 @@ async def check_town_fit(browser):
     return failures
 
 SITE = "https://reus-web.vercel.app/"
+TITLE = "Capacasa - D’un cop d’ull trobes el proper tren i compres el bitllet"
+DESCRIPTION = "Tornes a casa? D’un cop d’ull veus quan surt el pròxim tren entre Barcelona i el teu poble, si va amb retard, i el compres a Renfe."
 def check_share(folder="dist"):
     """Check 17: the link preview's tags and image, read from the build (no browser needed)."""
     class Metas(html.parser.HTMLParser):
@@ -2159,6 +2161,11 @@ def check_share(folder="dist"):
            "og:image", "og:image:width", "og:image:height", "og:image:alt", "twitter:card") if not t.get(k)]
     # the image's tickets turn with three arrows since 09-10, not «⇄»: screen readers on LinkedIn and X read this
     if "⇄" in t.get("og:image:alt", ""): out.append("og:image:alt still describes the tickets with «⇄» (they carry ▶▶▷ since 09-10)")
+    # the tab and the search result (Àlex, 11-10); the description, close, for Google and the preview alike
+    title = re.search(r"<title>(.*?)</title>", (root / folder / "index.html").read_text(encoding="utf-8"), re.S)
+    if not title or title.group(1) != TITLE: out.append(f"<title> reads «{title and title.group(1)}», expected «{TITLE}»")
+    for k in ("description", "og:description"):
+        if t.get(k) != DESCRIPTION: out.append(f"<meta> {k} reads «{t.get(k)}», expected «{DESCRIPTION}»")
     if t.get("twitter:card") and t["twitter:card"] != "summary_large_image": out.append(f"twitter:card is {t['twitter:card']}, expected summary_large_image")
     img = t.get("og:image", "")
     if img and not img.startswith(SITE): out.append(f"og:image must be an absolute URL on {SITE} (crawlers don't resolve relative ones): {img}")
