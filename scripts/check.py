@@ -132,13 +132,17 @@ async def check_shelf(page, name):
       // the notebook opens onto one page: each concept with the technology behind it, nothing crossed out, no motto
       const items = [...document.querySelectorAll('#cuaderno .der li')];
       const notebook = {items: items.length, bare: items.filter(li => !li.querySelector('.tec')).length,
+        concepts: items.map(li => [...li.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim()),
         extra: [...document.querySelectorAll('#cuaderno .tachado, #cuaderno .lema, #cuaderno .izq h2, #cuaderno .izq li')].length};
       return {missing, wide, sideways, notebook, heading: q('#qe') ? f(q('#qe')) : null, body: q('#repisa p') ? f(q('#repisa p')) : null};
     })()""")
     if shelf["missing"]: errs.append(f"shelf is missing {', '.join(shelf['missing'])}")
     if shelf["sideways"]: errs.append("the page scrolls sideways")
     nb = shelf["notebook"]
-    if nb["items"] != 4 or nb["bare"]: errs.append(f"the notebook's page should list 4 concepts, each with its technology ({nb['items']} listed, {nb['bare']} without one)")
+    # three concepts since 11-10 (Àlex): the landscape, the daily timetable and the checks, each with what makes it
+    if nb["items"] != 3 or nb["bare"]: errs.append(f"the notebook's page should list 3 concepts, each with its technology ({nb['items']} listed, {nb['bare']} without one)")
+    if nb["concepts"] != ["Un paisatge en 3D, pintat en directe", "Horaris de Renfe, al dia cada matí", "Provat a cada canvi"]:
+        errs.append(f"the notebook lists {nb['concepts']}")
     if nb["extra"]: errs.append("the notebook still has crossed-out words, the motto or a second page of content")
     try:
         await page.wait_for_function("document.getElementById('lienzo')?.dataset.pintada === '1'", timeout=12000)
