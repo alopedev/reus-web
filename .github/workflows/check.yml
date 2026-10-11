@@ -34,3 +34,6 @@ jobs:
             screenshots/
             scripts/baseline/linux/
           if-no-files-found: ignore
+      # TEMPORARY (launch texts): print the Linux reference frames this run wrote, to commit them; removed in that commit
+      - if: always()
+        run: for f in scripts/baseline/linux/escritorio-mesa.png scripts/baseline/linux/movil-hero.png; do [ -f "$f" ] && { echo "BEGIN $f"; base64 -w 0 "$f"; echo; echo "END $f"; }; done; true
