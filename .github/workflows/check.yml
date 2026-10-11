@@ -34,6 +34,3 @@ jobs:
             screenshots/
             scripts/baseline/linux/
           if-no-files-found: ignore
-      # TEMPORARY (leaflet legend): print the Linux reference frame this run wrote, to commit it; removed in that commit
-      - if: always()
-        run: f=scripts/baseline/linux/escritorio-mesa.png; [ -f "$f" ] && { echo "BEGIN $f"; base64 -w 0 "$f"; echo; echo "END $f"; }; true
