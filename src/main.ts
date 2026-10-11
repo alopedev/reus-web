@@ -46,8 +46,8 @@ scenery.repaint();
 setupShelf(world);
 
 // what check.py reads from the page (modules keep everything else private)
-declare global { interface Window { reus: { hingeAt: typeof hingeAt, dropped: typeof dropped, ScrollTrigger: typeof ScrollTrigger, paisaje: () => number | null, playing: () => boolean, letras: { pair: typeof pair, state: typeof state }, daylight: typeof daylight, tiempo: () => string, avisos: () => unknown } } }
-window.reus = { hingeAt, dropped, ScrollTrigger, paisaje: () => world ? world.grain() : null, playing: scenery.isPlaying, letras: { pair, state }, daylight, tiempo: weather.now, avisos: avisos.now };
+declare global { interface Window { reus: { hingeAt: typeof hingeAt, dropped: typeof dropped, ScrollTrigger: typeof ScrollTrigger, paisaje: () => number | null, playing: () => boolean, letras: { pair: typeof pair, state: typeof state }, daylight: typeof daylight, tiempo: () => string, avisos: () => unknown, acuarela: () => number | null } } }
+window.reus = { hingeAt, dropped, ScrollTrigger, paisaje: () => world ? world.grain() : null, playing: scenery.isPlaying, letras: { pair, state }, daylight, tiempo: weather.now, avisos: avisos.now, acuarela: () => world ? world.painted() : null };
 
 // without a connection the site still opens, with the timetable it was built with (src/sw.js); only the built site
 // has the worker, not `npm run dev`
