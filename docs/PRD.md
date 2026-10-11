@@ -94,7 +94,7 @@ Ordenadas por prioridad.
 | P0-8 | Contexto en el hero | «Capacasa» y el subtítulo «El tren a casa, y de vuelta a Barcelona» visibles sin scroll; hero según el prototipo B revisado (ver `docs/plan.md`) | Hecho en 3.2 |
 | P0-9 | Identidad visual aprobada | Vagón y paisaje en acuarela; el paisaje se pinta al abrir y después el tren arranca; la luz sigue la hora elegida | Hecho |
 | P0-10 | Reglas de diseño | Dos fuentes como máximo; sin bloques blancos; el nombre nunca pisa la ventanilla (verificado por `scripts/check.py`) | Hecho |
-| P0-11 | Accesibilidad AA | Controles accesibles con teclado y foco visible; `prefers-reduced-motion` da un fotograma fijo; el lector de pantalla solo oye el cambio de tren; sin atajos de una tecla para el público | Hecho en parte; barra de Safari sobre el pie del hero y contraste de la regla resueltos el 09-10; pendientes: `<title>`, landmark del hero, reflow a 320 px |
+| P0-11 | Accesibilidad AA | Controles accesibles con teclado y foco visible; `prefers-reduced-motion` da un fotograma fijo; el lector de pantalla solo oye el cambio de tren; sin atajos de una tecla para el público | Hecho: barra de Safari sobre el pie del hero y contraste de la regla (09-10); el hero es una región con nombre («Pròxims trens») y la web se comprueba a 320 px sin scroll lateral (11-10) |
 | P0-12 | Secciones con scroll | Debajo del hero: qué es, cómo leerla, cómo se hizo, datos y límites | Hecho (La repisa); textos por generalizar |
 | P0-13 | Nombre definitivo | «Capacasa», aplicado en título, cabecera y publicaciones; recalibrar el viaje de letras (hoy diseñado con «Nombre») | Hecho en 3.2 |
 | P0-14 | Elegir tu pueblo | En la primera visita se elige el pueblo sin teclado, en tres toques como máximo, entre las estaciones con tren directo a Barcelona; el selector vive en los billetes | Hecho en 3.3: el pueblo del billete abre un selector (corredor → estación) en tres toques, entre unos 70 pueblos (71 en el horario del 28-09) |
@@ -109,7 +109,7 @@ Ordenadas por prioridad.
 | ID | Requisito | Criterios de aceptación | Estado |
 |---|---|---|---|
 | P1-1 | Horarios siempre al día | Una tarea diaria regenera los horarios sin intervención | Hecho (`horarios.yml`) |
-| P1-2 | Avisos de datos | Aviso a Àlex si la descarga falla, si salen cero trenes o muchos menos de lo normal, o si los datos caducan en pocos días (el feed regional dura un mes) | En parte: email si falla; no se publica si un día pierde más de la mitad de los trenes de una línea (08-10). Falta avisar de la caducidad |
+| P1-2 | Avisos de datos | Aviso a Àlex si la descarga falla, si salen cero trenes o muchos menos de lo normal, o si los datos caducan en pocos días (el feed regional dura un mes) | Hecho: email si falla; no se publica si un día pierde más de la mitad de los trenes de una línea (08-10); el trabajo `caducidad` de `horarios.yml` falla cada día, con la fecha, cuando a la web le quedan 7 días de horario o menos (11-10) |
 | P1-3 | Publicación gratuita | La web vive fuera de claude.ai con coste cero | Hecho (Vercel) |
 | P1-4 | Medición de visitas | Contador sencillo y respetuoso con la privacidad para saber si se llega a 10 visitantes al mes | Hecho (08-10): Vercel Web Analytics, sin cookies; solo páginas vistas y 1 mes de histórico en el plan gratuito |
 
