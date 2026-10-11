@@ -1582,35 +1582,6 @@ KNOWN_ORDER = {
     "R16": {"main": ["71500", "65422", "65405"], "ramal": None},                    # Tarragona, Cambrils, L'Ametlla de Mar · ramal is Salou-Port Aventura alone
 }
 
-def hhmm(m):
-    m = m % 1440
-    return f"{m // 60:02d}:{m % 60:02d}"
-
-def board_row(line, dep, arr, which, soon=None, camp=None):
-    """Text of one #board .trip once whitespace is collapsed (mirrors timetable.ts's trip()): «el pròxim» (with its
-    countdown) or «després», and under an AVE's arrival «fins a/des de Camp de Tarragona»."""
-    bits = [line, hhmm(dep), which + (f", {soon}" if soon else ""), f"→ {hhmm(arr)}"]
-    if camp: bits.append(f"{camp} Camp de Tarragona")
-    return " ".join(bits)
-
-def two_rows(trains, now, camp=None):
-    """The board for a list of trains in order of departure: the first is «el pròxim» with its countdown, the
-    second «després»."""
-    return [board_row(t[2], t[0], t[1], "el pròxim" if i == 0 else "després", soon=(f"en {t[0] - now} min" if i == 0 else None),
-                      camp=(camp if t[2] == "AVE" else None)) for i, t in enumerate(trains[:2])]
-
-def _direct(net, day, frm, to):
-    """The direct trains of a day between two stops, straight from the frozen network (mirrors src/time.ts's
-    direct()): needed to compute the expected board, unlike the strip's stop order, checked above instead by
-    known relative order and exact sets."""
-    out = []
-    for i in net["dias"].get(day, []):
-        t = net["trenes"][i]; ids = [s[0] for s in t["s"]]
-        if frm in ids and to in ids:
-            a, b = ids.index(frm), ids.index(to)
-            if b > a: out.append((t["s"][a][2], t["s"][b][1], t["p"]))
-    return sorted(out)
-
 def _stops(net, day, frm, to, dep):
     """The stops of the direct train that leaves `frm` at `dep` for `to`, both left out, as the big train's route
     labels them (mirrors src/time.ts's stopsBetween() and stopName()): «Altafulla», and the minute each is reached
@@ -1916,7 +1887,6 @@ async def check_town_choose_girona(browser):
     """Choosing Girona (R11, Gironès, no AVE) in three taps: the board becomes the 2 next R11 direct trains
     Sants -> Girona after 10:00 (+2 min margin, as the live board does), no AVE; the ruler has as many ticks as
     that day's direct R11 trains; the live region names Girona. Swapping flips the board to Girona -> Sants."""
-    net, day, now, margin = _net(), "2026-09-28", 600, 2
     page = await hero_page(browser)
     errs = await choose_town(page, "R11", GIRONA_TOWN)
     if errs: await page.close(); return errs
@@ -1926,10 +1896,11 @@ async def check_town_choose_girona(browser):
     if route != "Sants → Girona": errs.append(f"after choosing Girona the route reads «{route}», expected «Sants → Girona»")
     if not await page.evaluate("document.activeElement === document.querySelector('.tk .town')"): errs.append("the focus is not on .tk .town after choosing Girona")
     b = await page.evaluate(BOARD); r = await page.evaluate(RULER)
-    want = two_rows([t for t in _direct(net, day, SANTS_ID, GIRONA_TOWN) if t[0] >= now + margin], now)
+    # the words of each row and the ruler's count are scripts/test/board.test.ts's; here, that the page paints them
+    want = ["R11 10:16 el pròxim, en 16 min → 11:35", "R11 11:16 després → 12:47"]
     if b["rows"] != want: errs.append(f"after choosing Girona the board reads {b['rows']}, expected {want}")
     if any("AVE" in row for row in b["rows"]): errs.append("Girona has no AVE, but the board shows one")
-    total = len(_direct(net, day, SANTS_ID, GIRONA_TOWN))
+    total = 23
     if r["ticks"] != total: errs.append(f"the ruler has {r['ticks']} ticks, expected {total} (the day's direct R11 Sants→Girona trains)")
     if "Girona" not in b["aviso"]: errs.append(f"choosing Girona, the live region does not name it («{b['aviso'][:80]}»)")
     errs += buy_link(b, SANTS_ID, GIRONA_TOWN, "28/09/2026")
@@ -1937,24 +1908,20 @@ async def check_town_choose_girona(browser):
     route = await page.evaluate("[...(document.querySelector('.tk .route')?.children ?? [])].map(b => b.matches('.swap') ? '→' : b.textContent.trim()).join(' ')")
     if route != "Girona → Sants": errs.append(f"after the arrows the route reads «{route}», expected «Girona → Sants»")
     b = await page.evaluate(BOARD)
-    want = two_rows([t for t in _direct(net, day, GIRONA_TOWN, SANTS_ID) if t[0] >= now + margin], now)
+    want = ["R11 10:19 el pròxim, en 19 min → 11:40", "R11 11:09 després → 12:40"]
     if b["rows"] != want: errs.append(f"Girona → Sants: the board reads {b['rows']}, expected {want}")
     await page.close()
     return errs
 
 async def check_town_choose_tarragona(browser):
-    """Choosing Tarragona (Tarragonès): the first two trains to leave, regional or AVE to Camp de Tarragona, all
-    computed from the frozen network."""
-    net, day, now, margin = _net(), "2026-09-28", 600, 2
+    """Choosing Tarragona (Tarragonès): the first two trains to leave, regional or AVE to Camp de Tarragona, on the
+    frozen timetable (how an AVE row reads is scripts/test/board.test.ts's)."""
     page = await hero_page(browser)
     errs = await choose_town(page, "R14", TARRAGONA_TOWN)
     if errs: await page.close(); return errs
     await page.wait_for_timeout(300)
     b = await page.evaluate(BOARD)
-    regs = [t for t in _direct(net, day, SANTS_ID, TARRAGONA_TOWN) if t[0] >= now + margin]
-    aves = [t for t in _direct(net, day, SANTS_ID, CAMP_ID) if t[0] >= now + margin]
-    if not aves: await page.close(); return ["no AVE Sants→Camp de Tarragona after 10:00 in the frozen data: the test's assumption is wrong"]
-    want = two_rows(sorted(regs[:2] + aves[:2]), now, camp="hasta")
+    want = ["R15 10:03 el pròxim, en 3 min → 11:12", "R17 10:33 després → 11:42"]   # the AVE's words: board.test.ts
     if b["rows"] != want: errs.append(f"choosing Tarragona the board reads {b['rows']}, expected {want}")
     await page.close()
     return errs
@@ -2127,7 +2094,6 @@ async def check_station(browser):
     (Sants, Passeig de Gràcia, França), the chosen one stamped and focused, each saying which lines it misses; the
     sheet's paper is cut ragged like the ticket. Choosing one rebuilds the route, the board and the buy link from
     that station; Esc changes nothing; França has no R11, so to Girona the board names the stations that have one."""
-    net, day, now, margin = _net(), "2026-09-28", 600, 2
     errs = []
     page = await hero_page(browser)
     t = await page.evaluate("""(() => { const b = document.querySelector('.tk .bcn'); if(!b) return null; const c = getComputedStyle(b);
@@ -2161,7 +2127,7 @@ async def check_station(browser):
     if await page.evaluate(ROUTE) != "Gràcia → Reus": errs.append(f"after choosing Passeig de Gràcia the route reads «{await page.evaluate(ROUTE)}»")
     if not await page.evaluate("document.activeElement === document.querySelector('.tk .bcn')"): errs.append("the focus is not on .tk .bcn after choosing a station")
     b = await page.evaluate(BOARD)
-    want = two_rows([t for t in _direct(net, day, PDG_ID, REUS_TOWN) if t[0] >= now + margin], now)
+    want = ["R15 10:56 el pròxim, en 56 min → 12:33", "R14 11:56 després → 13:33"]
     if b["rows"] != want: errs.append(f"from Passeig de Gràcia the board reads {b['rows']}, expected {want}")
     errs += buy_link(b, PDG_ID, REUS_TOWN, "28/09/2026")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
