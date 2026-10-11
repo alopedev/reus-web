@@ -4,25 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#7d6650">
-<title>Capacasa</title>
+<title>Capacasa - D’un cop d’ull, el proper tren cap a casa</title>
 <link rel="canonical" href="https://capacasa.alope.dev/">
 <!-- the icon: a flap of the name's board with its «C» (opción A, Àlex 11-10; scripts/icono.py draws the PNG and the .ico) -->
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<meta name="description" content="El tren cap a casa, i el de tornada a Barcelona: els pròxims trens directes entre Barcelona i el teu poble, en una pantalla.">
+<meta name="description" content="Tornes a casa? D’un cop d’ull veus quan surt el pròxim tren entre Barcelona i el teu poble, si va amb retard, i el compres a Renfe.">
 <!-- the preview when the link is shared (LinkedIn, X, WhatsApp): crawlers need absolute URLs, on the site's address (D1, 11-10) -->
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ca_ES">
 <meta property="og:site_name" content="Capacasa">
 <meta property="og:title" content="Capacasa">
-<meta property="og:description" content="El tren cap a casa, i el de tornada a Barcelona: els pròxims trens directes entre Barcelona i el teu poble.">
+<meta property="og:description" content="Tornes a casa? D’un cop d’ull veus quan surt el pròxim tren entre Barcelona i el teu poble, si va amb retard, i el compres a Renfe.">
 <meta property="og:url" content="https://capacasa.alope.dev/">
 <meta property="og:image" content="https://capacasa.alope.dev/og.jpg">
 <meta property="og:image:type" content="image/jpeg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Capacasa: interior d’un vagó pintat amb aquarel·la amb el camp al capvespre a la finestreta, quatre bitllets de paper (Sants ⇄ Reus, Girona ⇄ Gràcia, França ⇄ Tortosa, Figueres ⇄ Sants) i el pròxim tren, R15 18:33 → 20:03">
+<meta property="og:image:alt" content="Capacasa: interior d’un vagó pintat amb aquarel·la amb el camp al capvespre a la finestreta, quatre bitllets de paper (de Sants a Reus, de Girona a Gràcia, de França a Tortosa i de Figueres a Sants) i el pròxim tren, R15 18:33 → 20:03">
 <meta name="twitter:card" content="summary_large_image">
 <!-- what the site is, for search engines (schema.org); not shown -->
 <script type="application/ld+json">
@@ -116,27 +116,27 @@
     <article class="papel folleto vib" id="folleto" aria-labelledby="h-leer">
       <span class="kicker">Fullet</span>
       <h2 id="h-leer">Com llegir-la</h2>
-      <div class="mini" aria-hidden="true"><div class="w"></div>
-        <span class="n" style="left:8px;top:84px">1</span><span class="n" style="right:8px;top:8px">2</span>
-        <span class="n" style="left:40%;top:88px">3</span><span class="n" style="left:66%;top:88px">4</span></div>
-      <ol>
-        <li><b>1</b> · L’hora en gran: el teu tren. «compra’l» et porta a Renfe.</li>
-        <li><b>2</b> · El bitllet: toca el teu poble o la teva estació; les fletxes els giren.</li>
-        <li><b>3</b> · Clica un horari per triar-lo. A la llista, el segell marca el teu.</li>
-        <li><b>4</b> · La línia de baix és el dia i les línies transversals, els trens.</li>
+      <!-- a legend of the hero's pieces (Àlex 11-10, option C): each drawn as on the wall, the words for both phone and desktop -->
+      <ol class="llegenda">
+        <li><span class="clau hora" aria-hidden="true">19:03</span> <span class="que">El pròxim tren. D’aquí, a comprar-lo a Renfe.</span></li>
+        <li><span class="clau" aria-hidden="true">Reus <svg class="fletxes" viewBox="0 0 46 16"><path d="M1 1 13 8 1 15Z" fill="#E07A1F"/><path d="M16 1 28 8 16 15Z" fill="#EDA864"/><path d="M31 1 43 8 31 15Z" fill="#FBEBDC" stroke="#EDA864" stroke-width=".8"/></svg></span> <span class="que">Toca el poble o l’estació per canviar-los; les fletxes giren el sentit.</span></li>
+        <li><span class="clau" aria-hidden="true"><span class="pill" style="--c:#8C6F52">R15</span> 19:33</span> <span class="que">El de després. Toca’l per triar-lo.</span></li>
+        <li><span class="clau" aria-hidden="true"><svg class="regla" viewBox="0 0 120 22"><path d="M2 14H118" stroke="#2D241C" stroke-opacity=".55" stroke-width="1.5"/><path d="M14 9v10M30 9v10M46 9v10M70 9v10M86 9v10M102 9v10" stroke="#2D241C" stroke-opacity=".7" stroke-width="2"/><path d="M58 6v10" stroke="#E07A1F" stroke-width="3"/><circle cx="70" cy="14" r="5.5" fill="#F1EADC" stroke="#2D241C" stroke-width="1.5"/></svg></span> <span class="que">El dia: cada ratlla, un tren; la boleta, el que mires; el taronja, ara.</span></li>
+        <li><span class="clau" aria-hidden="true"><svg class="rellotge" viewBox="-22 -22 44 44"><circle r="20" fill="#F1EADC" stroke="#2D241C" stroke-width="2.5"/><path d="M0-17v5M17 0h-5M0 17v-5M-17 0h5" stroke="#2D241C" stroke-width="2"/><path d="M0 0-7-4M0 0 9-11" stroke="#2D241C" stroke-width="2.6"/><path d="M0 3 6-12" stroke="#C6352B" stroke-width="1"/><circle cx="6" cy="-12" r="2.2" fill="#C6352B"/></svg></span> <span class="que">Si mires un altre tren, et torna a ara.</span></li>
       </ol>
     </article>
 
     <article class="cuaderno vib b" id="cuaderno" aria-labelledby="h-hizo">
-      <div class="hoja izq"><div class="papel cara guarda" aria-hidden="true"><b>Llibre de viatge</b><span>De Barcelona a casa</span></div><div class="tapa" aria-hidden="true"><b>Llibre<br>de viatge</b><span>De Barcelona a casa</span></div></div>
+      <div class="hoja izq"><div class="papel cara guarda"><b aria-hidden="true">Llibre de viatge</b><span aria-hidden="true">De Barcelona a casa</span>
+        <p class="firma"><span class="nom">Àlex Olivé</span>
+          <span class="enllacos"><a href="https://alope.dev" target="_blank" rel="noopener">alope.dev ↗<span class="sr"> (s’obre en una altra pestanya)</span></a> · <button type="button" class="priv" aria-haspopup="dialog">Privacitat</button></span></p></div><div class="tapa" aria-hidden="true"><b>Llibre<br>de viatge</b><span>De Barcelona a casa</span></div></div>
       <div class="papel hoja der">
         <span class="kicker">Llibre de viatge · tècnica</span>
         <h2 id="h-hizo">Com s’ha fet</h2>
         <ul>
-          <li>Un paisatge en 3D, no un vídeo <span class="tec">Three.js: escena 3D generada per codi</span></li>
-          <li>Pintat amb aquarel·la, en directe <span class="tec">Shader WebGL: filtre Kuwahara i pigment</span></li>
-          <li>Un bitllet clicat <span class="tec">HTML i CSS: paper retallat amb clip-path</span></li>
-          <li>Scroll cap a la taula <span class="tec">CSS 3D i GSAP ScrollTrigger</span></li>
+          <li>Un paisatge en 3D, pintat en directe <span class="tec">Three.js i un shader d’aquarel·la</span></li>
+          <li>Horaris de Renfe, al dia cada matí <span class="tec">Dades obertes GTFS i GitHub Actions</span></li>
+          <li>Provat a cada canvi <span class="tec">Comprovacions en 12 mides de pantalla</span></li>
         </ul>
       </div>
     </article>
@@ -145,7 +145,7 @@
       <div class="papel">
         <span class="kicker">Revers del bitllet</span>
         <h2 id="h-datos">Dades i límits</h2>
-        <p>És l’horari previst: els retards no surten. Només trens directes, regionals i l’AVE de Camp de Tarragona. El bitllet es compra a Renfe. <span id="hasta"></span> El temps de la finestra, d’Open-Meteo.</p>
+        <p>És l’horari previst, amb el retard en directe dels regionals (de l’AVE, no). Només trens directes: regionals i l’AVE de Camp de Tarragona.</p>
         <p class="fuente" id="fuente"></p>
       </div>
     </article>
@@ -154,6 +154,13 @@
 </main>
 </div>
 <div id="letras" aria-hidden="true"></div>
+<!-- who gets what (11-10): opened from the signature on the inside of the notebook's cover -->
+<dialog id="privacitat" aria-labelledby="privH"><div class="sheet"><div class="pp"><button type="button" class="x" aria-label="Tancar">✕</button>
+  <h3 id="privH">Privacitat</h3>
+  <p class="txt">Sense cookies i sense registre.</p>
+  <p class="txt">La web s’allotja a Vercel, que compta les visites de manera anònima, i el temps de la finestra arriba d’Open-Meteo.</p>
+  <p class="qui">Àlex Olivé · <a class="mes" href="https://alope.dev" target="_blank" rel="noopener">alope.dev ↗<span class="sr"> (s’obre en una altra pestanya)</span></a></p>
+</div></div></dialog>
 <script type="module" src="./main.ts"></script>
 </body>
 </html>

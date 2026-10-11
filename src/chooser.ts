@@ -1,5 +1,5 @@
 import './styles/chooser.css';
-import { GROUPS, LINE, type Group } from './towns';
+import { GROUPS, LINE, lineStyle, type Group } from './towns';
 import { state } from './state';
 import { byId } from './dom';
 import { NET, BCN, hasAve } from './time';
@@ -32,7 +32,7 @@ export function setupChooser(onPick: (id: string) => void, onStation: (id: strin
 
   const question = () => state.dir === 'casa' ? 'On vas?' : 'D’on tornes?';
   // the pills in line-number order (R14 over R15), as in the prototype; the strip itself starts with the main line
-  const pills = (g: Group) => [...g.lines].sort().map(l => `<span class="pill" style="--c:${LINE[l]}">${l}</span>`).join('');
+  const pills = (g: Group) => [...g.lines].sort().map(l => `<span class="pill" style="${lineStyle(l)}">${l}</span>`).join('');
 
   function stepGroups(): string {
     return `<h3 id="selpH">${question()}</h3><div class="lns">${GROUPS.map(g =>

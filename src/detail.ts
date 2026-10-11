@@ -4,11 +4,12 @@ import { whatsappUrl } from './home';
 import { news, type LineNews } from './notice';
 import { wagonSvg } from './journey';
 import type { Where } from './shown';
+import { lineStyle } from './towns';
 
 // what the sheet tells about the train shown: its line and trip, times, when it leaves, how long, how many stops,
 // the way to buy it, the message for home and what is known of its line's notices
 export interface Trip {
-  line: string; color: string; from: string; to: string; dep: string; arr: string;
+  line: string; from: string; to: string; dep: string; arr: string;
   when: string; length: string; stops: number | null; buy: string; ave: string; home: string; news: LineNews;
   where: Where | null;               // while the train is on its way: where the timetable puts it
   live: string;                      // its live delay in a sentence (Renfe's feed); '' when on time or not known
@@ -41,7 +42,7 @@ export function setupDetail(): Detail {
     said = news(t.news); line = t.line; drawn = journeyLine(t); late = retard(t);
     const stops = t.stops == null ? '' : t.stops === 0 ? 'sense parades' : t.stops === 1 ? '1 parada' : `${t.stops} parades`;
     dialog.innerHTML = `<div class="pliego" tabindex="-1"><button type="button" class="x" aria-label="Tancar">✕</button>
-      <h3 id="detalleH"><span class="pill" style="--c:${t.color}">${esc(t.line)}</span> ${esc(t.from)} → ${esc(t.to)}</h3>
+      <h3 id="detalleH"><span class="pill" style="${lineStyle(t.line)}">${esc(t.line)}</span> ${esc(t.from)} → ${esc(t.to)}</h3>
       <p class="horas">${t.dep} <span class="flecha">→</span> ${t.arr}</p>
       ${retard(t)}
       ${journeyLine(t)}

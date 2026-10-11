@@ -1,7 +1,7 @@
 import './styles/notice.css';
 import { byId } from './dom';
 import { rag } from './paper';
-import { LINE } from './towns';
+import { lineStyle } from './towns';
 import { gist } from './avisos';
 
 // how the lines' notices show (09-10, Àlex): on a desktop, an ink stamp on the ticket when a line of the board has a
@@ -16,7 +16,7 @@ export type LineNews = { kind: 'avis', line: string, text: string, read: string 
   | { kind: 'error' | 'pending', line: string } | { kind: 'ave' };
 
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-const pill = (l: string) => `<span class="pill" style="--c:${LINE[l] ?? 'var(--shadow)'}">${esc(l)}</span>`;
+const pill = (l: string) => `<span class="pill" style="${lineStyle(l)}">${esc(l)}</span>`;
 // a time read by the function, in Madrid: «11:30»
 export const at = (iso: string): string => new Date(iso).toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
 

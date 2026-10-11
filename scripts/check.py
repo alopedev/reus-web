@@ -54,8 +54,9 @@ Rules checked:
      train shown changes (never on the 30 s refresh) and names its time; the ticket's arrows read «Canviar el sentit»; the recording shortcuts (R, P) work only with ?grabar in the URL; the
      «horari aproximat» note speaks impersonally. Modo rápido: `python3 scripts/check.py a11y`.
   14. The site reads the network timetable (data/red.json; the parity build, its frozen copy
-     scripts/baseline/red.json): the back of the ticket credits «Origen de los datos: Renfe Operadora» with the
-     date the data was updated, as Renfe's licence asks. Modo rápido: `python3 scripts/check.py red`.
+     scripts/baseline/red.json): the back of the ticket credits «Origen de los datos: Renfe Operadora», as Renfe's
+     licence asks, with the days the timetable covers, says the regionals' live delay shows and credits Renfe's live
+     feed and Open-Meteo (CC BY 4.0). Modo rápido: `python3 scripts/check.py red`.
   15. The hero B (docs/plan.md, 28-09): the site is called «Capacasa» (title and h1) with the subtitle «El tren cap
      a casa, i el de tornada a Barcelona». One ticket, «Bitllet · Sants ▶▶▷ Reus»: the three arrows turn the trip around
      (the route reads «Reus → Sants», the live region names the new train, the focus stays on them); the stub carries
@@ -87,7 +88,7 @@ Usage: npm run build && npm run build:paridad && python3 scripts/check.py [parid
        (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute; a11y: only check 13; red: only check 14;
         hero: only check 15; mesa: only check 16; compartir: only check 17, in a second; pintado: only the one-paint-per-frame part of check 6)
 """
-import asyncio, functools, html.parser, http.server, io, json, os, pathlib, sys, threading
+import asyncio, functools, html.parser, http.server, io, json, os, pathlib, re, sys, threading
 import xml.etree.ElementTree as ET
 from PIL import Image, ImageChops, ImageStat
 from playwright.async_api import async_playwright
@@ -113,6 +114,13 @@ async def settle(page):
     except Exception: pass
     await page.wait_for_timeout(500)
 
+# «Com llegir-la» (Àlex 11-10, option C): what each piece of the hero means, in the words of both phone and desktop
+LEAFLET = ["El pròxim tren. D’aquí, a comprar-lo a Renfe.",
+           "Toca el poble o l’estació per canviar-los; les fletxes giren el sentit.",
+           "El de després. Toca’l per triar-lo.",
+           "El dia: cada ratlla, un tren; la boleta, el que mires; el taronja, ara.",
+           "Si mires un altre tren, et torna a ara."]
+
 async def check_shelf(page, name):
     """The shelf below the hero: the page scrolls (no written hint since 09-10: fewer words on the wall), the three
     paper objects, nothing sticking out sideways."""
@@ -132,14 +140,26 @@ async def check_shelf(page, name):
       // the notebook opens onto one page: each concept with the technology behind it, nothing crossed out, no motto
       const items = [...document.querySelectorAll('#cuaderno .der li')];
       const notebook = {items: items.length, bare: items.filter(li => !li.querySelector('.tec')).length,
+        concepts: items.map(li => [...li.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim()),
         extra: [...document.querySelectorAll('#cuaderno .tachado, #cuaderno .lema, #cuaderno .izq h2, #cuaderno .izq li')].length};
-      return {missing, wide, sideways, notebook, heading: q('#qe') ? f(q('#qe')) : null, body: q('#repisa p') ? f(q('#repisa p')) : null};
+      // the leaflet is a legend (Àlex 11-10, option C): each line opens with the piece of the hero it explains, drawn
+      // as on the wall and hidden from the reader, who hears the words
+      const rows = [...document.querySelectorAll('#folleto li')];
+      const leaflet = {drawing: !!q('#folleto .mini'), keys: rows.filter(li => li.querySelector('.clau[aria-hidden="true"]')).length,
+        words: rows.map(li => li.querySelector('.que')?.textContent.trim())};
+      return {missing, wide, sideways, notebook, leaflet, heading: q('#qe') ? f(q('#qe')) : null, body: q('#repisa p') ? f(q('#repisa p')) : null};
     })()""")
     if shelf["missing"]: errs.append(f"shelf is missing {', '.join(shelf['missing'])}")
     if shelf["sideways"]: errs.append("the page scrolls sideways")
     nb = shelf["notebook"]
-    if nb["items"] != 4 or nb["bare"]: errs.append(f"the notebook's page should list 4 concepts, each with its technology ({nb['items']} listed, {nb['bare']} without one)")
+    # three concepts since 11-10 (Àlex): the landscape, the daily timetable and the checks, each with what makes it
+    if nb["items"] != 3 or nb["bare"]: errs.append(f"the notebook's page should list 3 concepts, each with its technology ({nb['items']} listed, {nb['bare']} without one)")
+    if nb["concepts"] != ["Un paisatge en 3D, pintat en directe", "Horaris de Renfe, al dia cada matí", "Provat a cada canvi"]:
+        errs.append(f"the notebook lists {nb['concepts']}")
     if nb["extra"]: errs.append("the notebook still has crossed-out words, the motto or a second page of content")
+    lf = shelf["leaflet"]
+    if lf["drawing"] or lf["keys"] != len(LEAFLET) or lf["words"] != LEAFLET:
+        errs.append(f"the leaflet should be the legend of the hero's pieces ({lf['keys']} keys, drawing: {lf['drawing']}): {lf['words']}")
     try:
         await page.wait_for_function("document.getElementById('lienzo')?.dataset.pintada === '1'", timeout=12000)
         px = await page.evaluate("""(() => { const c = document.getElementById('lienzo'), g = c.getContext('webgl'), p = new Uint8Array(4);
@@ -908,6 +928,41 @@ async def check_a11y(browser):
     await page.close()
     return errs
 
+async def check_firma(browser):
+    """The site is signed (11-10, option A of three): the inside of the notebook's cover carries «Àlex Olivé» with a
+    raised link to alope.dev (new tab) and a «Privacitat» button that opens a cut sheet, short (Àlex, 11-10): no cookies,
+    no sign-up, hosted on Vercel, the weather from Open-Meteo; Esc closes it and the focus goes back to the button. Claude is
+    not named on the page (D2). Desktop and phone. Modo rápido: `python3 scripts/check.py firma`."""
+    errs = []
+    for name, (w, h) in {"escritorio": (1440, 900), "movil": (390, 844)}.items():
+        page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce", has_touch=w < 600)
+        await page.goto(page_url); await page.wait_for_timeout(1500)
+        await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})"); await page.wait_for_timeout(1500)
+        g = await page.evaluate("""(() => { const g = document.querySelector('#cuaderno .guarda'); if(!g) return null;
+          const a = g.querySelector('a[href^="https://alope.dev"]'), b = g.querySelector('button.priv');
+          const hidden = el => !!el.closest('[aria-hidden="true"]');
+          return {text: g.textContent.replace(/\\s+/g, ' ').trim(), link: a && {tab: a.target === '_blank', hidden: hidden(a), shadow: getComputedStyle(a).textShadow},
+                  button: b && {hidden: hidden(b), text: b.textContent.trim()}, claude: /Claude/.test(document.body.innerText)}; })()""")
+        if not g: errs.append(f"{name}: the notebook has no inside cover"); await page.close(); continue
+        if "Àlex Olivé" not in g["text"]: errs.append(f"{name}: the inside cover is not signed «Àlex Olivé» («{g['text']}»)")
+        if "Fet per" in g["text"]: errs.append(f"{name}: the signature still says «Fet per» (Àlex, 11-10: just the name)")
+        if not g["link"]: errs.append(f"{name}: the signature has no link to alope.dev")
+        elif not g["link"]["tab"] or g["link"]["hidden"] or g["link"]["shadow"] == "none": errs.append(f"{name}: the alope.dev link should open a new tab, be heard and look raised ({g['link']})")
+        if g["claude"]: errs.append(f"{name}: the page names Claude (D2: only Àlex signs the site)")
+        if not g["button"] or g["button"]["text"] != "Privacitat" or g["button"]["hidden"]: errs.append(f"{name}: no «Privacitat» button on the inside cover ({g['button']})"); await page.close(); continue
+        await page.click("#cuaderno .guarda button.priv"); await page.wait_for_timeout(400)
+        d = await page.evaluate("""(() => { const d = document.getElementById('privacitat'); return d && {open: d.open, text: d.textContent.replace(/\\s+/g, ' ')}; })()""")
+        if not d or not d["open"]: errs.append(f"{name}: «Privacitat» does not open the #privacitat sheet")
+        else:
+            for words in ("Sense cookies", "Vercel", "Open-Meteo"):
+                if words not in d["text"]: errs.append(f"{name}: the privacy sheet does not mention {words}")
+            await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
+            back = await page.evaluate("[!document.getElementById('privacitat').open, document.activeElement?.matches('#cuaderno .guarda button.priv')]")
+            if back != [True, True]: errs.append(f"{name}: Esc should close the privacy sheet and give the focus back to its button ({back})")
+        await page.screenshot(path=str(shots / f"{name}-firma.png"))
+        await page.close()
+    return errs
+
 MONTHS = ["gener", "febrer", "març", "abril", "maig", "juny", "juliol", "agost", "setembre", "octubre", "novembre", "desembre"]
 
 def catalan_date(y, m, d):
@@ -920,7 +975,6 @@ async def check_red(browser):
     import json
     red = json.loads((root / "scripts/baseline/red.json").read_text()) if (root / "scripts/baseline/red.json").exists() else None
     if not red: return ["no frozen network timetable at scripts/baseline/red.json for the parity build"]
-    y, m, d = map(int, red["actualizado"].split("-"))
     page = await open_page(browser, viewport={"width": 1440, "height": 900}, reduced_motion="reduce")
     await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
     await page.goto(parity_url); await page.wait_for_timeout(1500)
@@ -928,8 +982,12 @@ async def check_red(browser):
     await page.close()
     errs = []
     if red["fuente"] not in text: errs.append(f"the back of the ticket does not credit «{red['fuente']}» (it reads «{text[-90:]}»)")
-    if catalan_date(y, m, d) not in text: errs.append(f"the back of the ticket does not give the data's update date, {catalan_date(y, m, d)}")
-    if "Open-Meteo" not in text: errs.append("the back of the ticket does not credit Open-Meteo for the weather (CC BY 4.0)")
+    # the days the frozen timetable covers (28-09 to 11-10), in one span since 11-10
+    if "Horaris del 28 de setembre a l’11 d’octubre del 2026." not in text: errs.append(f"the back of the ticket does not give the days the timetable covers (it reads «{text[-160:]}»)")
+    # the live delays show since the PR #45 (11-10): the back says so, and credits both CC BY 4.0 sources
+    if "retards no surten" in text or "retard en directe dels regionals" not in text: errs.append(f"the back of the ticket does not say the regionals' live delay shows («{text[:120]}»)")
+    for credit in ("Retards en directe: Renfe, CC BY 4.0.", "Temps: Open-Meteo, CC BY 4.0."):
+        if credit not in text: errs.append(f"the back of the ticket does not credit «{credit}»")
     return errs
 
 # the weather at home (08-10): Open-Meteo's answer → what the window paints. None: Open-Meteo fails (a 503)
@@ -1407,7 +1465,7 @@ async def check_hero(browser):
     errs = []
     page = await hero_page(browser)
     got = await page.evaluate("({title: document.title, name: document.querySelector('.brand').textContent.trim(), sub: document.querySelector('.sub').textContent.trim()})")
-    if got["title"] != NAME: errs.append(f"the page's title is «{got['title']}», expected «{NAME}»")
+    if not got["title"].startswith(NAME + " - "): errs.append(f"the page's title is «{got['title']}», expected «{NAME} - …»")
     if got["name"] != NAME: errs.append(f"the name on the wall is «{got['name']}», expected «{NAME}»")
     if got["sub"] != SUBTITLE: errs.append(f"the subtitle is «{got['sub']}», expected «{SUBTITLE}»")
     errs += await check_hero_ticket(page)
@@ -2105,6 +2163,8 @@ async def check_town_fit(browser):
     return failures
 
 SITE = "https://capacasa.alope.dev/"   # D1 (Àlex, 11-10): the site's address; reus-web.vercel.app sends here (vercel.json)
+TITLE = "Capacasa - D’un cop d’ull, el proper tren cap a casa"
+DESCRIPTION = "Tornes a casa? D’un cop d’ull veus quan surt el pròxim tren entre Barcelona i el teu poble, si va amb retard, i el compres a Renfe."
 def check_share(folder="dist"):
     """Check 17: the link preview's tags and image, read from the build (no browser needed)."""
     class Metas(html.parser.HTMLParser):
@@ -2124,6 +2184,13 @@ def check_share(folder="dist"):
     if t.get("og:url") and t["og:url"] != SITE: out_canon.append(f"og:url is {t['og:url']}, expected {SITE}")
     out = [f"<meta> {k} is missing or empty" for k in ("description", "og:type", "og:title", "og:description", "og:url",
            "og:image", "og:image:width", "og:image:height", "og:image:alt", "twitter:card") if not t.get(k)]
+    # the image's tickets turn with three arrows since 09-10, not «⇄»: screen readers on LinkedIn and X read this
+    if "⇄" in t.get("og:image:alt", ""): out.append("og:image:alt still describes the tickets with «⇄» (they carry ▶▶▷ since 09-10)")
+    # the tab and the search result (Àlex, 11-10); the description, close, for Google and the preview alike
+    title = re.search(r"<title>(.*?)</title>", (root / folder / "index.html").read_text(encoding="utf-8"), re.S)
+    if not title or title.group(1) != TITLE: out.append(f"<title> reads «{title and title.group(1)}», expected «{TITLE}»")
+    for k in ("description", "og:description"):
+        if t.get(k) != DESCRIPTION: out.append(f"<meta> {k} reads «{t.get(k)}», expected «{DESCRIPTION}»")
     if t.get("twitter:card") and t["twitter:card"] != "summary_large_image": out.append(f"twitter:card is {t['twitter:card']}, expected summary_large_image")
     img = t.get("og:image", "")
     if img and not img.startswith(SITE): out.append(f"og:image must be an absolute URL on {SITE} (crawlers don't resolve relative ones): {img}")
@@ -2385,6 +2452,9 @@ async def main():
         if sys.argv[1:] == ["letras"]:
             failures += await check_letters_suite(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · letras"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["firma"]:
+            failures += await check_firma(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · firma"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["red"]:
             failures += await check_red(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · red"); sys.exit(1 if failures else 0)
@@ -2462,6 +2532,7 @@ async def main():
         failures += [f"sinred: {e}" for e in await check_offline(browser)]
         failures += [f"fuentes: {e}" for e in await check_own_fonts(browser)]
         failures += [f"red: {e}" for e in await check_red(browser)]
+        failures += [f"firma: {e}" for e in await check_firma(browser)]
         failures += [f"hero: {e}" for e in await check_hero(browser)]
         failures += [f"mesa: {e}" for e in await check_table_at_load(browser)]
         failures += [f"mesa: {e}" for e in await check_table_follows(browser)]

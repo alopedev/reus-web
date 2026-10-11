@@ -4,7 +4,6 @@ import { addDays, hhmm, dur, dayData, NET, BCN, bcnName, CAMP, stopsBetween, sto
 import { buyUrl } from './buy';
 import { homeText } from './home';
 import { ofPlace, atPlace } from './ca';
-import { LINE } from './towns';
 import { lineNews, type Avisos } from './avisos';
 import type { Retards } from './retards';
 
@@ -117,7 +116,7 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   // a late train is where its delay puts it: the timetable's place that many minutes ago
   const where = day === now.date ? whereNow(now.min - (late?.min ?? 0), [[ends[0], a[0]], ...(stops ?? []), [ends[1], a[1]]]) : null;
   const there = isAve ? 'Camp de Tarragona' : townName;
-  const trip: Trip = { line: a[3], color: LINE[a[3]] ?? 'var(--shadow)', from: ida ? bcn : there, to: ida ? there : bcn, dep: hhmm(a[0]), arr: hhmm(a[1]),
+  const trip: Trip = { line: a[3], from: ida ? bcn : there, to: ida ? there : bcn, dep: hhmm(a[0]), arr: hhmm(a[1]),
     when: tomorrow ? 'Demà' : cancelled ? 'Cancel·lat' : leaves < now.min ? 'Ja ha sortit' : leaves === now.min ? 'Surt ara' : `Surt en ${dur(leaves-now.min)}`, length: dur(a[1]-a[0]),
     stops: stops?.length ?? null, buy,
     ave: isAve ? (ida ? `L’AVE no arriba ${atPlace(townName)}: baixa a Camp de Tarragona.` : `L’AVE no surt ${ofPlace(townName)}: surt de Camp de Tarragona.`) : '',
