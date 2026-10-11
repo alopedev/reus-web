@@ -1,5 +1,5 @@
 import { hhmm } from './time';
-import { LINE } from './towns';
+import { lineStyle } from './towns';
 import { journey } from './journey';
 import type { Row, Shown } from './shown';
 
@@ -27,7 +27,7 @@ function trip(r: Row, buy: string, ida: boolean, phone: boolean, rec: string): s
   if(phone){
     const w = !big ? (morrow ? 'demà' : '') : late ? `<span class="nova">${hhmm(late.dep)}</span>${soonW}`
       : live?.kind === 'cancel' ? '<span class="mes">cancel·lat</span>' : live?.kind === 'unknown' ? `${soonW}<span class="gris">sense dades</span>` : soonW;
-    const cells = `<span class="pill" style="--c:${LINE[r.line] ?? 'var(--shadow)'}">${r.line}</span> <span class="t${struck}"${big ? ' id="dep"' : ''}>${hhmm(r.dep)}</span> `
+    const cells = `<span class="pill" style="${lineStyle(r.line)}">${r.line}</span> <span class="t${struck}"${big ? ' id="dep"' : ''}>${hhmm(r.dep)}</span> `
       + `<span class="w${live ? ' viu' : ''}">${w}</span> <span class="${arrCls}">${arr}</span> <span class="mas" aria-hidden="true">›</span>`;
     const where = isAve ? (ida ? ' a' : ' des de') + ' Camp de Tarragona' : '';
     const said = late ? `, amb ${late.min} min de retard, surt cap a les ${hhmm(late.dep)} i arriba a les ${hhmm(late.arr)}` : live?.kind === 'cancel' ? ', cancel·lat' : '';
@@ -47,7 +47,7 @@ function trip(r: Row, buy: string, ida: boolean, phone: boolean, rec: string): s
   const camp = isAve ? ` <span class="st">${ida ? 'fins a' : 'des de'} Camp de Tarragona</span>` : '';
   // spaces between the cells: the grid ignores them, but the text (and a screen reader) keeps its words apart
   const dep = big ? `<a class="t${struck}" id="dep"${to} aria-label="${hhmm(r.dep)}, comprar a Renfe (s’obre en una altra pestanya)">${hhmm(r.dep)}</a>` : `<span class="t">${hhmm(r.dep)}</span>`;
-  const cells = `<span class="pill" style="--c:${LINE[r.line] ?? 'var(--shadow)'}">${r.line}</span> ${dep} `
+  const cells = `<span class="pill" style="${lineStyle(r.line)}">${r.line}</span> ${dep} `
     + `<span class="w">${w}</span> <span class="${arrCls}">${arr}</span>${camp}`;
   if(big) return `<div class="trip big">${cells}</div>`;
   const label = `${isAve ? 'AVE' : r.line} de les ${hhmm(r.dep)}${isAve ? (ida ? ' a' : ' des de') + ' Camp de Tarragona' : ''}, arriba a les ${hhmm(r.arr)}`;

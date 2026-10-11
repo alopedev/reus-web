@@ -1,7 +1,11 @@
 import { NET, SANTS, CAMP } from './time';
 
 // each line's colour, as Renfe paints it (shared by the board and the chooser)
-export const LINE: Record<string, string> = { R11:'#0064A7', R13:'#E52782', R14:'#6A2C91', R15:'#9B7B5A', R16:'#B8114E', R17:'#F39700' };
+// Rodalies' line colours; R13 and R15 a shade darker and R17 in ink letters, so every pill reads at 4.5:1 (11-10)
+export const LINE: Record<string, string> = { R11:'#0064A7', R13:'#DD1B78', R14:'#6A2C91', R15:'#8C6F52', R16:'#B8114E', R17:'#F39700' };
+const INK: Record<string, string> = { R17:'#2D241C' };
+// a pill's colours, as CSS variables: --c its colour, --t its letters (the AVE and any unknown line in ink)
+export const lineStyle = (l: string): string => `--c:${LINE[l] ?? 'var(--shadow)'};--t:${INK[l] ?? '#FFFFFF'}`;
 
 // out of the chooser: Barcelona's own stations (their own picker is 3.5), the two dense commuter stops nearest
 // Barcelona (El Prat de Llobregat, El Prat Aeroport, Bellvitge - Gornal) and Camp de Tarragona (AVE only, no

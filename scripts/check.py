@@ -2147,7 +2147,7 @@ async def check_town_fit(browser):
     return failures
 
 SITE = "https://reus-web.vercel.app/"
-TITLE = "Capacasa - D’un cop d’ull trobes el proper tren i compres el bitllet"
+TITLE = "Capacasa - D’un cop d’ull, el proper tren cap a casa"
 DESCRIPTION = "Tornes a casa? D’un cop d’ull veus quan surt el pròxim tren entre Barcelona i el teu poble, si va amb retard, i el compres a Renfe."
 def check_share(folder="dist"):
     """Check 17: the link preview's tags and image, read from the build (no browser needed)."""
