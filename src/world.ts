@@ -158,7 +158,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', top);
     return p.name;
   }
-  let offset = 0;
+  let offset = 0, washRaf = 0, washed = true;
   function frame(dx: number, time: number, reveal: number){
     offset += dx;
     const tx = -(((offset % L)+L) % L); tiles[0].position.x = tx - L/2; tiles[1].position.x = tx + L/2;
@@ -166,14 +166,16 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     U.tq.value = time; U.reveal.value = reveal;
     renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, camera);
     renderer.setRenderTarget(null); renderer.render(postScene, postCam);
+    washed = true;
   }
   // the wash follows the scroll directly (no smoothing of its own). It must show even when the loop is not
   // running (paused, or before the landscape starts), so it redraws just the post pass over the scene
-  // already in the render target, at most once per frame however many scroll events arrive
-  let washRaf = 0;
+  // already in the render target, at most once per frame however many scroll events arrive. Scroll events come
+  // before the animation frames: when the loop paints in that same frame it already paints this wash, and a
+  // second full-screen pass would only double the cost (washed: the latest wash is on screen)
   function setWash(foldY: number, shade: number){
-    U.foldY.value = foldY; U.shade.value = shade;
-    if(!washRaf) washRaf = requestAnimationFrame(() => { washRaf = 0; renderer.setRenderTarget(null); renderer.render(postScene, postCam); });
+    U.foldY.value = foldY; U.shade.value = shade; washed = false;
+    if(!washRaf) washRaf = requestAnimationFrame(() => { washRaf = 0; if(washed) return; renderer.setRenderTarget(null); renderer.render(postScene, postCam); washed = true; });
   }
   resize(); addEventListener('resize', resize);
   // 0 fair, 1 overcast, 2 rain (drops on the glass), 3 fog: the shader's wx
