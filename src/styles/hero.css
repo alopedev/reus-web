@@ -192,7 +192,9 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   /* a compact departure leaves the height to the window */
   .info{ row-gap:.3rem; }
   .board{ column-gap:.6rem; }
-  #dep{ font-size:3.2rem; } .trip .t{ font-size:1.2rem; } .trip .w{ font-size:.85rem; }
+  #dep{ font-size:3.2rem; } .trip .t{ font-size:1.2rem; }
+  /* never under 13 px: the root's floor (15 px) puts .85rem just under it on a 320 px screen; from 360 px up the rem wins */
+  .trip .w{ font-size:max(.85rem, 13px); }
   /* the live delay on a phone: the new time over the countdown, in the narrow column between the two times */
   .big .w.viu{ display:flex; flex-direction:column; white-space:nowrap; line-height:1.08; }
   .big .nova{ font-size:1.45rem; margin:0; vertical-align:baseline; }

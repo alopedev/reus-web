@@ -1,4 +1,4 @@
-# Handoff · 10 de octubre de 2026
+# Handoff · 11 de octubre de 2026
 
 Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md` (registro estético). Producto: `docs/PRD.md` v0.2.
 
@@ -72,6 +72,8 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 
 **Retraso en directo (10-10, PR #45):** feature 1 de la investigación del 10-10; opción A de tres (Àlex: «si va a la hora no se dice nada»; B sello y C solo palabras descartadas, maquetas en `retard-directe/` de los archivos del proyecto). Segunda función de Vercel: `api/retards.ts` lee los GTFS-RT de Renfe (`gtfsrt.renfe.com/trip_updates.json` y `vehicle_positions.json`, Cercanías con Rodalies, cada 20 s, CC BY 4.0, sin CORS) y devuelve por número de tren de los regionales (R11, R13–R17) `circula` (retraso en minutos, próxima parada, andén si viene en la etiqueta) o `cancelat`; cruza los dos feeds por `tripId`, porque el `tripId` no siempre lleva el número (`5181S30503R15` es el 17505) y la etiqueta del vehículo sí («R15-17505»). Un cancelado solo se sabe si aún tiene posición. La respuesta es tan vieja como el feed más viejo; la CDN la guarda 20 s; si un feed falla, 502. `src/retards.ts` pregunta cada 30 s como mucho y distingue cuatro estados: circula, cancelado, aún no en el feed (un tren entra solo cuando ya circula, así que desde Barcelona casi siempre falta hasta que arranca en França) y desconocido (sin respuesta o de más de 3 min). `shown()` recibe `retards`: la fila grande lleva `live` (`late` con las horas nuevas, `cancel`, o `unknown` si sale en menos de 60 min y no hay dato); la cuenta atrás, «Surt en …» de la hoja, `#aviso` y el mensaje de «Avisar a casa» (llegada) usan la hora nueva; un regional con retraso que aún no ha llegado a tu estación (su próxima parada es la tuya o anterior) sigue siendo el próximo tras pasar su hora; el vagón va donde lo pone el horario corrido el retraso. Menos de 2 min es «a la hora»: no se dice nada. El AVE no tiene dato. Tests en `npm test` (11 de la función y la página, 9 de `shown`) y `check_retards` en `check.py hero` (contesta él mismo: retraso, a la hora, sin dato, 503, cancelado; escritorio y móvil con la hoja). **Falta verificarla en Vercel:** tras fusionar, abrir `https://reus-web.vercel.app/api/retards` y comprobar que salen trenes con su número.
 
+**Lo imprescindible antes de lanzar (11-10, en PR):** P0-11 y P1-2 cerrados. El hero (`#hero`) es una región con nombre, «Pròxims trens»: antes, todo su texto quedaba fuera de cualquier región y el lector no lo encontraba saltando por regiones (`check_a11y` busca texto fuera de regiones). `check.py` recorre también 320 × 568 (el reflujo de WCAG): no hay scroll lateral; solo la cuenta atrás del móvil bajaba a 12,75 px y ahora tiene un suelo de 13 px que no cambia nada desde 360 px. Caducidad: `check_datos.py --caducidad` dice hasta qué día tiene horario la web y falla con 7 días o menos; el trabajo `caducidad` de `horarios.yml` lo pasa cada día sobre `main`, aunque el robot haya fallado, con la fecha en el resumen del run (tests en `scripts/test/test_caducidad.py`, dentro de `npm test`). Sigue igual en 320 y 360 px: «en 1 h 14 min» se parte en tres líneas junto a la hora destacada (ya anotado en «Pendiente y riesgos»).
+
 **Transición hero → mesa y viaje de letras:** hechos (`src/shelf.ts`, `src/letters.ts`). Con «Capacasa», tres letras se funden en el hueco de «Qué es».
 
 ## Siguiente paso
@@ -79,8 +81,9 @@ Todo el contexto necesario está en este repositorio. Decisiones: `docs/plan.md`
 1. Features del benchmark que quedan (decisiones de Àlex del 06-10; antes de construir, 3 opciones visuales):
    - Quizá: sello «último de hoy» (en móvil, encima de la hora)
    - Benchmark: https://claude.ai/code/artifact/03d4ea6e-983f-4fd4-a53c-274c8fa23d77
-2. Generalizar la mesa: los textos ya están (06-10). El billete de Rodalies («BCN SANTS → REUS») se queda como está: Àlex descartó que copie el trayecto elegido (09-10)
-3. Grabar el vídeo para X y LinkedIn
+2. Lanzar (Fase 3): grabar el vídeo para X y LinkedIn y publicar en el portfolio. Antes, Àlex confirma en producción `/api/avisos` y `/api/retards`
+
+Generalizar la mesa, hecho: los textos se cambiaron el 06-10 y el billete de Rodalies («BCN SANTS → REUS») se queda como está (Àlex, 09-10).
 
 ## Lecciones técnicas
 

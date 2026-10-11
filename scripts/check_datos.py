@@ -438,7 +438,39 @@ def run(path, trains_path):
     return failures
 
 
+AVISO_DIAS = 7   # warn when the published timetable runs out within a week
+
+
+def caducidad(d, hoy):
+    """Days after hoy that still have a real timetable, and the last of them. Past it, the site shows the last day of
+    the same kind with the «horari aproximat» note: the robot has not published for a while."""
+    import datetime as dt
+    ultimo = max(iso_date(k) for k in d.get("dias", {}))
+    return (ultimo - hoy).days, ultimo
+
+
+def main_caducidad(args):
+    """--caducidad [--hoy AAAA-MM-DD] [path]: fails when the timetable has AVISO_DIAS days left or fewer."""
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    hoy = dt.datetime.now(ZoneInfo("Europe/Madrid")).date()
+    if "--hoy" in args:
+        i = args.index("--hoy"); hoy = iso_date(args[i + 1]); del args[i:i + 2]
+    d, errs = load(pathlib.Path(args[0]) if args else root / "data/red.json")
+    if errs:
+        print("FAIL\n  " + "\n  ".join(errs)); sys.exit(1)
+    quedan, ultimo = caducidad(d, hoy)
+    msg = f"timetable until {ultimo.isoformat()}: {quedan} days left after {hoy.isoformat()} (published {d.get('actualizado')})"
+    if quedan <= AVISO_DIAS:
+        print(f"FAIL · caducidad: {msg}. The daily robot has not published for {(hoy - iso_date(d['actualizado'])).days} days; "
+              "after that day the site only shows an approximate timetable")
+        sys.exit(1)
+    print(f"OK · caducidad: {msg}")
+
+
 if __name__ == "__main__":
+    if "--caducidad" in sys.argv:
+        main_caducidad([a for a in sys.argv[1:] if a != "--caducidad"]); sys.exit(0)
     red_path = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else root / "data/red.json"
     trains_path = root / "data/trains.json"
     failures = run(red_path, trains_path)

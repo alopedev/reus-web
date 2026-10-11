@@ -58,3 +58,16 @@ jobs:
           name: capturas-horarios
           path: screenshots/
           if-no-files-found: ignore
+
+  # whatever happened above: how many days of real timetable the published site has left. When the robot keeps
+  # failing, this turns red a week before the site falls back to an approximate timetable, with the date in the summary
+  caducidad:
+    needs: horarios
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - shell: bash   # with pipefail: a failure survives the tee
+        run: python3 scripts/check_datos.py --caducidad | tee -a "$GITHUB_STEP_SUMMARY"
