@@ -6,7 +6,7 @@
     "dev": "vite",
     "typecheck": "tsc -p . && tsc -p api",
     "build": "tsc -p . && tsc -p api && vite build",
-    "test": "node --import ./scripts/test/hooks.mjs --test 'scripts/test/*.test.ts'",
+    "test": "node --import ./scripts/test/hooks.mjs --test 'scripts/test/*.test.ts' && python3 -m unittest discover -s scripts/test -p 'test_*.py'",
     "preview": "vite preview",
     "check": "npm test && npm run build && npm run build:paridad && python3 scripts/check.py",
     "build:paridad": "RED=./scripts/baseline/red.json OUT_DIR=../dist-paridad vite build",

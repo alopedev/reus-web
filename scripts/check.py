@@ -20,7 +20,7 @@ Rules checked:
      table and the letters would drift apart (`check_drop_width`, also in `check.py letras`).
   7. The table is painted in watercolor once it arrives and carries its travel things
      (coffee, pen, Rodalies ticket); the page never scrolls sideways.
-  8. Across 11 screen sizes (360 px to 2560 px): nothing leaves the screen sideways, tickets are
+  8. Across 12 screen sizes (320 px, the reflow of WCAG 1.4.10, to 2560 px): nothing leaves the screen sideways, tickets are
      as wide as their text, no text is under 13 px, the notebook's pages never become strips,
      the pinned table fits the screen and, on landscape screens, the hero scales like a poster. On the stacked
      hero (phones, portrait tablets) the window is panoramic, as wide as the stage, and no ticket touches its frame.
@@ -621,7 +621,7 @@ async def check_motion(page, name, reduced=False):
         if abs(sh["x"] - sh["rest"]) > 1 or sh["a"] < .99: errs.append(f"the {paper}'s shadow is not at rest at the end ({sh['x']:.1f} px at {sh['a']:.2f}, rest {sh['rest']:.1f} px)")
     return errs
 
-SIZES = {"360x740": (360, 740), "390x844": (390, 844), "430x932": (430, 932), "768x1024": (768, 1024), "1000x1300": (1000, 1300),
+SIZES = {"320x568": (320, 568), "360x740": (360, 740), "390x844": (390, 844), "430x932": (430, 932), "768x1024": (768, 1024), "1000x1300": (1000, 1300),
          "1024x768": (1024, 768), "1280x720": (1280, 720), "1366x768": (1366, 768), "1440x900": (1440, 900), "1920x1080": (1920, 1080), "2560x1440": (2560, 1440)}
 FIT = """(() => {
   const q = s => document.querySelector(s), errs = [];
@@ -785,6 +785,20 @@ LIVE = """(() => { const live = [...document.querySelectorAll('[aria-live]')];
   return {n: live.length, holding: live.filter(l => l.querySelector('input,button,a,select')).map(l => l.id || l.className),
           text: live.map(l => l.textContent.trim()).join(' | '), dep: document.getElementById('dep').textContent}; })()"""
 
+# visible text not inside a landmark (main, a named region…); modal sheets are left out: they take over the page when open
+OUTSIDE_LANDMARKS = """(() => {
+  const lm = 'main,header,footer,nav,aside,dialog,[role=main],[role=banner],[role=contentinfo],[role=navigation],[role=complementary],' +
+    '[role=region][aria-label],[role=region][aria-labelledby],section[aria-label],section[aria-labelledby]';
+  const out = [], walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for(let n; (n = walk.nextNode());){
+    const el = n.parentElement;
+    if(!n.textContent.trim() || el.closest('script,style,[aria-hidden=true]') || el.closest(lm)) continue;
+    const box = el.getBoundingClientRect(); if(!box.width && !box.height && !el.closest('.sr')) continue;
+    out.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''} «${n.textContent.trim().slice(0, 30)}»`);
+  }
+  return out.slice(0, 4);
+})()"""
+
 async def check_a11y(browser):
     """13. Screen readers hear the train, not the clock; one-key shortcuts stay off for the public; the labels read right."""
     errs = []
@@ -805,6 +819,9 @@ async def check_a11y(browser):
     await page.wait_for_timeout(300)
     said = (await page.evaluate(LIVE))["text"]
     if pick and pick not in said: errs.append(f"choosing the {pick} train is not announced (live region: «{said[:80]}»)")
+    # every text a screen reader can reach sits in a landmark, so jumping between regions finds the trains too
+    loose = await page.evaluate(OUTSIDE_LANDMARKS)
+    if loose: errs.append(f"text outside any landmark: {' | '.join(loose)}")
     label = await page.evaluate("document.querySelector('.tk .swap')?.getAttribute('aria-label') || ''")
     if not label.startswith("Canviar el sentit"): errs.append(f"the ticket's → reads «{label}», expected «Canviar el sentit…»")
     # R and P are for recording the video only: without ?grabar a stray key must not pause the landscape
@@ -1962,7 +1979,7 @@ async def check_town_close(browser):
     return errs
 
 async def check_town_fit(browser):
-    """With the longest eligible town's name chosen (Puigverd de Lleida-Artesa de Lleida), across the 11 SIZES:
+    """With the longest eligible town's name chosen (Puigverd de Lleida-Artesa de Lleida), across the 12 SIZES:
     the existing FIT still passes, the sheet opened at step 2 fits the screen without a horizontal overflow, and
     every .ln/.opt is at least 44 px tall."""
     net = _net()
