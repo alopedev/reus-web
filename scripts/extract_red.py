@@ -361,6 +361,70 @@ def best_line(stop_ids, line_stops):
 
 # ---------- programa principal ----------
 
+# ---------- ultima red: un solo tren por tren fisico ----------
+
+def one_per_train(trenes, dias):
+    """El mismo tren fisico dos veces en un dia (los feeds difieren a veces en un minuto en
+    una estacion, p. ej. Passeig de Gracia, o Renfe da dos numeros al mismo tren: el R16 que
+    sale de Franca a las 19:15 es el 18055 hasta Tortosa y el 18189 hasta Ulldecona y Vinaros,
+    que no deja bajar antes de Tortosa ni para en Camp-redo). Mismo criterio que la regla 6 de
+    check_datos.py: dos o mas estaciones comunes, en el mismo orden, saliendo con un minuto de
+    diferencia como mucho (llegando, donde uno de los dos acaba). Se unen en uno: el que para
+    en mas estaciones del tramo comun (si empatan, el de mas paradas y luego el que tiene numero
+    de tren real: los de fom sin pareja llevan su trip_id), alargado con las paradas del otro
+    antes o despues de ese tramo, para que ningun pueblo pierda el tren. Devuelve (trenes, dias)
+    sin los trenes que ya no usa ningun dia."""
+    def same_train(x, y):
+        ends = {x["s"][-1][0], y["s"][-1][0]}
+        sx = {sid: (e, a)[sid in ends] for sid, a, e in x["s"]}
+        sy = {sid: (e, a)[sid in ends] for sid, a, e in y["s"]}
+        shared = [sid for sid, _a, _e in x["s"] if sid in sy]
+        return (len(shared) >= 2 and shared == [sid for sid, _a, _e in y["s"] if sid in sx]
+                and all(abs(sx[k] - sy[k]) <= 1 for k in shared))
+
+    def merge(a, b):
+        ia = [sid for sid, _a, _e in a["s"]]; ib = [sid for sid, _a, _e in b["s"]]
+        shared = [sid for sid in ia if sid in ib]
+        first, last = shared[0], shared[-1]
+        if ib.index(last) - ib.index(first) > ia.index(last) - ia.index(first):
+            a, b, ia, ib = b, a, ib, ia
+        s = [list(x) for x in a["s"]]
+        head, tail = [], []
+        if ia.index(first) == 0 and ib.index(first) > 0:   # el otro empieza antes
+            head = [list(x) for x in b["s"][:ib.index(first)]]
+            s[0][1] = b["s"][ib.index(first)][1]
+        if ia.index(last) == len(ia) - 1 and ib.index(last) < len(ib) - 1:   # el otro sigue
+            tail = [list(x) for x in b["s"][ib.index(last) + 1:]]
+            s[-1][2] = b["s"][ib.index(last)][2]
+        return {**a, "s": head + s + tail}
+
+    trenes = list(trenes)
+    key = lambda t: (t["n"], t["p"], json.dumps(t["s"]))
+    index = {key(t): i for i, t in enumerate(trenes)}
+    rank = lambda i: (len(trenes[i]["s"]), trenes[i]["n"].isdigit())
+    out = {}
+    for date, idxs in dias.items():
+        kept = []
+        for i in sorted(idxs, key=rank, reverse=True):
+            for j, k in enumerate(kept):
+                if same_train(trenes[i], k):
+                    kept[j] = merge(k, trenes[i])
+                    break
+            else:
+                kept.append(trenes[i])
+        out[date] = set()
+        for t in kept:
+            if key(t) not in index:
+                index[key(t)] = len(trenes)
+                trenes.append(t)
+            out[date].add(index[key(t)])
+    used = sorted({i for idxs in out.values() for i in idxs})
+    remap = {old: new for new, old in enumerate(used)}
+    trenes = [trenes[i] for i in used]
+    dias = {d: {remap[i] for i in idxs} for d, idxs in out.items()}
+    return trenes, dias
+
+
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--fomento", help="zip o carpeta del feed Fichero_CER_FOMENTO (por defecto, se descarga)")
@@ -587,28 +651,7 @@ def main():
             trenes[idx]["n"] = numero
         dias[date.isoformat()].add(idx)
 
-    # -- ultima red: el mismo tren fisico dos veces en un dia (los feeds difieren a veces
-    # en un minuto en una estacion, p. ej. Passeig de Gracia, o Renfe da dos numeros al
-    # mismo tren, uno de ellos alargado hasta Ulldecona). Mismo criterio que la regla 6
-    # de check_datos.py: dos o mas estaciones comunes, en el mismo orden, saliendo con
-    # un minuto de diferencia como mucho. Se queda el de mas paradas; si empatan, el que
-    # tiene numero de tren real (los de fom sin pareja llevan su trip_id). --
-    def same_train(x, y):
-        sx = {sid: e for sid, _a, e in x["s"]}; sy = {sid: e for sid, _a, e in y["s"]}
-        shared = [sid for sid, _a, _e in x["s"] if sid in sy]
-        return (len(shared) >= 2 and shared == [sid for sid, _a, _e in y["s"] if sid in sx]
-                and all(abs(sx[k] - sy[k]) <= 1 for k in shared))
-    rank = lambda i: (len(trenes[i]["s"]), trenes[i]["n"].isdigit())
-    for date, idxs in dias.items():
-        kept = []
-        for i in sorted(idxs, key=rank, reverse=True):
-            if not any(same_train(trenes[i], trenes[k]) for k in kept):
-                kept.append(i)
-        dias[date] = set(kept)
-    used = sorted({i for idxs in dias.values() for i in idxs})
-    remap = {old: new for new, old in enumerate(used)}
-    trenes = [trenes[i] for i in used]
-    dias = {d: {remap[i] for i in idxs} for d, idxs in dias.items()}
+    trenes, dias = one_per_train(trenes, dias)
 
     if not trenes:
         raise SystemExit("No se ha generado ningun tren: revisa los feeds/rango de fechas. data/red.json no se ha tocado.")
