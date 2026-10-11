@@ -1,6 +1,7 @@
 import { daylight, type Hour, type Rgb } from './light';
 import { reduce, state } from './state';
 import { byId, find } from './dom';
+import { dropped } from './shelf';
 import TABLE_FRAG from './shaders/table.frag?raw';
 
 // the table under the window: painted once in watercolor when it arrives, with the hero's pigment model,
@@ -105,10 +106,12 @@ export function createTable(): Table {
     const step = (t: number) => { const r = Math.min(1, (t - t0) / 3400); draw(r); if(r < 1) raf = requestAnimationFrame(step); else cv.dataset.pintada = '1'; };
     raf = requestAnimationFrame(step);
   }
-  // paint it the first time the table comes into view; afterwards only repaint (instantly) on resize or a new hour
+  // paint it the first time the table comes into view; afterwards only repaint (instantly) on resize or a new hour.
+  // At load it counts as in view (its top edge touches the screen's bottom) while the hero still covers it all:
+  // nobody can see a paint-in then, so it is painted at once and leaves the GPU to the landscape
   new IntersectionObserver(([e]) => {
     esc.classList.toggle('dormida', !e.isIntersecting);
-    if(e.isIntersecting && !started){ started = true; paint(!reduce); }
+    if(e.isIntersecting && !started){ started = true; paint(!reduce && dropped() > 0); }
   }).observe(esc);
   let rs = 0;
   // a new size: repaint once it stops changing; a paint-in still under way carries on at the new size
