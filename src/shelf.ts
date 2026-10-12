@@ -12,6 +12,14 @@ export function setupShelf(w: World | null): void {
   world = w;
   gsap.registerPlugin(ScrollTrigger);
   const PINNED = '(min-width:1000px) and (min-height:780px) and (min-aspect-ratio:1/1)';
+  // still: the wall never turns, but once the table covers the fixed hero its controls leave the keyboard's reach,
+  // as pitch() hides it with motion (p >= 1)
+  gsap.matchMedia().add('(prefers-reduced-motion: reduce)', () => {
+    const shelf = byId('repisa'), hero = byId('hero');
+    const cover = () => { restTop = shelf.offsetTop; hero.style.visibility = dropped() >= 1 ? 'hidden' : ''; };
+    addEventListener('scroll', cover, {passive:true}); addEventListener('resize', cover); cover();
+    return () => { removeEventListener('scroll', cover); removeEventListener('resize', cover); hero.style.visibility = ''; };
+  });
   gsap.matchMedia().add({motion:'(prefers-reduced-motion: no-preference)', wide:'(min-width:701px)', pinned:PINNED}, ctx => {
     if(!ctx.conditions?.motion) return;
     const {pinned} = ctx.conditions, shelf = byId('repisa');
