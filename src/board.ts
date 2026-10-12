@@ -37,7 +37,7 @@ function trip(r: Row, buy: string, ida: boolean, phone: boolean, rec: string): s
   // the big train's time and «compra’l ↗» open Renfe in a new tab; the word repeats the link for the eye only
   const to = ` href="${buy.replace(/&/g, '&amp;')}" target="_blank" rel="noopener"`;
   const soon = big ? soonW : '';
-  const word = big ? ` <a class="buy"${to} tabindex="-1" aria-hidden="true">compra’l ↗</a>` : '';
+  const word = big && buy ? ` <a class="buy"${to} tabindex="-1" aria-hidden="true">compra’l ↗</a>` : '';
   const lead = late ? `<span class="nova">${hhmm(late.dep)}</span><span class="nx"><span class="mes">+${late.min} min</span>${until ? ', ' : ''}</span>${soon}`
     : live?.kind === 'cancel' ? '<span class="nx mes">cancel·lat</span>'
     : `<span class="nx">${r.gone ? 'ja ha sortit' : 'el pròxim'}${until ? ', ' : ''}</span>${soon}${live?.kind === 'unknown' ? ' <span class="gris">· sense dades en directe encara</span>' : ''}`;
@@ -46,7 +46,9 @@ function trip(r: Row, buy: string, ida: boolean, phone: boolean, rec: string): s
   const w = big ? `<span class="lead">${where}</span>${rec}` : where;
   const camp = isAve ? ` <span class="st">${ida ? 'fins a' : 'des de'} Camp de Tarragona</span>` : '';
   // spaces between the cells: the grid ignores them, but the text (and a screen reader) keeps its words apart
-  const dep = big ? `<a class="t${struck}" id="dep"${to} aria-label="${hhmm(r.dep)}, comprar a Renfe (s’obre en una altra pestanya)">${hhmm(r.dep)}</a>` : `<span class="t">${hhmm(r.dep)}</span>`;
+  // a cancelled or departed train has nothing to buy (shown leaves `buy` empty): its time is only a time
+  const dep = big && buy ? `<a class="t${struck}" id="dep"${to} aria-label="${hhmm(r.dep)}, comprar a Renfe (s’obre en una altra pestanya)">${hhmm(r.dep)}</a>`
+    : `<span class="t${struck}"${big ? ' id="dep"' : ''}>${hhmm(r.dep)}</span>`;
   const cells = `<span class="pill" style="${lineStyle(r.line)}">${r.line}</span> ${dep} `
     + `<span class="w">${w}</span> <span class="${arrCls}">${arr}</span>${camp}`;
   if(big) return `<div class="trip big">${cells}</div>`;
