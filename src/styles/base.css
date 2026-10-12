@@ -19,6 +19,9 @@ html{ height:100%; font-size:clamp(14px, min(1.111vw, 1.778vh), 40px); }
 @media (max-aspect-ratio:1/1){ html{ font-size:clamp(15px, calc(10px + 1.5vw), 22px); } }
 body{ min-height:100%; background:#7d6650; color:var(--paper); font-family:var(--texto); font-weight:500; }
 @media (prefers-reduced-motion: no-preference){ html{ scroll-behavior:smooth; } }
+/* while a sheet is open (the train's, the choosers, a notice, privacy) the page behind holds still: the scroll would
+   turn the wall towards the table under the backdrop (Àlex, 12-10). The gutter stays, so nothing shifts sideways */
+html:has(dialog[open]){ overflow:hidden; scrollbar-gutter:stable; }
 /* the hero stays put while the shelf scrolls up over it */
 #hero{ position:fixed; inset:0; z-index:0; }
 /* the wall darkens as it leans away from the camera: painted in the wall's shader when WebGL runs (the texts on
