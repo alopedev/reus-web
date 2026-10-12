@@ -27,7 +27,7 @@ function trip(r: Row, buy: string, ida: boolean, phone: boolean, rec: string): s
   if(phone){
     const w = !big ? (morrow ? 'demà' : '') : late ? `<span class="nova">${hhmm(late.dep)}</span>${soonW}`
       : live?.kind === 'cancel' ? '<span class="mes">cancel·lat</span>' : live?.kind === 'unknown' ? `${soonW}<span class="gris">sense dades</span>` : soonW;
-    const cells = `<span class="pill" style="${lineStyle(r.line)}">${r.line}</span> <span class="t${struck}"${big ? ` id="dep" data-t="${hhmm(r.dep)}"` : ''}>${hhmm(r.dep)}</span> `
+    const cells = `<span class="pill" style="${lineStyle(r.line)}">${r.line}</span> <span class="t${struck}"${big ? ' id="dep"' : ''}>${hhmm(r.dep)}</span> `
       + `<span class="w${live ? ' viu' : ''}">${w}</span> <span class="${arrCls}">${arr}</span> <span class="mas" aria-hidden="true">›</span>`;
     const where = isAve ? (ida ? ' a' : ' des de') + ' Camp de Tarragona' : '';
     const said = late ? `, amb ${late.min} min de retard, surt cap a les ${hhmm(late.dep)} i arriba a les ${hhmm(late.arr)}` : live?.kind === 'cancel' ? ', cancel·lat' : '';
@@ -47,9 +47,8 @@ function trip(r: Row, buy: string, ida: boolean, phone: boolean, rec: string): s
   const camp = isAve ? ` <span class="st">${ida ? 'fins a' : 'des de'} Camp de Tarragona</span>` : '';
   // spaces between the cells: the grid ignores them, but the text (and a screen reader) keeps its words apart
   // a cancelled or departed train has nothing to buy (shown leaves `buy` empty): its time is only a time
-  // data-t: the time again, for the sweep of light that crosses it while nobody has pressed it yet (hint.ts)
-  const dep = big && buy ? `<a class="t${struck}" id="dep" data-t="${hhmm(r.dep)}"${to} aria-label="${hhmm(r.dep)}, comprar a Renfe (s’obre en una altra pestanya)">${hhmm(r.dep)}</a>`
-    : `<span class="t${struck}"${big ? ` id="dep" data-t="${hhmm(r.dep)}"` : ''}>${hhmm(r.dep)}</span>`;
+  const dep = big && buy ? `<a class="t${struck}" id="dep"${to} aria-label="${hhmm(r.dep)}, comprar a Renfe (s’obre en una altra pestanya)">${hhmm(r.dep)}</a>`
+    : `<span class="t${struck}"${big ? ' id="dep"' : ''}>${hhmm(r.dep)}</span>`;
   const cells = `<span class="pill" style="${lineStyle(r.line)}">${r.line}</span> ${dep} `
     + `<span class="w">${w}</span> <span class="${arrCls}">${arr}</span>${camp}`;
   if(big) return `<div class="trip big">${cells}</div>`;

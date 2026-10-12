@@ -1571,15 +1571,15 @@ HORA = """(() => { const h = document.getElementById('hero'), d = document.getEl
   const m = c.textShadow.match(/(-?[\\d.]+)px (-?[\\d.]+)px ([\\d.]+)px/);
   const anim = s => { const e = document.querySelector(s); return e ? getComputedStyle(e).animationName : null; };
   return {raised: !!m && +m[1] > 0 && +m[3] === 0, shadow: c.textShadow, doubt: h.classList.contains('duda'),
-          shine: h.classList.contains('brilla'), beat: h.classList.contains('batec'), sweep: getComputedStyle(d, '::before').animationName,
+          beat: h.classList.contains('batec'), glint: getComputedStyle(d, '::before').content !== 'none',
           dep: anim('#dep'), mas: anim('#board .big .mas'), buy: anim('#board .big .buy'), kept: (() => { try { return localStorage.getItem('capacasa.hora'); } catch { return 'blocked'; } })()}; })()"""
 
 async def check_hora(browser):
     """The highlighted time says it can be pressed, only if you hesitate (option C, Àlex 12-10): raised (the hard
-    offset shadow) until it is pressed for the first time; nothing moves on the way in; 5 s after the hero comes in
-    without a touch, a sweep of light crosses it once; a touch where nothing answers (the window) makes it beat, with
-    «compra’l» on a desktop and «›» on a phone, and the light sweep it; pressed, it lies flat and quiet, also after a
-    reload. With reduced motion only the relief is left."""
+    offset shadow) until it is pressed for the first time; nothing moves on the way in, nor while nothing is touched
+    (the sweep of golden light after 5 s was dropped, Àlex 12-10); a touch where nothing answers (the window) makes it
+    beat, with «compra’l» on a desktop and «›» on a phone; pressed, it lies flat and quiet, also after a reload. With
+    reduced motion only the relief is left."""
     errs = []
     for name, (w, h) in {"desktop": (1440, 900), "phone": (390, 844)}.items():
         page = await open_page(browser, viewport={"width": w, "height": h})
@@ -1588,14 +1588,13 @@ async def check_hora(browser):
         s = await page.evaluate(HORA)
         if not s["raised"]: errs.append(f"{name}: on a first visit the highlighted time is not raised ({s['shadow']})")
         await page.wait_for_function("document.getElementById('stage').classList.contains('in')", timeout=30000)
-        await page.wait_for_timeout(3500)
+        # 7 s without a touch: the time stays still, no light crosses it
+        moved = await page.evaluate("""new Promise(done => { const h = document.getElementById('hero'); let seen = [];
+          const o = new MutationObserver(() => { if(h.classList.contains('batec') || h.classList.contains('brilla')) seen.push(h.className); });
+          o.observe(h, {attributes: true}); setTimeout(() => { o.disconnect(); done(seen); }, 7000); })""")
         s = await page.evaluate(HORA)
-        if s["shine"] or s["beat"]: errs.append(f"{name}: the time moves before 5 s without a touch ({s})")
-        try: await page.wait_for_function("document.getElementById('hero').classList.contains('brilla')", timeout=8000)
-        except Exception: errs.append(f"{name}: no sweep of light on the time 5 s after the hero comes in")
-        s = await page.evaluate(HORA)
-        if s["shine"] and s["sweep"] in ("none", ""): errs.append(f"{name}: the sweep is on but nothing animates the time's light")
-        # a touch on the window, where nothing answers: the time beats with its sign, and the light sweeps it again
+        if moved or s["beat"] or s["glint"] or s["dep"] not in (None, "none"): errs.append(f"{name}: the time moves without a touch ({moved}, {s})")
+        # a touch on the window, where nothing answers: the time beats with its sign
         await page.mouse.click(*(await page.evaluate("(r => [r.x + r.width / 2, r.y + r.height / 2])(document.getElementById('win').getBoundingClientRect())")))
         await page.wait_for_timeout(150)
         s = await page.evaluate(HORA); sign = "buy" if name == "desktop" else "mas"
@@ -1608,7 +1607,7 @@ async def check_hora(browser):
         await page.mouse.click(*(await page.evaluate("(r => [r.x + r.width / 2, r.y + r.height / 2])(document.getElementById('win').getBoundingClientRect())")))
         await page.wait_for_timeout(150)
         s = await page.evaluate(HORA)
-        if s["raised"] or s["doubt"] or s["shine"] or s["beat"]: errs.append(f"{name}: once pressed the time is not flat and quiet ({s})")
+        if s["raised"] or s["doubt"] or s["beat"]: errs.append(f"{name}: once pressed the time is not flat and quiet ({s})")
         if s["kept"] != "1": errs.append(f"{name}: the press is not remembered ({s['kept']})")
         await page.reload(); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(500)
         s = await page.evaluate(HORA)
@@ -1617,10 +1616,10 @@ async def check_hora(browser):
     # reduced motion: the relief only
     page = await hero_page(browser, 390, 844)
     await page.mouse.click(*(await page.evaluate("(r => [r.x + r.width / 2, r.y + r.height / 2])(document.getElementById('win').getBoundingClientRect())")))
-    await page.wait_for_timeout(5500)
+    await page.wait_for_timeout(150)
     s = await page.evaluate(HORA)
     if not s["raised"]: errs.append(f"reduced motion: the time is not raised ({s['shadow']})")
-    if s["shine"] or s["beat"]: errs.append(f"reduced motion: the time moves ({s})")
+    if s["beat"]: errs.append(f"reduced motion: the time moves ({s})")
     await page.close()
     return errs
 
