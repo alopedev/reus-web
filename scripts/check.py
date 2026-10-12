@@ -1737,8 +1737,24 @@ def _net():
     import json
     return json.loads((root / "scripts/baseline/red.json").read_text())
 
+_BOTH_WAYS = None
+def _both_ways():
+    """Stations with a direct train from a Barcelona station and one back (12-10: Cerbère only had trains out)."""
+    global _BOTH_WAYS
+    if _BOTH_WAYS is None:
+        net = _net()
+        bcn = {sid for sid, info in net["estaciones"].items() if info.get("barcelona")}
+        out, back = set(), set()
+        for t in net["trenes"]:
+            ids = [s[0] for s in t["s"]]
+            at = [i for i, sid in enumerate(ids) if sid in bcn]
+            if at:
+                out |= set(ids[at[-1] + 1:]); back |= set(ids[:at[0]])
+        _BOTH_WAYS = out & back
+    return _BOTH_WAYS
+
 def _eligible(sid, info):
-    return sid not in EXCLUDED_TOWNS and not info.get("barcelona")
+    return sid not in EXCLUDED_TOWNS and not info.get("barcelona") and sid in _both_ways()
 
 def _line_set(net, line):
     """Eligible stations whose lineas include this line."""

@@ -9,10 +9,18 @@ export const lineStyle = (l: string): string => `--c:${LINE[l] ?? 'var(--shadow)
 
 // out of the chooser: Barcelona's own stations (their own picker is 3.5), the two dense commuter stops nearest
 // Barcelona (El Prat de Llobregat, El Prat Aeroport, Bellvitge - Gornal) and Camp de Tarragona (AVE only, no
-// regional line of its own). Everything else with a direct train to a `barcelona` station is a town
+// regional line of its own). Everything else with a direct train from a `barcelona` station and one back is a
+// town: a station reached one way only (Cerbère, 12-10: ten trains out, none back) would leave half the ticket empty
 const EXCLUDE = new Set(['71707', '72400', '71708', CAMP]);
-const isTown = (id: string, st: {barcelona?: boolean}): boolean => !st.barcelona && !EXCLUDE.has(id);
 const bcnIds = new Set(Object.keys(NET.estaciones).filter(id => NET.estaciones[id].barcelona));
+const fromBcn = new Set<string>(), toBcn = new Set<string>();
+for(const t of NET.trenes){
+  const ids = t.s.map(s => s[0]), at = ids.flatMap((id, i) => bcnIds.has(id) ? [i] : []);
+  if(!at.length) continue;
+  ids.slice(at[at.length - 1] + 1).forEach(id => fromBcn.add(id));
+  ids.slice(0, at[0]).forEach(id => toBcn.add(id));
+}
+const isTown = (id: string, st: {barcelona?: boolean}): boolean => !st.barcelona && !EXCLUDE.has(id) && fromBcn.has(id) && toBcn.has(id);
 
 // the fastest direct trip from Barcelona-Sants to a station, across every train that reaches it: the tie-break
 // for the topological merge below (decision 4 of spec-3.3). Worked out once per station
