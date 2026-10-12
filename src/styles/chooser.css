@@ -27,7 +27,10 @@ dialog#selp:not([open]), dialog#avis:not([open]), dialog#privacitat:not([open]){
 .pills{ display:flex; flex-direction:column; gap:.2rem; min-width:2.9rem; }
 
 /* step 2: the line as a strip map, a coloured rail with one stop per town; the branch keeps its own colour */
-.strip{ list-style:none; margin:.3rem 0 0; padding:0 0 0 1.6rem; columns:2 14rem; column-gap:2rem; }
+/* three columns, on a sheet a little wider, so a whole corridor fits on a desktop: nothing hides below the fold, where
+   macOS's hidden scrollbars give no hint (12-10, option C of three) */
+.strip{ list-style:none; margin:.3rem 0 0; padding:0 0 0 1.6rem; columns:3 11rem; column-gap:1.6rem; }
+.sheet:has(.strip){ width:min(52rem, 92vw); }
 /* each stop carries its own piece of rail, so the line runs on in the second column and the branch keeps its colour */
 .strip li{ position:relative; break-inside:avoid; }
 .strip li::after{ content:""; position:absolute; left:-1.1rem; top:0; bottom:0; width:5px; background:var(--c); }
@@ -60,4 +63,5 @@ dialog#selp:not([open]), dialog#avis:not([open]), dialog#privacitat:not([open]){
 @media (max-width:700px), (max-aspect-ratio:4/5){
   .sheet .pp{ padding:1.2rem 1.1rem 1.1rem; max-height:min(88vh, 42rem); }
   .strip{ columns:1; }
+  .sheet:has(.strip){ width:min(44rem, 92vw); }
 }
