@@ -1589,6 +1589,7 @@ async def check_hero(browser):
     errs += [f"town: {e}" for e in await check_town_choose_tarragona(browser)]
     errs += [f"town: {e}" for e in await check_town_close(browser)]
     errs += [f"town: {e}" for e in await check_town_fit(browser)]
+    errs += [f"strip: {e}" for e in await check_strip_whole(browser)]
     errs += [f"phone: {e}" for e in await check_phone_board(browser)]
     errs += await check_sheet_holds_page(browser)
     # 3.5 · the Barcelona station
@@ -2284,6 +2285,24 @@ async def check_town_fit(browser):
         failures += [f"{size}: {e}" for e in await page.evaluate(FIT)]
         await page.close()
     return failures
+
+async def check_strip_whole(browser):
+    """On a landscape desktop of 1280 × 720 or more, every corridor's list of towns fits its sheet whole: nothing
+    hides below the fold (12-10: at 1440 × 900 R14·R15 hid Flix and Lleida-Pirineus, and macOS's hidden scrollbars
+    gave no hint). Option C of three (12-10): three columns on a desktop."""
+    errs = []
+    for size in ("1280x720", "1366x768", "1440x900", "1920x1080"):
+        w, h = SIZES[size]
+        page = await hero_page(browser, w, h)
+        e = await open_town(page)
+        if e: errs += [f"{size}: {x}" for x in e]; await page.close(); continue
+        for g in GROUPS:
+            await page.click(f'.ln[data-group="{g}"]', timeout=CLICK_MS); await page.wait_for_timeout(200)
+            r = await page.evaluate("(() => { const p = document.querySelector('#selp .pp'); return [p.scrollHeight, p.clientHeight]; })()")
+            if r[0] > r[1] + 1: errs.append(f"{size}: the {g} list is {r[0] - r[1]} px taller than its sheet")
+            await page.click("#selp .back", timeout=CLICK_MS); await page.wait_for_timeout(200)
+        await page.close()
+    return errs
 
 SITE = "https://capacasa.alope.dev/"   # D1 (Àlex, 11-10): the site's address; reus-web.vercel.app sends here (vercel.json)
 TITLE = "Capacasa - D’un cop d’ull, el proper tren cap a casa"
