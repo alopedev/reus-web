@@ -48,11 +48,12 @@ Regla de fusion (docs/referencias/datos-red.md #5):
      de fom con la que el tren comparte mas paradas (todas las paradas de todos los
      trips de fom de esa linea en el rango, toquen o no Barcelona). Empate -> orden
      R11,R13,R14,R15,R16,R17.
-  5. Deduplicar av (regionales y AVE/Avlo) por numero de tren: un mismo
+  5. Deduplicar av (regionales y AVE/Avlo) por numero de tren y horario: un mismo
      trip_short_name puede tener varios trip_id/service_id (reexportaciones con
-     rangos solapados, o simplemente periodos de calendario consecutivos) -- se
-     agrupan todos bajo el numero, se toma el horario de uno cualquiera (coincide
-     entre todos) y se unen los dias en que circula cualquiera de ellos.
+     rangos solapados, o simplemente periodos de calendario consecutivos) -- los que
+     tienen el mismo horario se agrupan y se unen los dias en que circula cualquiera
+     de ellos. Si el horario de un numero cambia a mitad del rango (el R15 15032 el
+     13-10-2026), cada horario va con sus dias (av_groups).
   6. Solo paradas en Catalunya: una parada se descarta si su nombre no esta en la
      tabla COMARCA de este script (que solo cubre poblaciones catalanas). Barcelona
      y Camp de Tarragona se conservan siempre. Si una parada SI aparece en un tren
@@ -327,6 +328,18 @@ def load_av_trips(gtfs, route_product):
     return trips
 
 
+def av_groups(av_trips, stops_by_trip):
+    """Los trip_id de av agrupados por numero de tren Y horario: las reexportaciones de un mismo
+    tren (mismo numero, mismas horas) van juntas, pero si Renfe cambia el horario de un numero a
+    mitad de los 14 dias, cada horario es un grupo con sus propios dias (el R15 15032 sale de
+    Faio a las 08:33 hasta el 12-10-2026 y a las 08:50 desde el 13-10). Sin numero, solo."""
+    groups = collections.defaultdict(list)
+    for trip_id, (_service_id, numero, _prod) in av_trips.items():
+        schedule = tuple((sid, a, e) for _seq, sid, a, e in stops_by_trip.get(trip_id, ()))
+        groups[(numero, schedule) if numero else trip_id].append(trip_id)
+    return list(groups.values())
+
+
 # ---------- filtro Catalunya + comarca ----------
 
 def filter_catalunya(stops, stop_names, dropped):
@@ -536,22 +549,17 @@ def main():
     # -- av trae reexportaciones periodicas con rangos de fecha solapados: el mismo
     # numero de tren puede tener varios trip_id/service_id activos el mismo dia (o en
     # semanas consecutivas) con identico horario (docs/referencias/datos-red.md #3).
-    # Se agrupa por numero, quedandose con un trip_id cualquiera de los activos como
-    # representante del horario y uniendo los dias en que circula CUALQUIERA de sus
-    # trip_id. El horario (y por tanto la firma de comparacion con fom) es UNA sola
-    # cosa por numero, calculada una vez -- si se recalculara por dia, un mismo tren
+    # Se agrupan por numero y horario (av_groups), uniendo los dias en que circula
+    # CUALQUIERA de sus trip_id; el horario (y por tanto la firma de comparacion con
+    # fom) se calcula una vez por grupo -- si se recalculara por dia, un mismo tren
     # fisico podria acabar repartido en varias entradas de `trenes` con `p` distinto
-    # segun que dias coincidieran con fom y cuales no (visto en la practica). --
-    by_numero = collections.defaultdict(list)
-    for trip_id, (service_id, numero, prod) in av_trips.items():
-        key = numero if numero else trip_id  # sin numero: no se agrupa con nada
-        by_numero[key].append(trip_id)
-
-    # -- av: candidatos regionales/REG.EXP./MD y AVE/Avlo, uno por numero --
+    # segun que dias coincidieran con fom y cuales no (visto en la practica). Un numero
+    # cuyo horario cambia a mitad del rango da dos grupos, cada uno con sus dias. --
+    # -- av: candidatos regionales/REG.EXP./MD y AVE/Avlo, uno por numero y horario --
     ave_ocurrencias = []      # [(date, p, tuple(stops filtrados), numero)]
     regional_ocurrencias = []  # idem
 
-    for numero, trip_ids in by_numero.items():
+    for trip_ids in av_groups(av_trips, av_stops_by_trip):
         dias_numero = set()
         for tid in trip_ids:
             service_id = av_trips[tid][0]
@@ -560,7 +568,7 @@ def main():
                     dias_numero.add(d)
         if not dias_numero:
             continue
-        trip_id = trip_ids[0]  # representante: cualquiera vale, el horario coincide
+        trip_id = trip_ids[0]  # representante: todos los del grupo tienen el mismo horario
         _service_id, numero, prod = av_trips[trip_id]
         stops = av_stops_by_trip.get(trip_id)
         if not stops or len(stops) < 2:
