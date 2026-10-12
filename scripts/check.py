@@ -766,10 +766,11 @@ def covers(quad, rect):
 
 async def check_things_clear(browser):
     """On a phone the papers stack in one column and the travel things go in the gaps between them, never over their
-    text (table.ts: «things go in the gaps, never over the text»): on a 320 px phone the Rodalies ticket covered
-    «Revers del bitllet». Read once the table has settled, at every phone width check.py knows."""
+    text (table.ts: «things go in the gaps, never over the text»): on 320 and 360 px phones the Rodalies ticket covered
+    «Revers del bitllet», and there it is left off. Read once the table has settled, at every phone width check.py knows."""
     errs = []
-    for name, (w, h) in {"320x568": (320, 568), "360x740": (360, 740), "390x844": (390, 844), "430x932": (430, 932)}.items():
+    # on the narrowest phones the Rodalies ticket is left off the table (option B, Àlex 12-10); from 390 px it lies there
+    for name, (w, h), ticket in [("320x568", (320, 568), False), ("360x740", (360, 740), False), ("390x844", (390, 844), True), ("430x932", (430, 932), True)]:
         page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce")
         await page.goto(page_url); await page.evaluate("document.fonts.ready")
         await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})")
@@ -777,6 +778,7 @@ async def check_things_clear(browser):
         except Exception: errs.append(f"{name}: the table never gets painted"); await page.close(); continue
         await page.wait_for_timeout(500); await table_sized(page)
         seen = await page.evaluate(THINGS_AND_TEXT); await page.close()
+        if ("rodalies" in seen["things"]) != ticket: errs.append(f"{name}: the Rodalies ticket is {'missing from' if ticket else 'still on'} the table")
         for k, quad in seen["things"].items():
             for text, tl, tt, tr, tb in seen["text"]:
                 if covers(quad, (tl + 1, tt + 1, tr - 1, tb - 1)): errs.append(f"{name}: #{k} covers «{text}»")

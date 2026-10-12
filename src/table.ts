@@ -66,16 +66,16 @@ export function createTable(): Table {
       // stacked papers: things go in the gaps, never over the text
       if(mobile) put('cafe', mesaR - cupW, introP.y + .2 * rem); else put('cafe', mesaR - cupW - .6 * rem, intro.y - .4 * rem);
       put('boli', fol.x + .5 * rem, fol.y + fol.h + .45 * rem, -4);
-      // the Rodalies ticket on the back-of-the-ticket's top right corner; where the kicker's words reach under it (a
-      // narrow phone), it slides right, off the paper's edge and at most a fifth of it past the screen's
+      // the Rodalies ticket on the back-of-the-ticket's top right corner; where the kicker's words reach under it (the
+      // narrowest phones), it is left off the table (option B, Àlex 12-10)
       const kick = document.createRange(); kick.selectNodeContents(find('.kicker', byId('reverso')));
-      const kb = kick.getBoundingClientRect(), rb = byId('reverso').getBoundingClientRect();
-      const tx = Math.max(rev.x + rev.w - tixW - .6 * rem, Math.min(rev.x + kb.right - rb.left + .4 * rem, W - .8 * tixW));
+      const kb = kick.getBoundingClientRect(), rb = byId('reverso').getBoundingClientRect(), tx = rev.x + rev.w - tixW - .6 * rem;
+      byId('rodalies').hidden = rev.x + kb.right - rb.left + .3 * rem > tx;
       put('rodalies', tx, rev.y - 1.9 * rem, 7);
       byId('gafas').hidden = true;
     } else {
       put('cafe', mesaR - cupW - .6 * rem, intro.y - .4 * rem); put('boli', cua.x + cua.w - 1.75 * penW, cua.y - 2.75 * rem, -7);
-      put('rodalies', fol.x + 3.75 * rem, fol.y + fol.h - .9 * rem, 8);
+      put('rodalies', fol.x + 3.75 * rem, fol.y + fol.h - .9 * rem, 8); byId('rodalies').hidden = false;
       const g = byId('gafas'); g.hidden = rev.x + rev.w + 12.5 * rem > W - G.tbl[3]; put('gafas', rev.x + rev.w + 1.4 * rem, rev.y + 1.5 * rem, -9);
     }
     const cafe = byId('cafe');
