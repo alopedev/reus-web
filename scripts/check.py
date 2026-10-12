@@ -682,7 +682,7 @@ BOARD_OVERLAP = """(() => { const errs = [];
         errs.push(`board cells overlap: «${a.textContent.trim()}» and «${b.textContent.trim()}»`); })); });
   return errs; })()"""
 SIZES = {"320x568": (320, 568), "360x740": (360, 740), "390x844": (390, 844), "430x932": (430, 932), "768x1024": (768, 1024), "1000x1300": (1000, 1300),
-         "1024x768": (1024, 768), "1280x720": (1280, 720), "1366x768": (1366, 768), "1440x900": (1440, 900), "1920x1080": (1920, 1080), "2560x1440": (2560, 1440)}
+         "1024x768": (1024, 768), "900x900": (900, 900), "1280x720": (1280, 720), "1366x768": (1366, 768), "1440x900": (1440, 900), "1920x1080": (1920, 1080), "2560x1440": (2560, 1440)}
 FIT = """(() => {
   const q = s => document.querySelector(s), errs = [];
   const out = sel => [...document.querySelectorAll(sel)].filter(el => { if(el.closest('.deco')) return false; const b = el.getBoundingClientRect();
@@ -705,6 +705,11 @@ FIT = """(() => {
     const low = Math.max(...[...document.querySelectorAll('.tk')].map(t => t.getBoundingClientRect().bottom));
     if(low > win.top - .022 * innerHeight - 4) errs.push(`a ticket touches the window's frame (${Math.round(low)} vs frame at ${Math.round(win.top - .022 * innerHeight)})`);
   }
+  // the ticket never lies over the name's board: a square window (between 4/5 and 1/1) once took the portrait root size
+  // with the wide layout, and the ticket covered «CAPACASA»
+  const brd = q('.tauler').getBoundingClientRect();
+  document.querySelectorAll('.tk').forEach(t => { const b = t.getBoundingClientRect();
+    if(b.left < brd.right - 1 && b.right > brd.left + 1 && b.top < brd.bottom - 1 && b.bottom > brd.top + 1) errs.push(`the ticket covers the name (${Math.round(b.left)} < ${Math.round(brd.right)})`); });
   errs.push(...""" + BOARD_OVERLAP + """);
   const pages = [...document.querySelectorAll('.cuaderno .hoja')].map(h => h.offsetWidth); if(Math.min(...pages) < 240) errs.push(`notebook page only ${Math.min(...pages)} px wide`);
   const esc = q('.escena'), mesa = q('.mesa');

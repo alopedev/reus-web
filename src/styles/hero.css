@@ -1,5 +1,5 @@
 /* name and direction, on the wall above the window */
-.top{ display:flex; align-items:flex-start; justify-content:space-between; gap:1.25rem; }
+.top{ display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:.6rem 1.25rem; }
 /* the name, on a split-flap board (Àlex, 10-10): eight cells painted here and h1.brand's letters, one per cell,
    stacked in the same grid. flaps.ts lays a canvas over them while the flaps turn, with these same colours */
 .tauler{ position:relative; display:inline-grid; font-size:4.1rem; padding:.065em; border:.065em solid #4A4038;
