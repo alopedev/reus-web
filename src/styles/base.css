@@ -16,7 +16,7 @@
 html,body{ margin:0; }
 html{ height:100%; font-size:clamp(14px, min(1.111vw, 1.778vh), 40px); }
 /* portrait screens scale with their width */
-@media (max-aspect-ratio:1/1){ html{ font-size:clamp(15px, calc(10px + 1.5vw), 22px); } }
+@media (max-aspect-ratio:4/5){ html{ font-size:clamp(15px, calc(10px + 1.5vw), 22px); } }
 body{ min-height:100%; background:#7d6650; color:var(--paper); font-family:var(--texto); font-weight:500; }
 @media (prefers-reduced-motion: no-preference){ html{ scroll-behavior:smooth; } }
 /* the hero stays put while the shelf scrolls up over it */
