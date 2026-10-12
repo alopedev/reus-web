@@ -64,7 +64,7 @@
 /* the AVE leaves from (or goes to) Camp de Tarragona, not the town: said under its arrival, on a line of its own */
 .trip .st{ grid-column:3 / -1; justify-self:end; font-size:.93rem; line-height:1.1; color:var(--soft); white-space:nowrap; }
 /* the train shown is the one pressed: flat on the wall, no offset shadow and no frame (the inked stamp around it was
-   dropped, Àlex 06-10) */
+   dropped, Àlex 06-10); until it is first pressed, it says it can be (#hero.duda, below) */
 #dep{ font-size:4.6rem; line-height:.9; letter-spacing:-.02em; text-shadow:0 1px 2px rgba(0,0,0,.35); justify-self:start; }
 .big .arr{ color:var(--paper); font-size:1.8rem; }
 /* the big train is the door to Renfe: its time (flat, the train chosen) and «compra’l ↗», raised like everything
@@ -120,6 +120,23 @@
 .rec .vago svg{ display:block; width:100%; height:auto; filter:drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
 .rec .s.up.alt{ bottom:1.55rem; }
 #dep.swap{ animation:swap .45s ease; }
+/* the highlighted time says it can be pressed, only if you hesitate (option C, Àlex 12-10; hint.ts): raised like
+   everything you can press until it is first pressed, then flat for good. If nothing is touched 5 s after the hero
+   comes in, a sweep of warm light crosses it once (.brilla); a touch where nothing answers makes it beat with its sign,
+   «compra’l» on a desktop and «›» on a phone (.batec), and the light sweep it. A struck time (a delay) keeps still */
+#hero.duda a#dep, #hero.duda button.big #dep{ position:relative; display:inline-block; text-shadow:.06em .06em 0 var(--shadow); }
+#hero.duda a#dep:active, #hero.duda button.big:active #dep{ text-shadow:0 1px 2px rgba(0,0,0,.35); transform:translate(.06em,.06em); }
+#hero.duda a#dep:not(.tach)::before, #hero.duda button.big #dep:not(.tach)::before{ content:attr(data-t); position:absolute; inset:0; color:transparent; text-shadow:none; pointer-events:none;
+  background:linear-gradient(105deg, transparent 0 34%, rgba(255,214,140,0) 36%, rgba(255,226,160,.9) 46%, #FFF6DF 50%, rgba(255,226,160,.9) 54%, rgba(255,214,140,0) 64%, transparent 66% 100%);
+  background-size:320% 100%; background-position:100% 0; -webkit-background-clip:text; background-clip:text; }
+#hero.duda .big .buy, #hero.duda .big .mas{ display:inline-block; }
+@media (prefers-reduced-motion:no-preference){
+  #hero.brilla #dep::before{ animation:brilla 1.4s ease-in-out; }
+  #hero.batec a#dep, #hero.batec button.big #dep, #hero.batec .big .buy, #hero.batec .big .mas{ animation:batec .9s ease-out; }
+}
+@keyframes brilla{ from{ background-position:100% 0; } to{ background-position:0 0; } }
+@keyframes batec{ 0%{ transform:scale(1); } 18%{ transform:scale(1.1); filter:drop-shadow(0 0 .25em rgba(255,214,150,.9)); } 36%{ transform:scale(1); }
+  54%{ transform:scale(1.07); filter:drop-shadow(0 0 .2em rgba(255,214,150,.7)); } 100%{ transform:scale(1); filter:none; } }
 @keyframes swap{ from{ opacity:.2; transform:translateY(8px); } to{ opacity:1; transform:none; } }
 .note{ font-size:.93rem; color:var(--soft); margin:0; text-shadow:0 1px 2px rgba(0,0,0,.35); }
 .note:empty{ display:none; }

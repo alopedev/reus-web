@@ -17,6 +17,9 @@ import { createAvisos } from './avisos';
 import { createRetards } from './retards';
 import { setupPrivacy } from './privacy';
 import { counted } from './visites';
+import { createHint, type Look } from './hint';
+import { reduce } from './state';
+import { byId } from './dom';
 
 // the page always opens on the hero: the browser must not put back the last visit's scroll (Safari does on a reload
 // or a reopened tab). The native API, not ScrollTrigger.clearScrollMemory(): ScrollTrigger is only registered later,
@@ -33,7 +36,28 @@ scrollTo({top: 0, behavior: 'instant'});
 const world = build3D();
 const table = createTable();
 const flaps = createFlaps(world ? r => world.snap(r) : undefined);
-const scenery = createScenery(world, flaps.play);
+// the highlighted time says it can be pressed, only if you hesitate (option C, Àlex 12-10): #hero carries its look.
+// A new sweep or beat restarts its animation; each class leaves when its animation ends, or the board's redraw every
+// minute (a new #dep) would play it again
+const hero = byId('hero');
+let hinted: Look = { raised: false, shine: 0, beat: 0 };
+const hint = createHint(l => {
+  const again = (c: string) => { hero.classList.remove(c); void hero.offsetWidth; hero.classList.add(c); };
+  hero.classList.toggle('duda', l.raised);
+  if(!l.raised) hero.classList.remove('brilla', 'batec');
+  else { if(l.shine > hinted.shine) again('brilla'); if(l.beat > hinted.beat) again('batec'); }
+  hinted = l;
+}, { still: reduce });
+hero.classList.toggle('duda', hint.look().raised);
+hero.addEventListener('animationend', e => { if(e.animationName === 'brilla' || e.animationName === 'batec') hero.classList.remove(e.animationName); });
+// pressing the time, «compra’l» or the big row is understanding it; a click on the hero where nothing answers (the
+// window, the wall) is a doubt. A click, not a pointerdown: a finger that scrolls the page clicks nothing
+document.addEventListener('click', e => {
+  const t = e.target as Element;
+  if(t.closest('#dep, #board .buy, #board button.big')) hint.press();
+  else if(t.closest('#hero') && !t.closest('a, button, input, label, select, dialog, .tk, .ruler')) hint.miss();
+});
+const scenery = createScenery(world, () => { flaps.play(); hint.enter(); });
 // the weather at home: the window repaints when it changes (also the still frame of reduced motion, or paused)
 const weather = createWeather(w => { if(!world) return; world.setWeather(w); if(!scenery.isPlaying()) world.frame(0, 0, 1); });
 // the lines' notices: the board redraws its stamp when what is known changes
