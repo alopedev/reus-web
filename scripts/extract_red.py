@@ -38,6 +38,12 @@ Regla de fusion (docs/referencias/datos-red.md #5):
          trip_id de fom que hacian de tramo corto (si no, el mismo tren fisico
          saldria una vez como tramo corto de fom y otra como version completa de
          av). La linea (`p`) se toma de fom (autoritativa), no de la heuristica.
+         Excepto el dia en que el tren de fom no es un tramo del de av (fom_is_piece:
+         para donde av no o se salta paradas): si coincide con el de av a la misma
+         hora en todas las estaciones comunes (same_train) salen los dos y
+         one_per_train los une; si no, ese dia fom trae otro tren en ese hueco y
+         manda el de fom (fom trae un horario por dia y av uno para todos: entre
+         semana, las R11 de las 09:10 y 09:40 a Sants iban al reves en av).
        - Si no coincide en ningun dia -> se anade completo desde av, con la linea
          de la heuristica del punto 4 (los REG.EXP./MD que fom no tiene en
          absoluto: Ribera d'Ebre, Tortosa-Ulldecona, Girona-Portbou...).
@@ -340,6 +346,32 @@ def av_groups(av_trips, stops_by_trip):
     return list(groups.values())
 
 
+def _same_minute(x, y):
+    """Dos paradas (llegada, salida) a la misma hora: un minuto de diferencia como mucho en la llegada o en la
+    salida (fom es mas fino en las llegadas; av repite la salida como llegada)."""
+    return abs(x[0] - y[0]) <= 1 or abs(x[1] - y[1]) <= 1
+
+
+def fom_is_piece(f_stops, a_stops):
+    """El tren de fom es el mismo que el de av, o solo un tramo (fom parte algunos trenes, como Lleida via
+    La Plana-Picamoixons): sus paradas son paradas seguidas del de av. Si no -- fom para donde av no, o se
+    salta paradas de av --, fom trae otro tren para ese dia y manda el de fom: trae un horario por dia y
+    av uno para todos (el 13-10-2026 las R11 de las 09:10 y 09:40 a Sants iban al reves en av). Un par de
+    minutos de diferencia con las mismas paradas no cuenta: los feeds discrepan a menudo en una llegada.
+    Una parada por la que fom vuelve a pasar no cuenta: es el mismo tren que da la vuelta al final de un
+    ramal (el R16 que llega a Tortosa y vuelve a L'Aldea, donde acaban los datos de fom; av sigue a
+    Ulldecona). Paradas como (seq, stop_id, llegada, salida)."""
+    a_ids = [sid for _q, sid, _a, _e in a_stops]
+    f_ids = []
+    for _q, sid, _a, _e in f_stops:
+        if sid not in f_ids:
+            f_ids.append(sid)
+    if not f_ids or f_ids[0] not in a_ids:
+        return False
+    start = a_ids.index(f_ids[0])
+    return a_ids[start:start + len(f_ids)] == f_ids
+
+
 # ---------- filtro Catalunya + comarca ----------
 
 def filter_catalunya(stops, stop_names, dropped):
@@ -376,6 +408,18 @@ def best_line(stop_ids, line_stops):
 
 # ---------- ultima red: un solo tren por tren fisico ----------
 
+def same_train(xs, ys):
+    """Dos listas de paradas (stop_id, llegada, salida) son el mismo tren fisico: dos o mas estaciones
+    comunes, en el mismo orden, saliendo con un minuto de diferencia como mucho (llegando, donde uno de
+    los dos acaba). Es la regla 6 de check_datos.py."""
+    ends = {xs[-1][0], ys[-1][0]}
+    sx = {sid: (e, a)[sid in ends] for sid, a, e in xs}
+    sy = {sid: (e, a)[sid in ends] for sid, a, e in ys}
+    shared = [sid for sid, _a, _e in xs if sid in sy]
+    return (len(shared) >= 2 and shared == [sid for sid, _a, _e in ys if sid in sx]
+            and all(abs(sx[k] - sy[k]) <= 1 for k in shared))
+
+
 def one_per_train(trenes, dias):
     """El mismo tren fisico dos veces en un dia (los feeds difieren a veces en un minuto en
     una estacion, p. ej. Passeig de Gracia, o Renfe da dos numeros al mismo tren: el R16 que
@@ -387,14 +431,6 @@ def one_per_train(trenes, dias):
     de tren real: los de fom sin pareja llevan su trip_id), alargado con las paradas del otro
     antes o despues de ese tramo, para que ningun pueblo pierda el tren. Devuelve (trenes, dias)
     sin los trenes que ya no usa ningun dia."""
-    def same_train(x, y):
-        ends = {x["s"][-1][0], y["s"][-1][0]}
-        sx = {sid: (e, a)[sid in ends] for sid, a, e in x["s"]}
-        sy = {sid: (e, a)[sid in ends] for sid, a, e in y["s"]}
-        shared = [sid for sid, _a, _e in x["s"] if sid in sy]
-        return (len(shared) >= 2 and shared == [sid for sid, _a, _e in y["s"] if sid in sx]
-                and all(abs(sx[k] - sy[k]) <= 1 for k in shared))
-
     def merge(a, b):
         ia = [sid for sid, _a, _e in a["s"]]; ib = [sid for sid, _a, _e in b["s"]]
         shared = [sid for sid in ia if sid in ib]
@@ -420,7 +456,7 @@ def one_per_train(trenes, dias):
         kept = []
         for i in sorted(idxs, key=rank, reverse=True):
             for j, k in enumerate(kept):
-                if same_train(trenes[i], k):
+                if same_train(trenes[i]["s"], k["s"]):
                     kept[j] = merge(k, trenes[i])
                     break
             else:
@@ -604,12 +640,26 @@ def main():
         sig = bcn_signature(stops)
         matched_lines = collections.Counter()
         matched_ftids = []
+        fom_days = set()   # dias en que fom trae otro tren en ese hueco: manda el de fom
         if sig:
             for d in dias_numero:
                 ftid = find_fom(d, sig)
-                if ftid:
-                    matched_ftids.append(ftid)
-                    matched_lines[fom_by_trip_id[ftid]["line"]] += 1
+                if not ftid:
+                    continue
+                fom_stops = fom_by_trip_id[ftid]["stops"]
+                if not fom_is_piece(fom_stops, stops):
+                    if same_train([s[1:] for s in fom_stops], [s[1:] for s in stops]):
+                        # el mismo tren, con paradas que el otro no tiene (el R16 que fom trae por
+                        # Camp-redo y av desde Ulldecona): salen los dos y one_per_train los une
+                        matched_lines[fom_by_trip_id[ftid]["line"]] += 1
+                    else:
+                        fom_days.add(d)
+                    continue
+                matched_ftids.append(ftid)
+                matched_lines[fom_by_trip_id[ftid]["line"]] += 1
+        dias_numero = dias_numero - fom_days
+        if not dias_numero:
+            continue
 
         if matched_lines:
             line = matched_lines.most_common(1)[0][0]
