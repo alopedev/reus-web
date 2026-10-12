@@ -1573,6 +1573,7 @@ async def check_hero(browser):
     errs += [f"town: {e}" for e in await check_town_close(browser)]
     errs += [f"town: {e}" for e in await check_town_fit(browser)]
     errs += [f"phone: {e}" for e in await check_phone_board(browser)]
+    errs += await check_sheet_holds_page(browser)
     # 3.5 · the Barcelona station
     errs += [f"station: {e}" for e in await check_station(browser)]
     # the big train's route, only on a desktop
@@ -2331,6 +2332,46 @@ def check_share(folder="dist"):
         if (app.get("offers") or {}).get("price") not in ("0", 0): out.append(f"JSON-LD offers is {app.get('offers')}, expected a price of 0")
     return out_canon + out
 
+# --- an open sheet holds the page still (12-10) -------------------------------------------------------------------
+async def check_sheet_holds_page(browser):
+    """While a sheet is open (the train's on a phone, the town chooser, a notice, privacy), scrolling does not move the
+    page behind it: a wheel, the keyboard or a finger on the backdrop would scroll the wall towards the table under
+    the darkened backdrop (Àlex, 12-10). Closed again, the page scrolls as before."""
+    errs = []
+    async def swipe(page, x, y, dy):
+        """A finger dragged dy px (Input.synthesizeScrollGesture does not scroll here; raw touch events do)."""
+        cdp = await page.context.new_cdp_session(page)
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]})
+        for i in range(1, 11): await cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": x, "y": y + dy * i / 10}]})
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+        await page.wait_for_timeout(600)
+    async def tries(page, x, opener, touch):
+        before = await page.evaluate("scrollY")
+        await page.click(opener, timeout=CLICK_MS); await page.wait_for_timeout(500)
+        await page.mouse.move(x, 60); await page.mouse.wheel(0, 600); await page.wait_for_timeout(400)
+        await page.keyboard.press("PageDown"); await page.keyboard.press("Space"); await page.wait_for_timeout(400)
+        if touch: await swipe(page, x, 120, 300); await swipe(page, x, 400, -300)
+        return before, await page.evaluate("scrollY")
+    page = await open_page(browser, viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, reduced_motion="reduce")
+    await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
+    await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1200)
+    for sel, opener in (("#detalle", "#board button.big"), ("#selp", ".tk .town")):
+        b, a = await tries(page, 195, opener, True)
+        if a != b: errs.append(f"phone: with {sel} open the page scrolled from {b} to {a}")
+        await page.keyboard.press("Escape")
+        await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await page.wait_for_timeout(1500)
+    await swipe(page, 195, 700, -300)
+    if await page.evaluate("scrollY") == 0: errs.append("phone: with the sheets closed a finger no longer scrolls the page")
+    await page.close()
+    page = await hero_page(browser)
+    b, a = await tries(page, 720, ".tk .town", False)
+    if a != b: errs.append(f"desktop: with #selp open the page scrolled from {b} to {a}")
+    await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
+    await page.mouse.wheel(0, 300); await page.wait_for_timeout(600)
+    if await page.evaluate("scrollY") == 0: errs.append("desktop: with the chooser closed the wheel no longer scrolls the page")
+    await page.close()
+    return errs
+
 PHONE = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), d = document.getElementById('detalle'), a = d.querySelector('.comprar');
   const q = a ? new URL(a.href).searchParams : null;
   return {rows: [...document.querySelectorAll('#board .trip')].map(r => n(r.textContent)), buttons: [...document.querySelectorAll('#board .trip')].map(r => r.matches('button')),
@@ -2572,6 +2613,9 @@ async def main():
                 failures += [f"{name}: {e}" for e in await check_one_paint(page)]
                 await page.close()
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · pintado"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["fulls"]:
+            failures += await check_sheet_holds_page(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · fulls"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["a11y"]:
             failures += await check_a11y(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · a11y"); sys.exit(1 if failures else 0)
