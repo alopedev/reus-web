@@ -931,6 +931,18 @@ async def check_a11y(browser):
     if not note: errs.append("a day beyond the timetable shows no «horari aproximat» note")
     elif any(w in note.lower().split() for w in ("tinc", "tenim", "jo")): errs.append(f"the note speaks in the first person: «{note}»")
     await page.close()
+    # with reduced motion the wall never turns, but the table still covers the fixed hero: the keyboard must not reach
+    # its controls there (Shift+Tab from «Privacitat» once landed on the ruler, out of sight)
+    for w, h in ((1280, 800), (390, 844)):
+        page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce")
+        await page.goto(parity_url); await page.wait_for_timeout(1500)
+        await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})"); await page.wait_for_timeout(500)
+        if await page.evaluate("getComputedStyle(document.getElementById('hero')).visibility") != "hidden":
+            errs.append(f"{w}x{h}, reduced motion, at the table: the hero under it can still take the focus")
+        await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await page.wait_for_timeout(500)
+        if await page.evaluate("getComputedStyle(document.getElementById('hero')).visibility") == "hidden":
+            errs.append(f"{w}x{h}, reduced motion, back at the top: the hero stays hidden")
+        await page.close()
     return errs
 
 async def check_firma(browser):
