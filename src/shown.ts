@@ -118,7 +118,8 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   // the big train links to Renfe's search for its trip and day (the AVE's trip ends at Camp de Tarragona); its stops
   // are counted in a phone's sheet and drawn on a desktop's board
   const ends = isAve ? (ida ? [v.station, CAMP] : [CAMP, v.station]) : ida ? [v.station, v.town] : [v.town, v.station];
-  const buy = buyUrl(ends[0], ends[1], day, a[0]);
+  // Renfe opens the day's list, not the train: a cancelled or departed one has nothing to buy (12-10, option A)
+  const buy = cancelled || (!tomorrow && leaves < now.min) ? '' : buyUrl(ends[0], ends[1], day, a[0]);
   const stops = stopsBetween(day, a[2], ends[0], ends[1]);
   // a late train is where its delay puts it: the timetable's place that many minutes ago
   const where = day === now.date ? whereNow(now.min - (late?.min ?? 0), [[ends[0], a[0]], ...(stops ?? []), [ends[1], a[1]]]) : null;
