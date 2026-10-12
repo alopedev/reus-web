@@ -1566,6 +1566,63 @@ async def check_board_without_webgl(browser):
     await page.close()
     return errs
 
+# the highlighted time, «only if you hesitate» (option C, Àlex 12-10): what the page shows of it, read in the browser
+HORA = """(() => { const h = document.getElementById('hero'), d = document.getElementById('dep'), c = getComputedStyle(d);
+  const m = c.textShadow.match(/(-?[\\d.]+)px (-?[\\d.]+)px ([\\d.]+)px/);
+  const anim = s => { const e = document.querySelector(s); return e ? getComputedStyle(e).animationName : null; };
+  return {raised: !!m && +m[1] > 0 && +m[3] === 0, shadow: c.textShadow, doubt: h.classList.contains('duda'),
+          beat: h.classList.contains('batec'), glint: getComputedStyle(d, '::before').content !== 'none',
+          dep: anim('#dep'), mas: anim('#board .big .mas'), buy: anim('#board .big .buy'), kept: (() => { try { return localStorage.getItem('capacasa.hora'); } catch { return 'blocked'; } })()}; })()"""
+
+async def check_hora(browser):
+    """The highlighted time says it can be pressed, only if you hesitate (option C, Àlex 12-10): raised (the hard
+    offset shadow) until it is pressed for the first time; nothing moves on the way in, nor while nothing is touched
+    (the sweep of golden light after 5 s was dropped, Àlex 12-10); a touch where nothing answers (the window) makes it
+    beat, with «compra’l» on a desktop and «›» on a phone; pressed, it lies flat and quiet, also after a reload. With
+    reduced motion only the relief is left."""
+    errs = []
+    for name, (w, h) in {"desktop": (1440, 900), "phone": (390, 844)}.items():
+        page = await open_page(browser, viewport={"width": w, "height": h})
+        # the real clock: a fixed one also stops the landscape's paint-in, and the hero would never come in
+        await page.goto(page_url); await page.evaluate("document.fonts.ready")
+        s = await page.evaluate(HORA)
+        if not s["raised"]: errs.append(f"{name}: on a first visit the highlighted time is not raised ({s['shadow']})")
+        await page.wait_for_function("document.getElementById('stage').classList.contains('in')", timeout=30000)
+        # 7 s without a touch: the time stays still, no light crosses it
+        moved = await page.evaluate("""new Promise(done => { const h = document.getElementById('hero'); let seen = [];
+          const o = new MutationObserver(() => { if(h.classList.contains('batec') || h.classList.contains('brilla')) seen.push(h.className); });
+          o.observe(h, {attributes: true}); setTimeout(() => { o.disconnect(); done(seen); }, 7000); })""")
+        s = await page.evaluate(HORA)
+        if moved or s["beat"] or s["glint"] or s["dep"] not in (None, "none"): errs.append(f"{name}: the time moves without a touch ({moved}, {s})")
+        # a touch on the window, where nothing answers: the time beats with its sign
+        await page.mouse.click(*(await page.evaluate("(r => [r.x + r.width / 2, r.y + r.height / 2])(document.getElementById('win').getBoundingClientRect())")))
+        await page.wait_for_timeout(150)
+        s = await page.evaluate(HORA); sign = "buy" if name == "desktop" else "mas"
+        if not s["beat"] or s["dep"] in (None, "none") or s[sign] in (None, "none"):
+            errs.append(f"{name}: a touch on the window does not make the time and its {sign} beat ({s})")
+        # pressed: flat and quiet (the desktop's link would open Renfe: kept on the page)
+        await page.evaluate("addEventListener('click', e => { if(e.target.closest('a')) e.preventDefault(); })")
+        await page.click("#dep" if name == "desktop" else "#board button.big", timeout=CLICK_MS); await page.wait_for_timeout(300)
+        if name == "phone": await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
+        await page.mouse.click(*(await page.evaluate("(r => [r.x + r.width / 2, r.y + r.height / 2])(document.getElementById('win').getBoundingClientRect())")))
+        await page.wait_for_timeout(150)
+        s = await page.evaluate(HORA)
+        if s["raised"] or s["doubt"] or s["beat"]: errs.append(f"{name}: once pressed the time is not flat and quiet ({s})")
+        if s["kept"] != "1": errs.append(f"{name}: the press is not remembered ({s['kept']})")
+        await page.reload(); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(500)
+        s = await page.evaluate(HORA)
+        if s["raised"]: errs.append(f"{name}: after a reload the time, already pressed, is raised again")
+        await page.close()
+    # reduced motion: the relief only
+    page = await hero_page(browser, 390, 844)
+    await page.mouse.click(*(await page.evaluate("(r => [r.x + r.width / 2, r.y + r.height / 2])(document.getElementById('win').getBoundingClientRect())")))
+    await page.wait_for_timeout(150)
+    s = await page.evaluate(HORA)
+    if not s["raised"]: errs.append(f"reduced motion: the time is not raised ({s['shadow']})")
+    if s["beat"]: errs.append(f"reduced motion: the time moves ({s})")
+    await page.close()
+    return errs
+
 async def check_hero(browser):
     """15. The hero B: its name and subtitle."""
     errs = []
@@ -1608,6 +1665,7 @@ async def check_hero(browser):
     errs += [f"foot: {e}" for e in await check_ruler_foot(browser)]
     errs += [f"notices: {e}" for e in await check_avisos(browser)]
     errs += [f"live delay: {e}" for e in await check_retards(browser)]
+    errs += [f"time: {e}" for e in await check_hora(browser)]
     # 21:30, from Reus: no regional left today, but two AVE from Camp de Tarragona (22:17, 22:39)
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
@@ -2665,6 +2723,9 @@ async def main():
                 failures += [f"{name}: {e}" for e in await check_one_paint(page)]
                 await page.close()
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · pintado"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["hora"]:
+            failures += await check_hora(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · hora"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["fulls"]:
             failures += await check_sheet_holds_page(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · fulls"); sys.exit(1 if failures else 0)
