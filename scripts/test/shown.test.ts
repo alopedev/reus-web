@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { shown, type Shown } from '../../src/shown.ts';
 import type { ViewState } from '../../src/state.ts';
 import type { Known } from '../../src/retards.ts';
+import { GROUPS } from '../../src/towns.ts';
 
 const REUS = '71400', SANTS = '71801', FRANCA = '79400', GIRONA = '79300';
 const HOME: ViewState = { dir: 'casa', useNow: true, minute: null, day: null, ave: false, town: REUS, station: SANTS };
@@ -42,6 +43,31 @@ test('Reus → Sants at night: today’s last AVE first, then tomorrow’s first
   // the AVE has no notices: only the regional's line goes to the stamp
   assert.deepEqual(s.lines, ['R15']);
   assert.equal(s.day, '2026-10-01');
+});
+
+test('today’s last regional, no AVE after it: the board still has two trips, tomorrow’s first with «demà»', () => {
+  const s = train(at('2026-10-01', '21:45', HOME));
+  assert.equal(s.label, '');
+  assert.equal(rows(s).length, 2);
+  assert.equal(rows(s)[0], 'R15 1323 big18 min');
+  const r = s.rows[1];
+  assert.equal(r.morrow, true);
+  assert.equal(r.day, '2026-10-02');
+  assert.ok(r.dep < 12 * 60, 'tomorrow’s first train, in the morning');
+  // the train shown is still today’s: its day, countdown and ruler mark
+  assert.equal(s.day, '2026-10-01');
+  assert.equal(s.knob, 1323);
+});
+
+test('every town, both ways, every hour of the evening: two trips on the board while today’s train is shown', () => {
+  const short: string[] = [];
+  for(const town of new Set(GROUPS.flatMap(g => g.towns.map(t => t.id))))
+    for(const dir of ['casa', 'bcn'] as const)
+      for(let h = 17; h <= 23; h++){
+        const s = at('2026-10-01', `${h}:30`, { ...HOME, town, dir });
+        if(s.kind === 'train' && s.day === '2026-10-01' && s.rows.length < 2) short.push(`${town} ${dir} ${h}:30`);
+      }
+  assert.deepEqual(short, []);
 });
 
 test('nothing left today: tomorrow’s first trains, the ruler stands on now', () => {

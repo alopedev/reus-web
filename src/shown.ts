@@ -91,7 +91,13 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   const day = tomorrow ? addDays(now.date, 1) : now.date;
   // two trips: the train shown and the one after it, regional or AVE (after today's last AVE, tomorrow's first)
   const next = lastAve ? regs[0] : [...regs, ...aves].filter(t => t !== a && t[0] >= a[0]).sort((x, y) => x[0]-y[0])[0];
-  const isAveTrip = (t: Train) => aves.includes(t) || t === lastAve;
+  // today's last train with nothing after it today: tomorrow's first, regional or AVE, with «demà» (two trips always)
+  let morrow: Train | undefined, morrowAve = false;
+  if(!next && !nextDay){
+    const m = dayData(addDays(now.date, 1), v.town, v.station).d, r = (ida ? m.r : m.b)[0], av = (ida ? m.ar : m.ab)[0];
+    morrowAve = !!av && (!r || av[0] < r[0]); morrow = morrowAve ? av : r;
+  }
+  const isAveTrip = (t: Train) => aves.includes(t) || t === lastAve || (t === morrow && morrowAve);
   // the delay Renfe gives for the train shown, only for today's regionals (the feed knows the Rodalies trains running
   // now; the AVE is not in it)
   const liveOf = (t: Train, ave: boolean): Live | undefined => {
@@ -105,8 +111,9 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   const lv = liveOf(a, isAve), late = lv?.kind === 'late' ? lv : undefined, cancelled = lv?.kind === 'cancel';
   const leaves = late ? late.dep : a[0];
   const until = live && !cancelled ? dur(leaves-now.min) : '';
-  const rows: Row[] = (next ? [a, next] : [a]).map(t => ({ dep: t[0], arr: t[1], line: t[3], ave: isAveTrip(t), big: t === a,
-    until: t === a ? until : '', gone: t === a && !tomorrow && leaves < now.min, morrow: !!lastAve && t !== lastAve, day: t === lastAve ? now.date : nextDay ? addDays(now.date, 1) : now.date,
+  const rows: Row[] = (next ? [a, next] : morrow ? [a, morrow] : [a]).map(t => ({ dep: t[0], arr: t[1], line: t[3], ave: isAveTrip(t), big: t === a,
+    until: t === a ? until : '', gone: t === a && !tomorrow && leaves < now.min, morrow: (!!lastAve && t !== lastAve) || t === morrow,
+    day: t === lastAve ? now.date : nextDay || t === morrow ? addDays(now.date, 1) : now.date,
     ...(t === a && lv ? { live: lv } : {}) }));
   // the big train links to Renfe's search for its trip and day (the AVE's trip ends at Camp de Tarragona); its stops
   // are counted in a phone's sheet and drawn on a desktop's board
