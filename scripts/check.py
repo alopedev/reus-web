@@ -730,6 +730,56 @@ async def table_sized(page, timeout=10000):
     try: await page.wait_for_function(TABLE_SIZED, timeout=timeout)
     except Exception: pass
 
+# the travel things on the table and every line of the papers' text, in viewport pixels: each thing by its own
+# drawing (the ticket's card, the cup's saucer, the pen's barrel), each line by its text's client rects
+THINGS_AND_TEXT = """(() => {
+  const things = {cafe: '#cafe svg', boli: '#boli svg', rodalies: '#rodalies .rodalies'};
+  const box = r => [r.left, r.top, r.right, r.bottom];
+  const out = {things: {}, text: []};
+  // each thing's four corners as drawn (the things are turned): read from probes pinned to its corners
+  for(const [k, s] of Object.entries(things)){ const el = document.querySelector(s); if(!el || el.closest('[hidden]')) continue;
+    const pos = getComputedStyle(el).position === 'static' ? (el.style.position = 'relative', true) : false;
+    out.things[k] = [[0, 0], [100, 0], [100, 100], [0, 100]].map(([x, y]) => { const i = document.createElement('i');
+      i.style.cssText = `position:absolute;left:${x}%;top:${y}%;width:0;height:0`; el.append(i);
+      const r = i.getBoundingClientRect(); i.remove(); return [r.left, r.top]; });
+    if(pos) el.style.position = ''; }
+  const walk = document.createTreeWalker(document.querySelector('.mesa'), NodeFilter.SHOW_TEXT);
+  for(let n; (n = walk.nextNode());){
+    if(!n.textContent.trim() || n.parentElement.closest('[aria-hidden="true"], .sr, .tapa')) continue;
+    const r = document.createRange(); r.selectNodeContents(n);
+    for(const q of r.getClientRects()) if(q.width > 1 && q.height > 1) out.text.push([n.textContent.trim().slice(0, 24), ...box(q)]);
+  }
+  return out; })()"""
+
+def covers(quad, rect):
+    """Whether a turned quadrilateral (four corners) and an upright rectangle overlap: they do unless some edge
+    direction of either separates them (separating axes)."""
+    l, t, r, b = rect; box = [(l, t), (r, t), (r, b), (l, b)]
+    for poly in (quad, box):
+        for i in range(4):
+            (x0, y0), (x1, y1) = poly[i], poly[(i + 1) % 4]; nx, ny = y1 - y0, x0 - x1
+            a = [nx * x + ny * y for x, y in quad]; c = [nx * x + ny * y for x, y in box]
+            if max(a) <= min(c) or max(c) <= min(a): return False
+    return True
+
+async def check_things_clear(browser):
+    """On a phone the papers stack in one column and the travel things go in the gaps between them, never over their
+    text (table.ts: «things go in the gaps, never over the text»): on a 320 px phone the Rodalies ticket covered
+    «Revers del bitllet». Read once the table has settled, at every phone width check.py knows."""
+    errs = []
+    for name, (w, h) in {"320x568": (320, 568), "360x740": (360, 740), "390x844": (390, 844), "430x932": (430, 932)}.items():
+        page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce")
+        await page.goto(page_url); await page.evaluate("document.fonts.ready")
+        await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})")
+        try: await page.wait_for_function("document.getElementById('lienzo')?.dataset.pintada === '1'", timeout=12000)
+        except Exception: errs.append(f"{name}: the table never gets painted"); await page.close(); continue
+        await page.wait_for_timeout(500); await table_sized(page)
+        seen = await page.evaluate(THINGS_AND_TEXT); await page.close()
+        for k, quad in seen["things"].items():
+            for text, tl, tt, tr, tb in seen["text"]:
+                if covers(quad, (tl + 1, tt + 1, tr - 1, tb - 1)): errs.append(f"{name}: #{k} covers «{text}»")
+    return errs
+
 async def check_table_follows(browser):
     """The papers can settle after the table was first measured (on a slow network the web fonts arrive after it,
     and Linux's fallback font wraps the text differently): the travel things and the painted table follow them.
@@ -2462,6 +2512,7 @@ async def main():
             failures += await check_hero(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · hero"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["mesa"]:
+            failures += await check_things_clear(browser)
             failures += await check_table_at_load(browser)
             failures += await check_table_follows(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · mesa"); sys.exit(1 if failures else 0)
@@ -2536,6 +2587,7 @@ async def main():
         failures += [f"hero: {e}" for e in await check_hero(browser)]
         failures += [f"mesa: {e}" for e in await check_table_at_load(browser)]
         failures += [f"mesa: {e}" for e in await check_table_follows(browser)]
+        failures += [f"mesa: {e}" for e in await check_things_clear(browser)]
         failures += [f"reduced: {e}" for e in await check_still_window(browser)]
         # reduced motion: a still frame and every paper already in place
         page = await open_page(browser, viewport={"width": 1440, "height": 860}, reduced_motion="reduce")

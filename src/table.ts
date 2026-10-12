@@ -66,7 +66,12 @@ export function createTable(): Table {
       // stacked papers: things go in the gaps, never over the text
       if(mobile) put('cafe', mesaR - cupW, introP.y + .2 * rem); else put('cafe', mesaR - cupW - .6 * rem, intro.y - .4 * rem);
       put('boli', fol.x + .5 * rem, fol.y + fol.h + .45 * rem, -4);
-      put('rodalies', rev.x + rev.w - tixW - .6 * rem, rev.y - 1.9 * rem, 7);
+      // the Rodalies ticket on the back-of-the-ticket's top right corner; where the kicker's words reach under it (a
+      // narrow phone), it slides right, off the paper's edge and at most a fifth of it past the screen's
+      const kick = document.createRange(); kick.selectNodeContents(find('.kicker', byId('reverso')));
+      const kb = kick.getBoundingClientRect(), rb = byId('reverso').getBoundingClientRect();
+      const tx = Math.max(rev.x + rev.w - tixW - .6 * rem, Math.min(rev.x + kb.right - rb.left + .4 * rem, W - .8 * tixW));
+      put('rodalies', tx, rev.y - 1.9 * rem, 7);
       byId('gafas').hidden = true;
     } else {
       put('cafe', mesaR - cupW - .6 * rem, intro.y - .4 * rem); put('boli', cua.x + cua.w - 1.75 * penW, cua.y - 2.75 * rem, -7);
