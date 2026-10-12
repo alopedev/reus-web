@@ -695,7 +695,9 @@ FIT = """(() => {
   if(small.length) errs.push('text under 13 px: ' + small.join(' | '));
   // stacked hero (phones, portrait tablets): the window is panoramic, as wide as the stage, and no ticket touches
   // its painted wooden frame (.022 of the screen's height around #win, see watercolor.frag)
-  if(matchMedia('(max-width:700px), (max-aspect-ratio:4/5)').matches){
+  // (a phone held sideways has two columns instead: check_landscape)
+  const sideways = matchMedia('(orientation:landscape) and (max-height:500px)').matches;
+  if(matchMedia('(max-width:700px), (max-aspect-ratio:4/5)').matches && !sideways){
     const st = q('#stage'), cs = getComputedStyle(st), inner = st.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const win = q('#win').getBoundingClientRect(), rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
     // the glass leaves 1.1rem on each side for its frame
@@ -711,7 +713,7 @@ FIT = """(() => {
   // like a poster: proportional to the screen, never below a legible floor
   const ref = Math.min(innerWidth, innerHeight * 1.6), brand = parseFloat(getComputedStyle(q('.brand')).fontSize);
   const expected = 4.1 * Math.max(14, ref * .01111);
-  if(innerWidth > innerHeight && Math.abs(brand - expected) / expected > .05) errs.push(`hero does not scale: name is ${Math.round(brand)} px for a ${Math.round(ref)} px screen`);
+  if(innerWidth > innerHeight && !sideways && Math.abs(brand - expected) / expected > .05) errs.push(`hero does not scale: name is ${Math.round(brand)} px for a ${Math.round(ref)} px screen`);
   return errs;
 })()"""
 
@@ -842,6 +844,41 @@ async def check_still_window(browser):
         pa, pb = [[sum(img.getpixel((int(x) + i, int(y) + j))[c] for i in range(-2, 3) for j in range(-2, 3)) / 25 for c in range(3)] for x, y in (a, b)]
         d = sum((u - v) ** 2 for u, v in zip(pa, pb)) ** .5
         if d < 60: errs.append(f"{name}: the still frame's window is not where #win is (wall above it and sky inside differ by only {d:.0f})")
+    return errs
+
+# phones held sideways: short and wide, a desktop's proportions without its height
+LANDSCAPE = {"844x390": (844, 390), "667x375": (667, 375), "932x430": (932, 430)}
+
+async def check_landscape(browser):
+    """A phone held sideways keeps the window painted and readable (option A, Àlex 12-10): two columns, the window
+    on the left as tall as the screen allows, the name, the ticket, the board and the ruler on the right. Before, the
+    window shrank to a slit (844 x 390: 0 px; 667 x 375: a strip) and the ticket covered the name's board. Its rows
+    are the phone's (a button per trip, «›»), and the train's sheet fits the screen: its two buttons can be reached."""
+    errs = []
+    for name, (w, h) in LANDSCAPE.items():
+        page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce", is_mobile=True, has_touch=True, device_scale_factor=2)
+        await page.goto(page_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1500)
+        # the hero's part of FIT: the table's notebook, two pages of 226 px at 932 x 430, reads well and is not this check's
+        errs += [f"{name}: {e}" for e in await page.evaluate(FIT) if not e.startswith("notebook page")]
+        g = await page.evaluate("""(() => { const r = s => document.querySelector(s).getBoundingClientRect().toJSON();
+          return {win: r('#win'), brd: r('.tauler'), tk: r('.tk'), info: r('#info'), phone: !!document.querySelector('#board button.big')}; })()""")
+        win, brd, tk, info = g["win"], g["brd"], g["tk"], g["info"]
+        if win["height"] < .55 * h: errs.append(f"{name}: the window is {win['height']:.0f} px tall, under 55% of the screen")
+        if win["width"] < .35 * w: errs.append(f"{name}: the window is {win['width']:.0f} px wide, under 35% of the screen")
+        meet = lambda a, b: min(a["right"], b["right"]) - max(a["left"], b["left"]) > 0 and min(a["bottom"], b["bottom"]) - max(a["top"], b["top"]) > 0
+        for n1, a, n2, b in [("the ticket", tk, "the name's board", brd), ("the name's board", brd, "the window", win),
+                             ("the ticket", tk, "the window", win), ("the board", info, "the window", win), ("the ticket", tk, "the board", info)]:
+            if meet(a, b): errs.append(f"{name}: {n1} overlaps {n2}")
+        if not g["phone"]: errs.append(f"{name}: the board's rows are not the phone's (no button for the big train)")
+        else:
+            await page.tap("#board button.big"); await page.wait_for_timeout(800)
+            for sel in ["#detalle .comprar", "#detalle .avisa"]:
+                loc = page.locator(sel)
+                try: await loc.scroll_into_view_if_needed(timeout=3000)
+                except Exception: pass
+                b = await loc.bounding_box()
+                if not b or b["y"] < 0 or b["y"] + b["height"] > h: errs.append(f"{name}: {sel} cannot be reached in the train's sheet")
+        await page.close()
     return errs
 
 async def check_sizes(browser):
@@ -2508,6 +2545,9 @@ async def main():
         if sys.argv[1:] == ["red"]:
             failures += await check_red(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · red"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["horitzontal"]:
+            failures += await check_landscape(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · horitzontal"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["hero"]:
             failures += await check_hero(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · hero"); sys.exit(1 if failures else 0)
@@ -2578,6 +2618,7 @@ async def main():
             await page.close()
         failures += await check_drop_width(browser)
         failures += await check_sizes(browser)
+        failures += await check_landscape(browser)
         failures += [f"compartir: {e}" for e in check_share()]
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
         failures += [f"sinred: {e}" for e in await check_offline(browser)]
