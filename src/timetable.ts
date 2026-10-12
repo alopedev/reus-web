@@ -26,7 +26,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   let marks: Mark[] = [], said: string | null = null, drawn = '';
   // on a phone (the stacked hero) the board is pared down to times and a «›» per trip; tapping one opens its detail
   // (6B, Àlex 06-10). The board is redrawn when the screen crosses over
-  const narrow = matchMedia('(max-width:700px), (max-aspect-ratio:4/5)');
+  const narrow = matchMedia('(max-width:700px), (max-aspect-ratio:4/5), (orientation:landscape) and (max-height:500px)');
   let cur: Trip | null = null;
   // now on the ruler: a thin orange line with «ara»; away from now, the station clock stands on it in place of the word
   const nowLine = (m: number) => `<b class="nowline${m < R0 + 60 ? ' start' : m > R1 - 60 ? ' end' : ''}${state.useNow ? '' : ' away'}" style="left:${pos(m)}"><span>ara</span></b>`;

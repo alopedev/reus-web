@@ -695,7 +695,9 @@ FIT = """(() => {
   if(small.length) errs.push('text under 13 px: ' + small.join(' | '));
   // stacked hero (phones, portrait tablets): the window is panoramic, as wide as the stage, and no ticket touches
   // its painted wooden frame (.022 of the screen's height around #win, see watercolor.frag)
-  if(matchMedia('(max-width:700px), (max-aspect-ratio:4/5)').matches){
+  // (a phone held sideways has two columns instead: check_landscape)
+  const sideways = matchMedia('(orientation:landscape) and (max-height:500px)').matches;
+  if(matchMedia('(max-width:700px), (max-aspect-ratio:4/5)').matches && !sideways){
     const st = q('#stage'), cs = getComputedStyle(st), inner = st.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const win = q('#win').getBoundingClientRect(), rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
     // the glass leaves 1.1rem on each side for its frame
@@ -716,7 +718,7 @@ FIT = """(() => {
   // like a poster: proportional to the screen, never below a legible floor
   const ref = Math.min(innerWidth, innerHeight * 1.6), brand = parseFloat(getComputedStyle(q('.brand')).fontSize);
   const expected = 4.1 * Math.max(14, ref * .01111);
-  if(innerWidth > innerHeight && Math.abs(brand - expected) / expected > .05) errs.push(`hero does not scale: name is ${Math.round(brand)} px for a ${Math.round(ref)} px screen`);
+  if(innerWidth > innerHeight && !sideways && Math.abs(brand - expected) / expected > .05) errs.push(`hero does not scale: name is ${Math.round(brand)} px for a ${Math.round(ref)} px screen`);
   return errs;
 })()"""
 
@@ -734,6 +736,58 @@ async def table_sized(page, timeout=10000):
     caller's comparison reports the mismatch."""
     try: await page.wait_for_function(TABLE_SIZED, timeout=timeout)
     except Exception: pass
+
+# the travel things on the table and every line of the papers' text, in viewport pixels: each thing by its own
+# drawing (the ticket's card, the cup's saucer, the pen's barrel), each line by its text's client rects
+THINGS_AND_TEXT = """(() => {
+  const things = {cafe: '#cafe svg', boli: '#boli svg', rodalies: '#rodalies .rodalies'};
+  const box = r => [r.left, r.top, r.right, r.bottom];
+  const out = {things: {}, text: []};
+  // each thing's four corners as drawn (the things are turned): read from probes pinned to its corners
+  for(const [k, s] of Object.entries(things)){ const el = document.querySelector(s); if(!el || el.closest('[hidden]')) continue;
+    const pos = getComputedStyle(el).position === 'static' ? (el.style.position = 'relative', true) : false;
+    out.things[k] = [[0, 0], [100, 0], [100, 100], [0, 100]].map(([x, y]) => { const i = document.createElement('i');
+      i.style.cssText = `position:absolute;left:${x}%;top:${y}%;width:0;height:0`; el.append(i);
+      const r = i.getBoundingClientRect(); i.remove(); return [r.left, r.top]; });
+    if(pos) el.style.position = ''; }
+  const walk = document.createTreeWalker(document.querySelector('.mesa'), NodeFilter.SHOW_TEXT);
+  for(let n; (n = walk.nextNode());){
+    if(!n.textContent.trim() || n.parentElement.closest('[aria-hidden="true"], .sr, .tapa')) continue;
+    const r = document.createRange(); r.selectNodeContents(n);
+    for(const q of r.getClientRects()) if(q.width > 1 && q.height > 1) out.text.push([n.textContent.trim().slice(0, 24), ...box(q)]);
+  }
+  return out; })()"""
+
+def covers(quad, rect):
+    """Whether a turned quadrilateral (four corners) and an upright rectangle overlap: they do unless some edge
+    direction of either separates them (separating axes)."""
+    l, t, r, b = rect; box = [(l, t), (r, t), (r, b), (l, b)]
+    for poly in (quad, box):
+        for i in range(4):
+            (x0, y0), (x1, y1) = poly[i], poly[(i + 1) % 4]; nx, ny = y1 - y0, x0 - x1
+            a = [nx * x + ny * y for x, y in quad]; c = [nx * x + ny * y for x, y in box]
+            if max(a) <= min(c) or max(c) <= min(a): return False
+    return True
+
+async def check_things_clear(browser):
+    """On a phone the papers stack in one column and the travel things go in the gaps between them, never over their
+    text (table.ts: «things go in the gaps, never over the text»): on 320 and 360 px phones the Rodalies ticket covered
+    «Revers del bitllet», and there it is left off. Read once the table has settled, at every phone width check.py knows."""
+    errs = []
+    # on the narrowest phones the Rodalies ticket is left off the table (option B, Àlex 12-10); from 390 px it lies there
+    for name, (w, h), ticket in [("320x568", (320, 568), False), ("360x740", (360, 740), False), ("390x844", (390, 844), True), ("430x932", (430, 932), True)]:
+        page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce")
+        await page.goto(page_url); await page.evaluate("document.fonts.ready")
+        await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})")
+        try: await page.wait_for_function("document.getElementById('lienzo')?.dataset.pintada === '1'", timeout=12000)
+        except Exception: errs.append(f"{name}: the table never gets painted"); await page.close(); continue
+        await page.wait_for_timeout(500); await table_sized(page)
+        seen = await page.evaluate(THINGS_AND_TEXT); await page.close()
+        if ("rodalies" in seen["things"]) != ticket: errs.append(f"{name}: the Rodalies ticket is {'missing from' if ticket else 'still on'} the table")
+        for k, quad in seen["things"].items():
+            for text, tl, tt, tr, tb in seen["text"]:
+                if covers(quad, (tl + 1, tt + 1, tr - 1, tb - 1)): errs.append(f"{name}: #{k} covers «{text}»")
+    return errs
 
 async def check_table_follows(browser):
     """The papers can settle after the table was first measured (on a slow network the web fonts arrive after it,
@@ -797,6 +851,41 @@ async def check_still_window(browser):
         pa, pb = [[sum(img.getpixel((int(x) + i, int(y) + j))[c] for i in range(-2, 3) for j in range(-2, 3)) / 25 for c in range(3)] for x, y in (a, b)]
         d = sum((u - v) ** 2 for u, v in zip(pa, pb)) ** .5
         if d < 60: errs.append(f"{name}: the still frame's window is not where #win is (wall above it and sky inside differ by only {d:.0f})")
+    return errs
+
+# phones held sideways: short and wide, a desktop's proportions without its height
+LANDSCAPE = {"844x390": (844, 390), "667x375": (667, 375), "932x430": (932, 430)}
+
+async def check_landscape(browser):
+    """A phone held sideways keeps the window painted and readable (option A, Àlex 12-10): two columns, the window
+    on the left as tall as the screen allows, the name, the ticket, the board and the ruler on the right. Before, the
+    window shrank to a slit (844 x 390: 0 px; 667 x 375: a strip) and the ticket covered the name's board. Its rows
+    are the phone's (a button per trip, «›»), and the train's sheet fits the screen: its two buttons can be reached."""
+    errs = []
+    for name, (w, h) in LANDSCAPE.items():
+        page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce", is_mobile=True, has_touch=True, device_scale_factor=2)
+        await page.goto(page_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1500)
+        # the hero's part of FIT: the table's notebook, two pages of 226 px at 932 x 430, reads well and is not this check's
+        errs += [f"{name}: {e}" for e in await page.evaluate(FIT) if not e.startswith("notebook page")]
+        g = await page.evaluate("""(() => { const r = s => document.querySelector(s).getBoundingClientRect().toJSON();
+          return {win: r('#win'), brd: r('.tauler'), tk: r('.tk'), info: r('#info'), phone: !!document.querySelector('#board button.big')}; })()""")
+        win, brd, tk, info = g["win"], g["brd"], g["tk"], g["info"]
+        if win["height"] < .55 * h: errs.append(f"{name}: the window is {win['height']:.0f} px tall, under 55% of the screen")
+        if win["width"] < .35 * w: errs.append(f"{name}: the window is {win['width']:.0f} px wide, under 35% of the screen")
+        meet = lambda a, b: min(a["right"], b["right"]) - max(a["left"], b["left"]) > 0 and min(a["bottom"], b["bottom"]) - max(a["top"], b["top"]) > 0
+        for n1, a, n2, b in [("the ticket", tk, "the name's board", brd), ("the name's board", brd, "the window", win),
+                             ("the ticket", tk, "the window", win), ("the board", info, "the window", win), ("the ticket", tk, "the board", info)]:
+            if meet(a, b): errs.append(f"{name}: {n1} overlaps {n2}")
+        if not g["phone"]: errs.append(f"{name}: the board's rows are not the phone's (no button for the big train)")
+        else:
+            await page.tap("#board button.big"); await page.wait_for_timeout(800)
+            for sel in ["#detalle .comprar", "#detalle .avisa"]:
+                loc = page.locator(sel)
+                try: await loc.scroll_into_view_if_needed(timeout=3000)
+                except Exception: pass
+                b = await loc.bounding_box()
+                if not b or b["y"] < 0 or b["y"] + b["height"] > h: errs.append(f"{name}: {sel} cannot be reached in the train's sheet")
+        await page.close()
     return errs
 
 async def check_sizes(browser):
@@ -2516,10 +2605,14 @@ async def main():
         if sys.argv[1:] == ["red"]:
             failures += await check_red(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · red"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["horitzontal"]:
+            failures += await check_landscape(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · horitzontal"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["hero"]:
             failures += await check_hero(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · hero"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["mesa"]:
+            failures += await check_things_clear(browser)
             failures += await check_table_at_load(browser)
             failures += await check_table_follows(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · mesa"); sys.exit(1 if failures else 0)
@@ -2588,6 +2681,7 @@ async def main():
             await page.close()
         failures += await check_drop_width(browser)
         failures += await check_sizes(browser)
+        failures += await check_landscape(browser)
         failures += [f"compartir: {e}" for e in check_share()]
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
         failures += [f"sinred: {e}" for e in await check_offline(browser)]
@@ -2597,6 +2691,7 @@ async def main():
         failures += [f"hero: {e}" for e in await check_hero(browser)]
         failures += [f"mesa: {e}" for e in await check_table_at_load(browser)]
         failures += [f"mesa: {e}" for e in await check_table_follows(browser)]
+        failures += [f"mesa: {e}" for e in await check_things_clear(browser)]
         failures += [f"reduced: {e}" for e in await check_still_window(browser)]
         # reduced motion: a still frame and every paper already in place
         page = await open_page(browser, viewport={"width": 1440, "height": 860}, reduced_motion="reduce")
