@@ -2,7 +2,7 @@
 // of 2026). `npm test`, in a second, no browser: check.py keeps the look, these keep the rules
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { shown, type Shown } from '../../src/shown.ts';
+import { shown, tomorrowAt, type Shown } from '../../src/shown.ts';
 import type { ViewState } from '../../src/state.ts';
 import type { Known } from '../../src/retards.ts';
 import { GROUPS } from '../../src/towns.ts';
@@ -132,26 +132,46 @@ test('a trip of tomorrow picked on the board stays tomorrow’s: its own day, ne
   // 21:30, Reus → Sants: today's last AVE, then tomorrow's first regional; the second row is tomorrow's
   assert.deepEqual(train(at('2026-10-01', '21:30', BACK)).rows.map(r => r.day), ['2026-10-01', '2026-10-02']);
   const s = train(at('2026-10-01', '21:30', { ...BACK, useNow: false, minute: 336, day: '2026-10-02' }));
-  assert.deepEqual(rows(s), ['R15 336 big', 'R15 366 ']);
+  assert.deepEqual(rows(s), ['R15 336 bigdemà', 'R15 366 ']);
   assert.equal(s.day, '2026-10-02');
-  assert.equal(s.label, 'Avui ja no queden regionals · demà');
   assert.equal(s.trip.when, 'Demà');
   assert.match(s.trip.home, /^Demà agafo /);
   assert.match(s.buy, /FechaIdaSel=02%2F10%2F2026/);
   assert.equal(s.say, 'Tren triat, demà: 05:36, de Reus a Barcelona Sants; arriba a les 07:07.');
-  assert.equal(s.knob, null);                                // the ruler is today's: it stands on now
   assert.equal(s.valuetext, 'tren de demà de les 05:36');
-  assert.ok(s.ruler.every(m => !m.on));
   assert.equal(s.light, 336);
   // 23:10, nothing left today: the second of tomorrow's trips becomes the big one, still tomorrow's
   const t = train(at('2026-10-01', '23:10', { ...BACK, useNow: false, minute: 366, day: '2026-10-02' }));
-  assert.equal(rows(t)[0], 'R15 366 big');
-  assert.equal(t.label, 'Avui ja no en queden · demà');
+  assert.equal(rows(t)[0], 'R15 366 bigdemà');
   assert.ok(t.rows.every(r => r.day === '2026-10-02'));
   // past midnight that day is today: the same train, chosen as any other of today's
   const u = train(at('2026-10-02', '00:10', { ...BACK, useNow: false, minute: 336, day: '2026-10-02' }));
   assert.equal(u.say, 'Tren triat: 05:36, de Reus a Barcelona Sants; arriba a les 07:07.');
   assert.equal(u.knob, 336);
+  assert.equal(u.tomorrow, false);
+});
+
+// «Avui · Demà» (B3, Àlex 15-10): two calendar sheets over the ruler. Tomorrow's trains are a day of their own: the
+// ruler is tomorrow's, its knob on the train shown, «ara» has no place on it and no label is needed (the sheet says it)
+test('tomorrow looked at: the ruler holds tomorrow’s trains, the knob on the train shown', () => {
+  const today = train(at('2026-10-01', '21:30', BACK)), s = train(at('2026-10-01', '21:30', { ...BACK, useNow: false, minute: 336, day: '2026-10-02' }));
+  assert.equal(today.tomorrow, false);
+  assert.equal(s.tomorrow, true);
+  assert.equal(s.label, '');
+  assert.equal(s.knob, 336);
+  assert.deepEqual(s.ruler.filter(m => m.on).map(m => m.dep), [336]);
+  assert.equal(s.ruler[0].dep, 336);                         // tomorrow's first train, not today's
+});
+
+test('the «Demà» sheet lands on tomorrow’s train at this time of day, or the last one late at night', () => {
+  const now = (hm: string) => { const [h, m] = hm.split(':').map(Number); return { date: '2026-10-01', min: h * 60 + m }; };
+  assert.deepEqual(tomorrowAt(now('10:00'), HOME), { minute: 603, ave: false, day: '2026-10-02' });
+  const late = tomorrowAt(now('23:50'), HOME), last = train(at('2026-10-01', '23:50', { ...HOME, useNow: false, ...late }));
+  assert.equal(late.day, '2026-10-02');
+  assert.equal(last.ruler[last.ruler.length - 1].on, true);
+  // in Baix Camp the AVE counts like any other train: the first to leave from that time on
+  const ave = tomorrowAt(now('18:35'), HOME);
+  assert.equal(train(at('2026-10-01', '18:35', { ...HOME, useNow: false, ...ave })).rows[0].dep, ave.minute);
 });
 
 // where the train shown is now, by the timetable (the wagon on its route, «Ara entre …» in a phone's sheet)

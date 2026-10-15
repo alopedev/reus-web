@@ -12,7 +12,7 @@ export function board(v: Extract<Shown, { kind: 'train' }>, ida: boolean, phone:
 }
 
 // one trip of the board: line, departure, which one it is («el pròxim», with its countdown, and «després»; «demà»
-// after today's last AVE), arrival. The AVE says under its arrival that it runs from or to Camp de Tarragona, not the
+// after today's last AVE, and on the train shown when tomorrow is looked at), arrival. The AVE says under its arrival that it runs from or to Camp de Tarragona, not the
 // town. The train shown is big; the other is a button that shows it
 // On a phone only the times are left, with the countdown on the big train and «demà» where it applies; every trip
 // is a button with a «›» that opens its detail, the big one included (its link to Renfe moves into the sheet)
@@ -40,7 +40,7 @@ function trip(r: Row, buy: string, ida: boolean, phone: boolean, rec: string): s
   const word = big && buy ? ` <a class="buy"${to} tabindex="-1" aria-hidden="true">compra’l ↗</a>` : '';
   const lead = late ? `<span class="nova">${hhmm(late.dep)}</span><span class="nx"><span class="mes">+${late.min} min</span>${until ? ', ' : ''}</span>${soon}`
     : live?.kind === 'cancel' ? '<span class="nx mes">cancel·lat</span>'
-    : `<span class="nx">${r.gone ? 'ja ha sortit' : 'el pròxim'}${until ? ', ' : ''}</span>${soon}${live?.kind === 'unknown' ? ' <span class="gris">· sense dades en directe encara</span>' : ''}`;
+    : `<span class="nx">${r.gone ? 'ja ha sortit' : morrow ? 'demà' : 'el pròxim'}${until ? ', ' : ''}</span>${soon}${live?.kind === 'unknown' ? ' <span class="gris">· sense dades en directe encara</span>' : ''}`;
   const where = (big ? lead : morrow ? 'demà' : 'després') + word;
   // the big train's words keep to one line, and its route takes the rest of the gap up to the arrival
   const w = big ? `<span class="lead">${where}</span>${rec}` : where;
