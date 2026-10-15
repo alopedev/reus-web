@@ -112,3 +112,8 @@ test('a cancelled or departed train shown has no Renfe link for the phone’s sh
   assert.equal((shown({ date: '2026-10-01', min: 600 }, HOME, quiet, live({ estat: 'cancelat' })) as Extract<Shown, { kind: 'train' }>).trip.buy, '');
   assert.equal(at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 543 }).trip.buy, '');
 });
+
+test('tomorrow looked at («Demà»): the train shown says «demà» where today’s would say «el pròxim», the next one «després»', () => {
+  const v: ViewState = { ...HOME, useNow: false, minute: 603, day: '2026-10-02' };
+  assert.deepEqual(desk(v, '2026-10-01', '10:00'), ['R15 10:03 demà → 11:33', 'R15 11:03 després → 12:33']);
+});

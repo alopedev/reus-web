@@ -11,7 +11,8 @@ import type { Retards } from './retards';
 // paints what comes out. Pure: the moment, the visitor's choice and what is known of the notices go in, plain data
 // comes out (scripts/test/ runs it in Node against the frozen timetable)
 
-// a train on the ruler: today's, regionals and AVE together in order of departure; `on` is the train shown
+// a train on the ruler: the day's (today's, or tomorrow's when tomorrow is looked at), regionals and AVE together in
+// order of departure; `on` is the train shown
 export type Mark = { dep: number, ave: boolean, on: boolean };
 // where the train shown is now, by the timetable: how far along its trip (0 at departure, 1 at arrival) and in words
 export type Where = { at: number, words: string };
@@ -32,6 +33,7 @@ interface Common {
   light: number;                     // the minute the landscape and the table are lit for
   day: string;                       // the day of the train shown: the stub's printed date
   ruler: Mark[];
+  tomorrow: boolean;                 // tomorrow looked at («Demà», B3): the ruler is tomorrow's
 }
 export type Shown = Common & ({ kind: 'none' } | {
   kind: 'train', ave: boolean, rows: Row[], buy: string, stops: [stop: string, arr: number][] | null,
@@ -47,7 +49,8 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   const townName = NET.estaciones[v.town].nombre, bcn = bcnName(v.station);
   const from = ida ? bcn : townName, to = ida ? townName : `Barcelona ${bcn}`;
   let {d, exact} = dayData(now.date, v.town, v.station);
-  const today = [...(ida ? d.r : d.b).map(t => ({t, ave:false})), ...(ida ? d.ar : d.ab).map(t => ({t, ave:true}))].sort((x, y) => x.t[0]-y.t[0]);
+  const marks = (d: ReturnType<typeof dayData>['d']) => [...(ida ? d.r : d.b).map(t => ({t, ave:false})), ...(ida ? d.ar : d.ab).map(t => ({t, ave:true}))].sort((x, y) => x.t[0]-y.t[0]);
+  const today = marks(d);
   const stillToLeave = (t: Train, from: string): boolean => {
     const k = retards.train(t[2]);
     if(k?.estat !== 'circula' || k.retard < 2 || t[0] + k.retard < start + 2) return false;
@@ -62,15 +65,13 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   // no regional left today: tomorrow's first ones, after the AVE still to come today, if there is one
   let lastAve = regs.length ? undefined : aves[0];
   if(!regs.length){ ({d, exact} = dayData(addDays(now.date,1), v.town, v.station)); nextDay = true; regs = ida ? d.r : d.b; aves = ida ? d.ar : d.ab; tomorrow = !lastAve; }
-  // one of tomorrow's trips picked on the board: that train, on its own day (past midnight its day is today, and it is
-  // chosen like any other). The ruler is today's, so it stands on now, as with tomorrow's first trains
-  let morrowLabel = '';
+  // tomorrow looked at: one of tomorrow's trains chosen, on the «Demà» sheet, the ruler or a trip of the board, on its
+  // own day (past midnight its day is today, and it is chosen like any other). The ruler is tomorrow's, and the sheet
+  // says which day it is, so no label is needed
   const picked = !v.useNow && !!v.day && v.day > now.date;
+  let seen = today;
   if(picked){
-    // the label says what is left today, from now (the board only offers tomorrow's trips when no regional is)
-    const left = (ave: boolean) => today.some(x => x.ave === ave && x.t[0] >= now.min + 2);
-    morrowLabel = left(false) ? 'Demà' : left(true) ? 'Avui ja no queden regionals · demà' : 'Avui ja no en queden · demà';
-    ({d, exact} = dayData(v.day!, v.town, v.station)); nextDay = true;
+    ({d, exact} = dayData(v.day!, v.town, v.station)); nextDay = true; seen = marks(d);
     regs = after(ida ? d.r : d.b); aves = after(ida ? d.ar : d.ab); lastAve = undefined; tomorrow = true;
   }
   const note = exact ? '' : `Horari aproximat: ${nextDay ? 'demà' : 'avui'} encara no hi ha horari oficial.`;
@@ -80,7 +81,7 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   if(!lastAve && !regs.length && !aves.length){
     const said = noTrain(v, from, to, now.date);
     return { kind: 'none', key: 'none' + v.station + v.town + v.dir, say: said, label: said, note, knob: clamp(now.min),
-      valuetext: 'sense tren directe avui ni demà', light: now.min, day: now.date, ruler: today.map(({t, ave}) => ({dep: t[0], ave, on: false})) };
+      valuetext: 'sense tren directe avui ni demà', light: now.min, day: now.date, ruler: today.map(({t, ave}) => ({dep: t[0], ave, on: false})), tomorrow: false };
   }
   // the train shown: the one chosen, or the first to leave, regional or AVE (today's last AVE when no regional is
   // left); the board adds the one after it
@@ -112,7 +113,7 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   const leaves = late ? late.dep : a[0];
   const until = live && !cancelled ? dur(leaves-now.min) : '';
   const rows: Row[] = (next ? [a, next] : morrow ? [a, morrow] : [a]).map(t => ({ dep: t[0], arr: t[1], line: t[3], ave: isAveTrip(t), big: t === a,
-    until: t === a ? until : '', gone: t === a && !tomorrow && leaves < now.min, morrow: (!!lastAve && t !== lastAve) || t === morrow,
+    until: t === a ? until : '', gone: t === a && !tomorrow && leaves < now.min, morrow: (!!lastAve && t !== lastAve) || t === morrow || (picked && t === a),
     day: t === lastAve ? now.date : nextDay || t === morrow ? addDays(now.date, 1) : now.date,
     ...(t === a && lv ? { live: lv } : {}) }));
   // the big train links to Renfe's search for its trip and day (the AVE's trip ends at Camp de Tarragona); its stops
@@ -134,12 +135,22 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   const sFrom = isAve ? (ida ? bcn : 'Camp de Tarragona') : from, sTo = isAve ? (ida ? 'Camp de Tarragona' : `Barcelona ${bcn}`) : to;
   const say = `${picked ? 'Tren triat, demà' : tomorrow ? 'Avui ja no queden trens. El primer de demà' : v.useNow ? 'Pròxim tren' : 'Tren triat'}: ${hhmm(a[0])}, ${isAve ? 'AVE ' : ''}${ofPlace(sFrom)} ${atPlace(sTo)}${cancelled ? ', cancel·lat' : late ? `, amb ${late.min} min de retard: surt cap a les ${hhmm(late.dep)}; arriba a les ${hhmm(late.arr)}` : `; arriba a les ${hhmm(a[1])}`}.`;
   return { kind: 'train', key: a[0] + v.dir + isAve + v.town + v.station + day + (lv?.kind ?? ''), say,
-    label: picked ? morrowLabel : lastAve ? 'Avui ja no queden regionals' : tomorrow ? 'Avui ja no en queden · demà' : '', note,
-    knob: tomorrow ? null : a[0], valuetext: picked ? `${isAve ? 'AVE' : 'tren'} de demà de les ${hhmm(a[0])}` : tomorrow ? 'avui ja no queden trens' : `${isAve ? 'AVE' : 'tren'} de les ${hhmm(a[0])}`,
+    label: picked ? '' : lastAve ? 'Avui ja no queden regionals' : tomorrow ? 'Avui ja no en queden · demà' : '', note,
+    knob: tomorrow && !picked ? null : a[0], valuetext: picked ? `${isAve ? 'AVE' : 'tren'} de demà de les ${hhmm(a[0])}` : tomorrow ? 'avui ja no queden trens' : `${isAve ? 'AVE' : 'tren'} de les ${hhmm(a[0])}`,
     light: tomorrow ? a[0] : start, day,
     // the ruler has one mark: the knob always stands on the train shown (every tick is a train, the AVE like the rest)
-    ruler: today.map(({t, ave:w}) => ({dep: t[0], ave: w, on: !tomorrow && w === isAve && t[0] === a[0]})),
+    ruler: seen.map(({t, ave:w}) => ({dep: t[0], ave: w, on: (picked || !tomorrow) && w === isAve && t[0] === a[0]})), tomorrow: picked,
     ave: isAve, rows, buy, stops, trip, where, lines: [...new Set(rows.filter(r => !r.ave).map(r => r.line))] };
+}
+
+// the «Demà» sheet (B3, Àlex 15-10): tomorrow's train at this time of day, the first to leave from now's minute on,
+// regional or AVE (late at night, tomorrow's last). Whoever looks at tomorrow mostly repeats today's trip; the ruler
+// takes them to any other hour
+export function tomorrowAt(now: { date: string, min: number }, v: ViewState): { minute: number, ave: boolean, day: string } {
+  const day = addDays(now.date, 1), {d} = dayData(day, v.town, v.station), ida = v.dir === 'casa';
+  const all = [...(ida ? d.r : d.b).map(t => ({dep: t[0], ave: false})), ...(ida ? d.ar : d.ab).map(t => ({dep: t[0], ave: true}))].sort((x, y) => x.dep - y.dep);
+  const t = all.find(x => x.dep >= now.min) ?? all[all.length - 1];
+  return { minute: t?.dep ?? now.min, ave: t?.ave ?? false, day };
 }
 
 // a train between its departure and its arrival: the share of its trip already gone and the two stops on either side

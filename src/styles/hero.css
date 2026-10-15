@@ -139,7 +139,23 @@
 /* the day as a ruler: each tick is a train */
 .ruler{ grid-column:1 / -1; position:relative; margin-top:.9rem; }
 /* room above the track for «ahora»; «Volver a ahora» on the side away from it */
-.rulerHead{ display:flex; justify-content:flex-end; align-items:baseline; min-height:1.5rem; margin-bottom:.35rem; text-shadow:0 1px 2px rgba(0,0,0,.35); }
+.rulerHead{ display:flex; justify-content:flex-start; align-items:flex-end; margin-bottom:1.5rem; }
+/* «Avui · Demà» (B3, Àlex 15-10): two sheets of a tear-off calendar, the day's word over its number, an orange band on
+   top. The day looked at is pressed flat; the other is raised, with the hard shadow of what can be pressed, and gives
+   way when pressed. They sit over «ara»'s row, never on it */
+.days{ display:flex; gap:.75rem; }
+.full{ padding:0; border:0; background:none; cursor:pointer; font:inherit; color:inherit; transform:rotate(1.5deg) translate(-.06rem,-.06rem);
+  transition:transform .12s; }
+.full .pp{ display:flex; flex-direction:column; align-items:center; width:3.3rem; padding:.3rem 0 .3rem; line-height:1; background:var(--paper);
+  color:#2D241C; border-top:.32rem solid #EDA864; border-radius:1px; box-shadow:.3rem .3rem 0 rgba(14,9,6,.9); transition:box-shadow .12s; }
+.full i{ font:700 .93rem var(--texto); font-style:normal; }
+.full b{ font:400 1.45rem 'Young Serif', serif; margin-top:.05rem; }
+.full:hover .pp{ box-shadow:.38rem .38rem 0 rgba(14,9,6,.9); }
+.full:active, .full.on{ transform:rotate(-1deg) translate(.12rem,.12rem); }
+.full:active .pp, .full.on .pp{ box-shadow:none; }
+.full.on{ cursor:default; }
+.full.on .pp{ border-top-color:#E07A1F; background:#E4DACA; }
+.full:focus-visible{ outline:2px solid var(--paper); outline-offset:4px; border-radius:2px; }
 /* away from now, a station clock (Hilfiker's, the Swiss one) stands on the orange line of «ara» in place of its word,
    telling the time now; pressing it goes back to now (Àlex 09-10). Raised like the rest that can be pressed */
 .now{ position:absolute; z-index:1; bottom:calc(50% + .9rem); width:2.5rem; padding:0; border:0; background:none; cursor:pointer;
@@ -227,6 +243,8 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   #board .tt::before{ content:""; position:absolute; left:0; right:0; top:50%; height:max(2.75rem, 44px); transform:translateY(-50%); }
   .ruler{ margin-top:.4rem; }
   .now{ width:1.75rem; }
+  /* the sheets reach a third of a phone's ruler: room under them for the station clock, away from now in the morning */
+  .rulerHead{ margin-bottom:2.1rem; }
 }
 /* a phone held sideways (Àlex 12-10, option A): too short for the stacked hero, whose window shrank to a slit. Two
    columns: the window on the left, as tall as the screen allows; the name, the ticket, the board and the ruler on the

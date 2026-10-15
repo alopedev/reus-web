@@ -45,7 +45,7 @@ Si no se resuelve, cada viaje repite el mismo trámite para un dato simple y dej
 |---|---|
 | Trayectos entre dos pueblos sin pasar por Barcelona, y las líneas que no llegan a Barcelona | El problema es ir y volver de Barcelona; una sola elección simplifica la experiencia |
 | Trayectos con transbordo | Se mantiene la promesa «tren directo» y un modelo de datos sin enlaces |
-| Elegir otro día | La web responde «¿cuándo sale el próximo?» y los trenes de hoy; para planificar otro día, la app de Renfe |
+| Elegir otro día que no sea hoy o mañana | La web responde «¿cuándo sale el próximo?», los trenes de hoy y, desde el 15-10, los de mañana («Avui · Demà»); para planificar otro día, la app de Renfe |
 | Cercanías R1–R8 | Otro uso (frecuencias altas) y ~2,8 MB de datos |
 | Ouigo, Iryo y la alta velocidad que no sea AVE/Avlo de Renfe en Camp de Tarragona | Ouigo exige registro en el NAP; Iryo no publica datos abiertos |
 | Vender billetes o mostrar precios | No hay fuente abierta de tarifas; el valor está en consultar rápido |

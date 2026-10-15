@@ -1666,6 +1666,7 @@ async def check_hero(browser):
     errs += [f"notices: {e}" for e in await check_avisos(browser)]
     errs += [f"live delay: {e}" for e in await check_retards(browser)]
     errs += [f"time: {e}" for e in await check_hora(browser)]
+    errs += [f"days: {e}" for e in await check_days(browser)]
     # 21:30, from Reus: no regional left today, but two AVE from Camp de Tarragona (22:17, 22:39)
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
@@ -1681,7 +1682,8 @@ async def check_hero(browser):
     b = await page.evaluate(BOARD)
     dia = await page.evaluate("document.querySelector('.tk .fecha')?.dataset.dia")
     if b["dep"] != "05:36" or dia != "2026-09-29": errs.append(f"at 21:30 from Reus, tomorrow's 05:36 picked: the train shown is {b['dep']} on {dia}, expected 05:36 on 2026-09-29")
-    if "· demà" not in b["info"]: errs.append(f"at 21:30 from Reus, tomorrow's 05:36 picked: the board does not say «demà» ({b['info']})")
+    pressed = await page.evaluate("document.querySelector('.full.on')?.dataset.dia")
+    if not b["rows"][0].startswith("R15 05:36 demà") or pressed != "dema": errs.append(f"at 21:30 from Reus, tomorrow's 05:36 picked: the board reads {b['rows']} with the «{pressed}» sheet pressed, expected «demà» on both")
     errs += [f"at 21:30 from Reus, tomorrow's 05:36 picked: {e}" for e in buy_link(b, REUS_TOWN, SANTS_ID, "29/09/2026")]
     await page.close()
     # «ara» at both ends of the day (00:30 is clamped to the ruler's start, 23:59 is its end) never leaves the screen
@@ -1721,6 +1723,49 @@ async def check_hero(browser):
     if dia != "2026-09-29": errs.append(f"at 23:30, with tomorrow's trains on the board, the stub is printed with the day {dia}, expected 2026-09-29")
     errs += [f"at 23:30: {e}" for e in buy_link(b, "71801", CAMP_ID, "29/09/2026")]
     await page.close()
+    return errs
+
+# «Avui · Demà» (B3, Àlex 15-10): two tear-off calendar sheets over the ruler. The day looked at is pressed flat, the
+# other raised; «Demà» shows tomorrow's train at this time of day with tomorrow's ruler, «Avui» goes back to now
+DAYS = """(() => { const f = [...document.querySelectorAll('#days .full')], t = document.getElementById('t'), n = s => s.replace(/\\s+/g, ' ').trim();
+  const box = e => { const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
+  return {sheets: f.map(b => ({dia: b.dataset.dia, text: n(b.textContent), pressed: b.getAttribute('aria-pressed'), name: b.getAttribute('aria-label'),
+            shadow: getComputedStyle(b.querySelector('.pp')).boxShadow, ...box(b)})),
+          focus: document.activeElement?.dataset?.dia ?? null, ticks: document.querySelectorAll('#ticks i').length, on: [...document.querySelectorAll('#ticks i.on')].length,
+          knob: +t.value, nowline: !!document.querySelector('.nowline'), clock: !document.getElementById('nowBtn').hidden,
+          dia: document.querySelector('.tk .fecha')?.dataset.dia, ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')),
+          track: box(document.querySelector('.track'))}; })()"""
+
+async def check_days(browser):
+    errs = []
+    for w, h in ((1440, 900), (390, 844)):
+        page = await hero_page(browser, w, h)
+        d = await page.evaluate(DAYS)
+        texts = [x["text"] for x in d["sheets"]]
+        if texts != ["avui 28", "demà 29"]: errs.append(f"{w}x{h}: the day sheets read {texts}, expected «avui 28» and «demà 29»"); await page.close(); continue
+        if [x["pressed"] for x in d["sheets"]] != ["true", "false"]: errs.append(f"{w}x{h}: at load «Avui» is not the sheet pressed")
+        if [x["name"] for x in d["sheets"]] != ["Avui, dilluns, 28 de setembre", "Demà, dimarts, 29 de setembre"]: errs.append(f"{w}x{h}: the sheets are called {[x['name'] for x in d['sheets']]}")
+        if d["sheets"][0]["shadow"] != "none" or d["sheets"][1]["shadow"] == "none": errs.append(f"{w}x{h}: «Avui» should lie flat and «Demà» be raised (shadows {d['sheets'][0]['shadow']} / {d['sheets'][1]['shadow']})")
+        if w < 600 and any(x["r"] - x["l"] < 44 or x["b"] - x["t"] < 44 for x in d["sheets"]): errs.append(f"{w}x{h}: a day sheet is smaller than a finger (44 px)")
+        if any(x["b"] > d["track"]["t"] for x in d["sheets"]): errs.append(f"{w}x{h}: a day sheet reaches into the ruler")
+        a = d["ara"]
+        if a and any(x["l"] < a["r"] and a["l"] < x["r"] and x["t"] < a["b"] and a["t"] < x["b"] for x in d["sheets"]): errs.append(f"{w}x{h}: a day sheet covers «ara»")
+        await page.click('#days .full[data-dia="dema"]'); await page.wait_for_timeout(400)
+        d = await page.evaluate(DAYS); b = await page.evaluate(BOARD)
+        if [x["pressed"] for x in d["sheets"]] != ["false", "true"] or d["focus"] != "dema": errs.append(f"{w}x{h}: after «Demà» the sheets are pressed {[x['pressed'] for x in d['sheets']]} with the focus on {d['focus']}")
+        if d["nowline"] or d["clock"]: errs.append(f"{w}x{h}: tomorrow's ruler still has «ara» or the clock on it")
+        if d["dia"] != "2026-09-29" or d["knob"] != 603 or d["on"] != 1: errs.append(f"{w}x{h}: «Demà» at 10:00 shows the day {d['dia']} with the knob at {d['knob']} ({d['on']} marks on), expected tomorrow's 10:03 (603)")
+        if w > 600:
+            if b["rows"][0] != "R15 10:03 demà → 11:33": errs.append(f"{w}x{h}: «Demà» at 10:00, the board reads {b['rows']}, expected «R15 10:03 demà → 11:33» first")
+            errs += [f"{w}x{h} «Demà»: {e}" for e in buy_link(b, SANTS_ID, REUS_TOWN, "29/09/2026")]
+        # the ruler keeps to tomorrow: its last train is tomorrow's
+        await page.focus("#t"); await page.keyboard.press("End"); await page.wait_for_timeout(300)
+        d = await page.evaluate(DAYS)
+        if d["dia"] != "2026-09-29" or d["sheets"][1]["pressed"] != "true": errs.append(f"{w}x{h}: «Demà», End on the ruler goes back to the day {d['dia']}")
+        await page.click('#days .full[data-dia="avui"]'); await page.wait_for_timeout(400)
+        d = await page.evaluate(DAYS)
+        if d["dia"] != "2026-09-28" or not d["nowline"] or d["knob"] != 603 or d["sheets"][0]["pressed"] != "true": errs.append(f"{w}x{h}: «Avui» does not go back to now (day {d['dia']}, «ara» {d['nowline']}, knob {d['knob']})")
+        await page.close()
     return errs
 
 BOARD = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), rows = [...document.querySelectorAll('#board .trip')];
