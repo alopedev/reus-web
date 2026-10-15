@@ -22,3 +22,10 @@ export function rag(seed: number, d = .3){
   for(let i=m-1;i>=1;i--) pts.push(`${j()} ${(i/m*100).toFixed(2)}%`);
   return `polygon(${pts.join(',')})`;
 }
+
+// a sheet torn off a pad along its perforation: straight sides, the top cut clean, the bottom torn by hand (up to `d` rem)
+export function torn(seed: number, d = .32){
+  const r = rnd(seed), j = (k: number) => `${(r()*d*k).toFixed(3)}rem`, pts: string[] = ['0 0', '100% 0'], n = 20;
+  for(let i=n;i>=0;i--) pts.push(`${(i/n*100).toFixed(2)}% calc(100% - ${j(1)})`);
+  return `polygon(${pts.join(',')})`;
+}

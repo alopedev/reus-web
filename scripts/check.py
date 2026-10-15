@@ -1725,12 +1725,14 @@ async def check_hero(browser):
     await page.close()
     return errs
 
-# «Avui · Demà» (B3, Àlex 15-10): two tear-off calendar sheets over the ruler. The day looked at is pressed flat, the
+# «Avui · Demà» (B3, Àlex 15-10): two tear-off calendar sheets over the ruler, hanging from one cardboard that prints
+# the month in dots, each sheet with its weekday in dots (drawing A, Àlex 15-10). The day looked at is pressed flat, the
 # other raised; «Demà» shows tomorrow's train at this time of day with tomorrow's ruler, «Avui» goes back to now
 DAYS = """(() => { const f = [...document.querySelectorAll('#days .full')], t = document.getElementById('t'), n = s => s.replace(/\\s+/g, ' ').trim();
   const box = e => { const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
   return {sheets: f.map(b => ({dia: b.dataset.dia, text: n(b.textContent), pressed: b.getAttribute('aria-pressed'), name: b.getAttribute('aria-label'),
-            shadow: getComputedStyle(b.querySelector('.pp')).boxShadow, ...box(b)})),
+            shadow: getComputedStyle(b).filter, wd: b.querySelector('.pp svg')?.dataset.t ?? null, ...box(b)})),
+          head: document.querySelector('#days .taco svg')?.dataset.t ?? null,
           focus: document.activeElement?.dataset?.dia ?? null, ticks: document.querySelectorAll('#ticks i').length, on: [...document.querySelectorAll('#ticks i.on')].length,
           knob: +t.value, nowline: !!document.querySelector('.nowline'), clock: !document.getElementById('nowBtn').hidden,
           dia: document.querySelector('.tk .fecha')?.dataset.dia, ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')),
@@ -1745,7 +1747,8 @@ async def check_days(browser):
         if texts != ["avui 28", "demà 29"]: errs.append(f"{w}x{h}: the day sheets read {texts}, expected «avui 28» and «demà 29»"); await page.close(); continue
         if [x["pressed"] for x in d["sheets"]] != ["true", "false"]: errs.append(f"{w}x{h}: at load «Avui» is not the sheet pressed")
         if [x["name"] for x in d["sheets"]] != ["Avui, dilluns, 28 de setembre", "Demà, dimarts, 29 de setembre"]: errs.append(f"{w}x{h}: the sheets are called {[x['name'] for x in d['sheets']]}")
-        if d["sheets"][0]["shadow"] != "none" or d["sheets"][1]["shadow"] == "none": errs.append(f"{w}x{h}: «Avui» should lie flat and «Demà» be raised (shadows {d['sheets'][0]['shadow']} / {d['sheets'][1]['shadow']})")
+        if d["head"] != "SETEMBRE 2026" or [x["wd"] for x in d["sheets"]] != ["DILLUNS", "DIMARTS"]: errs.append(f"{w}x{h}: the pad prints «{d['head']}» on its cardboard and {[x['wd'] for x in d['sheets']]} on its sheets")
+        if "drop-shadow" in d["sheets"][0]["shadow"] or "drop-shadow" not in d["sheets"][1]["shadow"]: errs.append(f"{w}x{h}: «Avui» should lie flat and «Demà» be raised (shadows {d['sheets'][0]['shadow']} / {d['sheets'][1]['shadow']})")
         if w < 600 and any(x["r"] - x["l"] < 44 or x["b"] - x["t"] < 44 for x in d["sheets"]): errs.append(f"{w}x{h}: a day sheet is smaller than a finger (44 px)")
         if any(x["b"] > d["track"]["t"] for x in d["sheets"]): errs.append(f"{w}x{h}: a day sheet reaches into the ruler")
         a = d["ara"]
