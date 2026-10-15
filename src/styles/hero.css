@@ -140,21 +140,41 @@
 .ruler{ grid-column:1 / -1; position:relative; margin-top:.9rem; }
 /* room above the track for «ahora»; «Volver a ahora» on the side away from it */
 .rulerHead{ display:flex; justify-content:flex-start; align-items:flex-end; margin-bottom:1.5rem; }
-/* «Avui · Demà» (B3, Àlex 15-10): two sheets of a tear-off calendar, the day's word over its number, an orange band on
-   top. The day looked at is pressed flat; the other is raised, with the hard shadow of what can be pressed, and gives
+/* «Avui · Demà» (B3, Àlex 15-10): two sheets of a tear-off pad, the day's word over its number. Drawn as a wall
+   calendar (Àlex 15-10, A): a stapled cardboard that prints the month in dots, like the ticket's date, and the sheets
+   hanging from its perforation with their weekday in dots and the bottom torn by hand. The day looked at lies flat,
+   its number in red; the other is raised, with the hard shadow of what can be pressed and a corner lifting, and gives
    way when pressed. They sit over «ara»'s row, never on it */
-.days{ display:flex; gap:.75rem; }
-.full{ padding:0; border:0; background:none; cursor:pointer; font:inherit; color:inherit; transform:rotate(1.5deg) translate(-.06rem,-.06rem);
-  transition:transform .12s; }
-.full .pp{ display:flex; flex-direction:column; align-items:center; width:3.3rem; padding:.3rem 0 .3rem; line-height:1; background:var(--paper);
-  color:#2D241C; border-top:.32rem solid #EDA864; border-radius:1px; box-shadow:.3rem .3rem 0 rgba(14,9,6,.9); transition:box-shadow .12s; }
+.days{ position:relative; display:grid; grid-template-columns:auto auto; column-gap:.3rem; padding:0 .3rem; }
+.taco{ grid-column:1 / -1; position:relative; display:flex; align-items:center; justify-content:center; height:1.15rem;
+  margin:0 -.3rem; border-radius:2px 2px 1px 1px; background:#6E4232 var(--grain);
+  box-shadow:0 .12rem .25rem rgba(14,9,6,.45), inset 0 -.08rem 0 rgba(0,0,0,.25); }
+.taco svg{ width:auto; height:.36rem; }
+/* the two staples */
+.taco::before, .taco::after{ content:''; position:absolute; top:.18rem; width:.55rem; height:.16rem; background:#B9B3AA;
+  box-shadow:0 .05rem 0 rgba(0,0,0,.35); }
+.taco::before{ left:.55rem; } .taco::after{ right:.55rem; }
+.full{ position:relative; padding:0; border:0; background:none; cursor:pointer; font:inherit; color:inherit;
+  filter:drop-shadow(.3rem .3rem 0 rgba(14,9,6,.9)); transition:filter .12s; }
+.full .pp{ display:flex; flex-direction:column; align-items:center; width:3.7rem; padding:0 0 1.05rem; line-height:1;
+  background:#EFE6D2 var(--grain); color:#2D241C; transform-origin:50% 0; transition:transform .12s; }
+.full:not(.on) .pp{ transform:rotate(-2.5deg) translateY(.05rem); }
+/* the perforation it was torn from */
+.full .perf{ align-self:stretch; height:.32rem; margin-bottom:.12rem; border-bottom:1px dashed rgba(45,36,28,.2);
+  background:radial-gradient(circle, rgba(45,36,28,.6) .055rem, transparent .07rem) 0 50%/.3rem .32rem repeat-x; }
 .full i{ font:700 .93rem var(--texto); font-style:normal; }
-.full b{ font:400 1.45rem 'Young Serif', serif; margin-top:.05rem; }
-.full:hover .pp{ box-shadow:.38rem .38rem 0 rgba(14,9,6,.9); }
-.full:active, .full.on{ transform:rotate(-1deg) translate(.12rem,.12rem); }
-.full:active .pp, .full.on .pp{ box-shadow:none; }
+.full b{ font:400 2rem 'Young Serif', serif; margin-top:.05rem; }
+.full .pp svg{ height:.36rem; margin-top:.28rem; opacity:.85; }
+/* the corner that lifts, on the sheet that can be pressed */
+.full:not(.on)::after{ content:''; position:absolute; right:.1rem; bottom:.08rem; width:.5rem; height:.5rem;
+  background:linear-gradient(315deg, transparent 0 50%, #D5C8AE 50%); transform:rotate(-2.5deg);
+  filter:drop-shadow(-.04rem -.04rem .03rem rgba(45,36,28,.35)); }
+.full:hover{ filter:drop-shadow(.38rem .38rem 0 rgba(14,9,6,.9)); }
+.full:active, .full.on{ filter:none; }
+.full:active .pp, .full.on .pp{ transform:none; }
 .full.on{ cursor:default; }
-.full.on .pp{ border-top-color:#E07A1F; background:#E4DACA; }
+.full.on .pp{ background-color:#E8DECB; }
+.full.on b{ color:#B5361F; }
 .full:focus-visible{ outline:2px solid var(--paper); outline-offset:4px; border-radius:2px; }
 /* away from now, a station clock (Hilfiker's, the Swiss one) stands on the orange line of «ara» in place of its word,
    telling the time now; pressing it goes back to now (Àlex 09-10). Raised like the rest that can be pressed */

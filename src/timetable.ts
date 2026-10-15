@@ -2,11 +2,11 @@ import { reduce, state } from './state';
 import { madridNow, firstDay, lastDay, source, NET, bcnName, bcnShort, addDays } from './time';
 import { shown, tomorrowAt, type Mark } from './shown';
 import { board } from './board';
-import { cut } from './paper';
+import { cut, torn } from './paper';
 import { setupChooser } from './chooser';
 import { setupDetail, type Trip } from './detail';
 import { fitJourney } from './journey';
-import { dotDate } from './dots';
+import { dotDate, dotText, padMonth, weekday } from './dots';
 import { byId } from './dom';
 import type { World } from './world';
 import type { Table } from './table';
@@ -124,10 +124,14 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   const longDay = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('ca-ES', { weekday:'long', day:'numeric', month:'long', timeZone:'UTC' });
   function setDays(today: string, tom: boolean){
     const tw = addDays(today, 1);
-    const sheet = (key: string, word: string, iso: string, on: boolean) =>
+    // a tear-off pad (Àlex 15-10, A): a cardboard with the month printed in dots, and two sheets hanging from its
+    // perforation, each with its weekday in dots and its bottom torn by hand
+    const sheet = (key: string, word: string, iso: string, on: boolean, seed: number) =>
       `<button type="button" class="full${on ? ' on' : ''}" data-dia="${key}" aria-pressed="${on}" aria-label="${word}, ${longDay(iso)}">`
-      + `<span class="pp" aria-hidden="true"><i>${word.toLowerCase()}</i> <b>${+iso.slice(8)}</b></span></button>`;
-    const html = sheet('avui', 'Avui', today, !tom) + sheet('dema', 'Demà', tw, tom);
+      + `<span class="pp" aria-hidden="true" style="clip-path:${torn(seed)}"><span class="perf"></span>`
+      + `<i>${word.toLowerCase()}</i> <b>${+iso.slice(8)}</b>${dotText(weekday(iso), '#B5361F')}</span></button>`;
+    const html = `<span class="taco" aria-hidden="true">${dotText(padMonth(today, tw), '#F1EADC')}</span>`
+      + sheet('avui', 'Avui', today, !tom, 7) + sheet('dema', 'Demà', tw, tom, 20);
     if(html === daysHtml) return;
     const had = days.querySelector<HTMLElement>(':focus')?.dataset.dia;
     days.innerHTML = daysHtml = html;
