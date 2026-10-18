@@ -1567,62 +1567,33 @@ async def check_board_without_webgl(browser):
     await page.close()
     return errs
 
-# the highlighted time, «only if you hesitate» (option C, Àlex 12-10): what the page shows of it, read in the browser
+# the highlighted time: what the page shows of it, read in the browser
 HORA = """(() => { const h = document.getElementById('hero'), d = document.getElementById('dep'), c = getComputedStyle(d);
   const m = c.textShadow.match(/(-?[\\d.]+)px (-?[\\d.]+)px ([\\d.]+)px/);
   const anim = s => { const e = document.querySelector(s); return e ? getComputedStyle(e).animationName : null; };
-  return {raised: !!m && +m[1] > 0 && +m[3] === 0, shadow: c.textShadow, doubt: h.classList.contains('duda'),
-          beat: h.classList.contains('batec'), glint: getComputedStyle(d, '::before').content !== 'none',
-          dep: anim('#dep'), mas: anim('#board .big .mas'), talo: anim('#talons .talo .in'), kept: (() => { try { return localStorage.getItem('capacasa.hora'); } catch { return 'blocked'; } })()}; })()"""
+  return {raised: !!m && +m[1] > 0 && +m[3] === 0, shadow: c.textShadow, link: !!d.closest('a'), cls: h.className,
+          dep: anim('#dep'), mas: anim('#board .big .mas'), talo: anim('#talons .talo .in'),
+          kept: (() => { try { return localStorage.getItem('capacasa.hora'); } catch { return null; } })()}; })()"""
 
 async def check_hora(browser):
-    """The highlighted time says it can be pressed, only if you hesitate (option C, Àlex 12-10): raised (the hard
-    offset shadow) until it is pressed for the first time; nothing moves on the way in, nor while nothing is touched
-    (the sweep of golden light after 5 s was dropped, Àlex 12-10); a touch where nothing answers (the window) makes it
-    beat, with the stubs by the pad (A3, Àlex 18-10) and, on a phone, «›»; pressed, it lies flat and quiet, also after a reload. With
-    reduced motion only the relief is left."""
+    """The highlighted time is only a time (Àlex 18-10): the stubs «Compra» and «Avisa» say what it leads to, so the
+    hint that it could be pressed (raised until the first press, beating at a touch where nothing answers; option C,
+    12-10) is gone. Flat, not a link on a desktop, still at a touch on the window, nothing kept in the browser."""
     errs = []
     for name, (w, h) in {"desktop": (1440, 900), "phone": (390, 844)}.items():
         page = await open_page(browser, viewport={"width": w, "height": h})
         # the real clock: a fixed one also stops the landscape's paint-in, and the hero would never come in
         await page.goto(page_url); await page.evaluate("document.fonts.ready")
-        s = await page.evaluate(HORA)
-        if not s["raised"]: errs.append(f"{name}: on a first visit the highlighted time is not raised ({s['shadow']})")
         await page.wait_for_function("document.getElementById('stage').classList.contains('in')", timeout=30000)
-        # 7 s without a touch: the time stays still, no light crosses it
-        moved = await page.evaluate("""new Promise(done => { const h = document.getElementById('hero'); let seen = [];
-          const o = new MutationObserver(() => { if(h.classList.contains('batec') || h.classList.contains('brilla')) seen.push(h.className); });
-          o.observe(h, {attributes: true}); setTimeout(() => { o.disconnect(); done(seen); }, 7000); })""")
-        s = await page.evaluate(HORA)
-        if moved or s["beat"] or s["glint"] or s["dep"] not in (None, "none"): errs.append(f"{name}: the time moves without a touch ({moved}, {s})")
-        # a touch on the window, where nothing answers: the time beats with its sign
         await page.mouse.click(*(await page.evaluate("(r => [r.x + r.width / 2, r.y + r.height / 2])(document.getElementById('win').getBoundingClientRect())")))
         await page.wait_for_timeout(150)
         s = await page.evaluate(HORA)
-        for sign in ["talo"] + (["mas"] if name == "phone" else []):
-            if not s["beat"] or s["dep"] in (None, "none") or s[sign] in (None, "none"):
-                errs.append(f"{name}: a touch on the window does not make the time and its {sign} beat ({s})")
-        # pressed: flat and quiet (the desktop's link would open Renfe: kept on the page)
-        await page.evaluate("addEventListener('click', e => { if(e.target.closest('a')) e.preventDefault(); })")
-        await page.click("#dep" if name == "desktop" else "#board button.big", timeout=CLICK_MS); await page.wait_for_timeout(300)
-        if name == "phone": await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
-        await page.mouse.click(*(await page.evaluate("(r => [r.x + r.width / 2, r.y + r.height / 2])(document.getElementById('win').getBoundingClientRect())")))
-        await page.wait_for_timeout(150)
-        s = await page.evaluate(HORA)
-        if s["raised"] or s["doubt"] or s["beat"]: errs.append(f"{name}: once pressed the time is not flat and quiet ({s})")
-        if s["kept"] != "1": errs.append(f"{name}: the press is not remembered ({s['kept']})")
-        await page.reload(); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(500)
-        s = await page.evaluate(HORA)
-        if s["raised"]: errs.append(f"{name}: after a reload the time, already pressed, is raised again")
+        if s["raised"]: errs.append(f"{name}: the highlighted time is raised ({s['shadow']})")
+        if s["link"]: errs.append(f"{name}: the highlighted time is a link (the stub «Compra» is the way to Renfe)")
+        if any(s[k] not in (None, "none") for k in ("dep", "mas", "talo")) or "batec" in s["cls"] or "duda" in s["cls"]:
+            errs.append(f"{name}: a touch on the window makes something beat ({s})")
+        if s["kept"] is not None: errs.append(f"{name}: the browser still keeps «capacasa.hora» ({s['kept']})")
         await page.close()
-    # reduced motion: the relief only
-    page = await hero_page(browser, 390, 844)
-    await page.mouse.click(*(await page.evaluate("(r => [r.x + r.width / 2, r.y + r.height / 2])(document.getElementById('win').getBoundingClientRect())")))
-    await page.wait_for_timeout(150)
-    s = await page.evaluate(HORA)
-    if not s["raised"]: errs.append(f"reduced motion: the time is not raised ({s['shadow']})")
-    if s["beat"]: errs.append(f"reduced motion: the time moves ({s})")
-    await page.close()
     return errs
 
 async def check_hero(browser):
@@ -1779,13 +1750,14 @@ TALONS = """(() => { const box = e => { const r = e.getBoundingClientRect(); ret
   const n = s => s.replace(/\\s+/g, ' ').trim();
   return {stubs: [...document.querySelectorAll('#talons .talo')].map(a => ({cls: a.classList[1], text: n(a.textContent), href: a.href, tab: a.target,
             label: a.getAttribute('aria-label'), shadow: getComputedStyle(a).filter, wrap: a.querySelector('.in').getBoundingClientRect().height, ...box(a)})),
-          dep: document.getElementById('dep')?.href ?? null, sheets: [...document.querySelectorAll('#days .full')].map(box), track: box(document.querySelector('.track')),
+          sheets: [...document.querySelectorAll('#days .full')].map(box), track: box(document.querySelector('.track')),
           ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')), vw: innerWidth, vh: innerHeight,
           rem: parseFloat(getComputedStyle(document.documentElement).fontSize)}; })()"""
 
 async def check_talons(browser):
-    """The stubs (A3, Àlex 18-10): on a desktop «Compra», the same search as the time, at the right end of the page
-    (over the ruler's end, not by the pad); on a phone also «Avisa» to WhatsApp with the train written, by the pad.
+    """The stubs (A3, Àlex 18-10): «Compra», Renfe’s search for the train shown, at the right end of the page
+    (over the ruler's end, not by the pad); on a phone also «Avisa» to WhatsApp with the train written, under it, at
+    the right end too.
     Raised, on one line, a finger big on a phone, inside the screen and clear of the day sheets, «ara» and the ruler,
     from 320 px to the phone held sideways."""
     errs = []
@@ -1796,11 +1768,11 @@ async def check_talons(browser):
         want = ["Compra", "Avisa"] if phone else ["Compra"]
         if [x["text"] for x in t["stubs"]] != want: errs.append(f"{w}x{h}: the stubs read {[x['text'] for x in t['stubs']]}, expected {want}"); await page.close(); continue
         c = t["stubs"][0]
-        if not phone and c["href"] != t["dep"]: errs.append(f"{w}x{h}: «Compra» opens {c['href']}, not the time's search {t['dep']}")
         if "venta.renfe.com" not in c["href"] or c["tab"] != "_blank" or "Renfe" not in (c["label"] or ""): errs.append(f"{w}x{h}: «Compra» is not a link to Renfe in a new tab ({c})")
-        # on a desktop, at the right end of the page (Àlex 18-10): its right edge on the ruler's, far from the pad
-        if not phone and (abs(c["r"] - t["track"]["r"]) > t["rem"] or c["l"] < t["sheets"][-1]["r"] + 10 * t["rem"]):
-            errs.append(f"{w}x{h}: «Compra» is not at the right end of the page (stub {c['l']:.0f}–{c['r']:.0f}, ruler ends at {t['track']['r']:.0f})")
+        # at the right end of the page (Àlex 18-10), on a phone too: each right edge on the ruler's, clear of the pad
+        for x in t["stubs"]:
+            if abs(x["r"] - t["track"]["r"]) > t["rem"] or x["l"] < t["sheets"][-1]["r"] + (2 if phone else 10) * t["rem"]:
+                errs.append(f"{w}x{h}: «{x['text']}» is not at the right end of the page (stub {x['l']:.0f}–{x['r']:.0f}, ruler ends at {t['track']['r']:.0f})")
         if phone and t["stubs"][1]["href"] != home: errs.append(f"{w}x{h}: «Avisa» opens {t['stubs'][1]['href']}, expected {home}")
         for x in t["stubs"]:
             if "drop-shadow" not in x["shadow"]: errs.append(f"{w}x{h}: «{x['text']}» is not raised ({x['shadow']})")
@@ -1825,11 +1797,11 @@ async def check_talons(browser):
 
 BOARD = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), rows = [...document.querySelectorAll('#board .trip')];
   // the big train's route (desktop) is for the eye only, read by check_journey; the stub «Compra» (A3, Àlex 18-10)
-  // is the time's second link to Renfe
+  // is the way to Renfe, the time is only a time
   const text = r => { const c = r.cloneNode(true); c.querySelectorAll('.rec').forEach(x => x.remove()); return n(c.textContent); };
-  const dep = document.getElementById('dep'), word = document.querySelector('#talons .compra'), q = dep?.href ? new URL(dep.href).searchParams : null;
-  return {rows: rows.map(text), buy: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), host: new URL(dep.href).host, query: Object.fromEntries(q),
-            tab: dep.target === '_blank' && word?.target === '_blank', same: word?.href === dep.href, label: dep.getAttribute('aria-label')}, buttons: rows.map(r => r.matches('button.tt')), dep: document.getElementById('dep')?.textContent,
+  const word = document.querySelector('#talons .compra'), q = word?.href ? new URL(word.href).searchParams : null;
+  return {rows: rows.map(text), buy: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), host: new URL(word.href).host, query: Object.fromEntries(q),
+            tab: word.target === '_blank', label: word.getAttribute('aria-label') ?? word.textContent}, boardLink: !!document.querySelector('#board a[href]'), buttons: rows.map(r => r.matches('button.tt')), dep: document.getElementById('dep')?.textContent,
           soon: document.querySelector('.soon')?.textContent.trim(), info: n(document.getElementById('info').textContent),
           aviso: document.getElementById('aviso').textContent}; })()"""
 
@@ -1937,19 +1909,19 @@ RENFE_FIELDS = {"adultos_": "1", "ninos_": "0", "ninosMenores": "0", "tipoBusque
                 "currenLocation": "menuBusqueda", "vengoderenfecom": "SI"}
 
 def buy_link(b, frm, to, day):
-    """The big train's time and the stub «Compra» open Renfe's search for its trip and day, in a new tab (src/buy.ts)."""
+    """The stub «Compra» opens Renfe's search for the train shown, its trip and day, in a new tab (src/buy.ts); the
+    time itself is not a link (Àlex 18-10)."""
     k = b.get("buy")
-    if not k: return ["the train shown (#dep) is not a link to Renfe"]
-    errs = []
+    if not k: return ["the stub «Compra» is not a link to Renfe"]
+    errs = ["the board still links to Renfe (the stub «Compra» is the way there)"] if b.get("boardLink") else []
     if k["host"] != "venta.renfe.com": errs.append(f"the buy link goes to {k['host']}, expected venta.renfe.com")
     if (k["from"], k["to"], k["day"]) != (f"0071,{frm},{frm}", f"0071,{to},{to}", day):
         errs.append(f"the buy link searches {k['from']} → {k['to']} on {k['day']}, expected {frm} → {to} on {day}")
     # without these renfe.com answers E500 to a first visit, or shows a returning visitor their previous search
     missing = [f for f, v in RENFE_FIELDS.items() if k["query"].get(f) != v]
     if missing: errs.append(f"the buy link lacks the fields Renfe needs to search ({', '.join(missing)}): «{k['query']}»")
-    if not k["tab"]: errs.append("the buy links do not open in a new tab")
-    if not k["same"]: errs.append("the stub «Compra» and the time do not open the same search")
-    if "Renfe" not in (k["label"] or ""): errs.append(f"the time's label does not say it buys on Renfe («{k['label']}»)")
+    if not k["tab"]: errs.append("the stub «Compra» does not open in a new tab")
+    if "Renfe" not in (k["label"] or ""): errs.append(f"the stub's label does not say it buys on Renfe («{k['label']}»)")
     return errs
 
 TICKET = """(() => { const t = [...document.querySelectorAll('#tickets .tk')], sw = document.querySelector('.tk .swap');
@@ -2602,7 +2574,7 @@ async def check_phone_board(browser):
     want = ["R15 10:03 en 3 min → 11:33 ›", "R15 11:03 → 12:33 ›"]
     if b["rows"] != want: errs.append(f"at 10:00 the phone board reads {b['rows']}, expected {want}")
     if b["buttons"] != [True, True]: errs.append(f"on a phone every trip should be a button, got {b['buttons']}")
-    if b["buy"]: errs.append("on a phone the board still holds a link (the way to Renfe belongs to the sheet)")
+    if b["buy"]: errs.append("on a phone the board still holds a link (the way to Renfe is the stub and the sheet)")
     async def tap(sel, when):
         try: await page.click(sel, timeout=CLICK_MS)
         except Exception: errs.append(f"{when}: {sel} is not clickable"); return None

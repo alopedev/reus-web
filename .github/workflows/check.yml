@@ -25,6 +25,22 @@ jobs:
       - run: npm run build
       - run: npm run build:paridad
       - run: python scripts/check.py
+      # TEMPORARY: the new hero reference frames, printed as a diff against the old ones (removed with the new references)
+      - if: always()
+        run: |
+          python - <<'PY'
+          import base64, zlib
+          from pathlib import Path
+          from PIL import Image, ImageChops
+          for name in ("escritorio-hero", "movil-hero"):
+              new = Path(f"screenshots/{name}-distinto.png")
+              if not new.exists(): print(f"{name}: no new frame"); continue
+              d = ImageChops.subtract_modulo(Image.open(new).convert("RGB"), Image.open(f"scripts/baseline/linux/{name}.png").convert("RGB"))
+              s = base64.b64encode(zlib.compress(d.tobytes(), 9)).decode()
+              print(f"=== {name} {d.width}x{d.height} {len(s)}")
+              for i in range(0, len(s), 4000): print(f"@@{name} {s[i:i+4000]}")
+              print(f"=== end {name}")
+          PY
       # the screenshots, and any reference frame written in this run, to review or commit
       - if: always()
         uses: actions/upload-artifact@v4

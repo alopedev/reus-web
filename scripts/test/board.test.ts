@@ -42,11 +42,9 @@ test('on a phone the board keeps the times, and each trip says itself in full to
     'R15 de les 05:36, demà, arriba a les 07:07. Veure el detall i comprar']);
 });
 
-test('on a desktop the time shown buys it at Renfe, and the other trip is a button that names itself', () => {
-  const [big, next] = board(at('2026-10-01', '10:00', HOME), true, false);
-  assert.equal(label(big), '10:03, comprar a Renfe (s’obre en una altra pestanya)');
+test('on a desktop the other trip is a button that names itself', () => {
+  const [, next] = board(at('2026-10-01', '10:00', HOME), true, false);
   assert.equal(label(next), 'R15 de les 11:03, arriba a les 12:33');
-  assert.equal(label(board(at('2026-10-01', '21:30', BACK), false, false)[0]), '22:17, comprar a Renfe (s’obre en una altra pestanya)');
 });
 
 // the live delay of the train shown (Renfe's feed): a fake of what the page knows of each train. At 10:00 on 01-10 the
@@ -94,18 +92,15 @@ test('a train picked that has already left says so where the next one would say 
   assert.deepEqual(desk({ ...HOME, useNow: false, minute: 543 }, '2026-10-01', '10:00'), ['R15 09:03 ja ha sortit → 10:33', 'AVE 09:55 després → 10:26 fins a Camp de Tarragona']);
 });
 
-// Renfe opens the day's list, not the train (src/buy.ts): a cancelled or departed train shown has nothing to buy, so
-// its time does not link to Renfe (12-10, option A of three); the phone's sheet loses «Compra a Renfe». The word
-// «compra’l ↗» left the row for the stub by the pad (talons.ts, A3, Àlex 18-10)
+// Renfe opens the day's list, not the train (src/buy.ts). The way there is the stub «Compra» (talons.ts, A3, Àlex 18-10):
+// the time is only a time, on a desktop as on a phone (the hint that it could be pressed went with it, Àlex 18-10)
 const links = (html: string) => (html.match(/href="https:\/\/venta\.renfe\.com[^"]*"/g) ?? []).length;
-test('the train shown links to Renfe by its time; cancelled or already gone, not at all', () => {
-  const [big] = board(at('2026-10-01', '10:00', HOME), true, false);
-  assert.equal(links(big), 1);
-  assert.doesNotMatch(big, /compra’l/);
-  for(const row of [atLive({ estat: 'cancelat' }, false)[0], board(at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 543 }), true, false)[0]]){
-    assert.equal(links(row), 0);
-    assert.doesNotMatch(row, /compra’l/);
-    assert.match(row, /id="dep"/);
+test('the train shown is only its time: no row of the board links to Renfe', () => {
+  for(const phone of [false, true]){
+    const rows = board(at('2026-10-01', '10:00', HOME), true, phone);
+    assert.equal(rows.map(links).reduce((a, b) => a + b), 0);
+    assert.doesNotMatch(rows[0], /<a /);
+    assert.match(rows[0], /id="dep"/);
   }
 });
 test('a cancelled or departed train shown has no Renfe link for the phone’s sheet', () => {

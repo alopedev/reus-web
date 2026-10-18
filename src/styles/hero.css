@@ -64,13 +64,9 @@
 /* the AVE leaves from (or goes to) Camp de Tarragona, not the town: said under its arrival, on a line of its own */
 .trip .st{ grid-column:3 / -1; justify-self:end; font-size:.93rem; line-height:1.1; color:var(--soft); white-space:nowrap; }
 /* the train shown is the one pressed: flat on the wall, no offset shadow and no frame (the inked stamp around it was
-   dropped, Àlex 06-10); until it is first pressed, it says it can be (#hero.duda, below) */
+   dropped, Àlex 06-10). It is only a time: the stubs say what it leads to (Àlex 18-10) */
 #dep{ font-size:4.6rem; line-height:.9; letter-spacing:-.02em; text-shadow:0 1px 2px rgba(0,0,0,.35); justify-self:start; }
 .big .arr{ color:var(--paper); font-size:1.8rem; }
-/* the big train is the door to Renfe: its time (flat, the train chosen) and «compra’l ↗», raised like everything
-   you can press */
-.big a{ color:inherit; text-decoration:none; }
-.big a:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
 /* the other trips are doors to them: the whole row presses, its time stands off the wall (raised, the hard offset
    shadow of the ticket); pressing flattens it */
 .tt{ font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; text-align:left; cursor:pointer; text-shadow:inherit; }
@@ -117,18 +113,6 @@
 .rec .vago svg{ display:block; width:100%; height:auto; filter:drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
 .rec .s.up.alt{ bottom:1.55rem; }
 #dep.swap{ animation:swap .45s ease; }
-/* the highlighted time says it can be pressed, only if you hesitate (option C, Àlex 12-10; hint.ts): raised like
-   everything you can press until it is first pressed, then flat for good. A touch where nothing answers makes it beat
-   with its sign, «›» on a phone, and the stubs by the pad (.batec). (A sweep of golden light after 5 s without a
-   touch was dropped, Àlex 12-10) */
-#hero.duda a#dep, #hero.duda button.big #dep{ display:inline-block; text-shadow:.06em .06em 0 var(--shadow); }
-#hero.duda a#dep:active, #hero.duda button.big:active #dep{ text-shadow:0 1px 2px rgba(0,0,0,.35); transform:translate(.06em,.06em); }
-#hero.duda .big .mas{ display:inline-block; }
-@media (prefers-reduced-motion:no-preference){
-  #hero.batec a#dep, #hero.batec button.big #dep, #hero.batec .big .mas, #hero.batec .talo .in{ animation:batec .9s ease-out; }
-}
-@keyframes batec{ 0%{ transform:scale(1); } 18%{ transform:scale(1.1); filter:drop-shadow(0 0 .25em rgba(255,214,150,.9)); } 36%{ transform:scale(1); }
-  54%{ transform:scale(1.07); filter:drop-shadow(0 0 .2em rgba(255,214,150,.7)); } 100%{ transform:scale(1); filter:none; } }
 @keyframes swap{ from{ opacity:.2; transform:translateY(8px); } to{ opacity:1; transform:none; } }
 .note{ font-size:.93rem; color:var(--soft); margin:0; text-shadow:0 1px 2px rgba(0,0,0,.35); }
 .note:empty{ display:none; }
@@ -175,8 +159,8 @@
 /* the stubs (A3, Àlex 18-10; talons.ts): what the highlighted time leads to, out on the wall. Ticket stubs with a
    notch on each side, a drawing of what they do behind a dotted line, and the verb; raised like everything that can
    be pressed (the shadow on the link, the notches cut from the paper inside it, or the mask would cut the shadow
-   too). On a desktop at the right end of the page, over the ruler's end (Àlex 18-10); on a phone by the pad, one
-   over the other */
+   too). At the right end of the page, over the ruler's end (Àlex 18-10): on a phone one over the other, their right
+   edges together */
 .talons{ display:flex; gap:.7rem; align-items:flex-start; margin:0 0 .6rem auto; }
 .talo{ display:inline-block; text-decoration:none; color:#2D241C; filter:drop-shadow(.22rem .22rem 0 rgba(14,9,6,.9));
   transform:rotate(-1.5deg); transition:filter .12s, transform .12s; }
@@ -280,7 +264,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .now{ width:1.75rem; }
   /* the sheets reach a third of a phone's ruler: room under them for the station clock, away from now in the morning */
   .rulerHead{ margin-bottom:2.1rem; }
-  .talons{ flex-direction:column; gap:.6rem; margin:0 0 .3rem 1rem; }
+  .talons{ flex-direction:column; align-items:flex-end; gap:.6rem; margin:0 0 .3rem auto; }
 }
 /* a phone held sideways (Àlex 12-10, option A): too short for the stacked hero, whose window shrank to a slit. Two
    columns: the window on the left, as tall as the screen allows; the name, the ticket, the board and the ruler on the
