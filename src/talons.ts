@@ -1,7 +1,7 @@
-// the stubs by the pad (option A3 of three, Àlex 18-10): what the highlighted time leads to, out on the wall, so that
-// nobody has to guess it is behind the time. Ticket stubs with their notches, a drawing of what each does and its verb:
-// «Compra ↗» opens Renfe's search for the train's trip and day; «Avisa a casa», only on a phone (on a desktop there
-// is no «avisar», Àlex 06-10), opens WhatsApp with the train written. Pure: the HTML, from what shown() decided
+// the stubs (option A3 of three, Àlex 18-10): what the highlighted time leads to, out on the wall, so that nobody has
+// to guess it is behind the time. Ticket stubs with their notches, a drawing of what each does and its verb, one word
+// so they stay narrow: «Compra» opens Renfe's search for the train's trip and day; «Avisa», only on a phone (on a
+// desktop there is no «avisar», Àlex 06-10), opens WhatsApp with the train written. Pure: the HTML, from shown()
 import type { Shown } from './shown';
 import { whatsappUrl } from './home';
 
@@ -15,6 +15,6 @@ const stub = (cls: string, href: string, icon: string, word: string, label: stri
 
 export function talons(s: Shown, phone: boolean): string {
   if(s.kind !== 'train') return '';
-  return (s.buy ? stub('compra', s.buy, TICKET, 'Compra ↗', `Compra a Renfe el tren de les ${s.trip.dep} (s’obre en una altra pestanya)`) : '')
-    + (phone ? stub('avisa', whatsappUrl(s.trip.home), HOUSE, 'Avisa a casa', 'Avisa a casa per WhatsApp') : '');
+  return (s.buy ? stub('compra', s.buy, TICKET, 'Compra', `Compra a Renfe el tren de les ${s.trip.dep} (s’obre en una altra pestanya)`) : '')
+    + (phone ? stub('avisa', whatsappUrl(s.trip.home), HOUSE, 'Avisa', 'Avisa a casa per WhatsApp') : '');
 }

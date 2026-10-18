@@ -172,11 +172,12 @@
 .full.on .pp{ background-color:#E8DECB; }
 .full.on b{ color:#B5361F; }
 .full:focus-visible{ outline:2px solid var(--paper); outline-offset:4px; border-radius:2px; }
-/* the stubs by the pad (A3, Àlex 18-10; talons.ts): what the highlighted time leads to, out on the wall. Ticket stubs
-   with a notch on each side, a drawing of what they do behind a dotted line, and the verb; raised like everything
-   that can be pressed (the shadow on the link, the notches cut from the paper inside it, or the mask would cut the
-   shadow too). Side by side on a desktop, one over the other on a phone */
-.talons{ display:flex; gap:.7rem; align-items:flex-start; margin:0 0 .6rem 1.3rem; }
+/* the stubs (A3, Àlex 18-10; talons.ts): what the highlighted time leads to, out on the wall. Ticket stubs with a
+   notch on each side, a drawing of what they do behind a dotted line, and the verb; raised like everything that can
+   be pressed (the shadow on the link, the notches cut from the paper inside it, or the mask would cut the shadow
+   too). On a desktop at the right end of the page, over the ruler's end (Àlex 18-10); on a phone by the pad, one
+   over the other */
+.talons{ display:flex; gap:.7rem; align-items:flex-start; margin:0 0 .6rem auto; }
 .talo{ display:inline-block; text-decoration:none; color:#2D241C; filter:drop-shadow(.22rem .22rem 0 rgba(14,9,6,.9));
   transform:rotate(-1.5deg); transition:filter .12s, transform .12s; }
 .talo.avisa{ transform:rotate(1deg); }

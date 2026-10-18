@@ -1774,29 +1774,34 @@ async def check_days(browser):
         await page.close()
     return errs
 
-# the stubs by the pad (A3, Àlex 18-10; talons.ts): what the highlighted time leads to, out on the wall
+# the stubs (A3, Àlex 18-10; talons.ts): what the highlighted time leads to, out on the wall
 TALONS = """(() => { const box = e => { const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
   const n = s => s.replace(/\\s+/g, ' ').trim();
   return {stubs: [...document.querySelectorAll('#talons .talo')].map(a => ({cls: a.classList[1], text: n(a.textContent), href: a.href, tab: a.target,
             label: a.getAttribute('aria-label'), shadow: getComputedStyle(a).filter, wrap: a.querySelector('.in').getBoundingClientRect().height, ...box(a)})),
           dep: document.getElementById('dep')?.href ?? null, sheets: [...document.querySelectorAll('#days .full')].map(box), track: box(document.querySelector('.track')),
-          ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')), vw: innerWidth, vh: innerHeight}; })()"""
+          ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')), vw: innerWidth, vh: innerHeight,
+          rem: parseFloat(getComputedStyle(document.documentElement).fontSize)}; })()"""
 
 async def check_talons(browser):
-    """The stubs by the pad (A3, Àlex 18-10): on a desktop «Compra ↗», the same search as the time; on a phone also
-    «Avisa a casa» to WhatsApp with the train written. Raised, on one line, a finger big on a phone, inside the screen
-    and clear of the day sheets, «ara» and the ruler, from 320 px to the phone held sideways."""
+    """The stubs (A3, Àlex 18-10): on a desktop «Compra», the same search as the time, at the right end of the page
+    (over the ruler's end, not by the pad); on a phone also «Avisa» to WhatsApp with the train written, by the pad.
+    Raised, on one line, a finger big on a phone, inside the screen and clear of the day sheets, «ara» and the ruler,
+    from 320 px to the phone held sideways."""
     errs = []
     home = "https://wa.me/?text=" + urllib.parse.quote("Agafo l’R15 de les 10:03 a Sants. Arribo a Reus a les 11:33.", safe="")
     for w, h in ((1440, 900), (390, 844), (320, 568), (844, 390)):
         page = await hero_page(browser, w, h)
         t = await page.evaluate(TALONS); phone = w < 600 or h < 500
-        want = ["Compra ↗", "Avisa a casa"] if phone else ["Compra ↗"]
+        want = ["Compra", "Avisa"] if phone else ["Compra"]
         if [x["text"] for x in t["stubs"]] != want: errs.append(f"{w}x{h}: the stubs read {[x['text'] for x in t['stubs']]}, expected {want}"); await page.close(); continue
         c = t["stubs"][0]
-        if not phone and c["href"] != t["dep"]: errs.append(f"{w}x{h}: «Compra ↗» opens {c['href']}, not the time's search {t['dep']}")
-        if "venta.renfe.com" not in c["href"] or c["tab"] != "_blank" or "Renfe" not in (c["label"] or ""): errs.append(f"{w}x{h}: «Compra ↗» is not a link to Renfe in a new tab ({c})")
-        if phone and t["stubs"][1]["href"] != home: errs.append(f"{w}x{h}: «Avisa a casa» opens {t['stubs'][1]['href']}, expected {home}")
+        if not phone and c["href"] != t["dep"]: errs.append(f"{w}x{h}: «Compra» opens {c['href']}, not the time's search {t['dep']}")
+        if "venta.renfe.com" not in c["href"] or c["tab"] != "_blank" or "Renfe" not in (c["label"] or ""): errs.append(f"{w}x{h}: «Compra» is not a link to Renfe in a new tab ({c})")
+        # on a desktop, at the right end of the page (Àlex 18-10): its right edge on the ruler's, far from the pad
+        if not phone and (abs(c["r"] - t["track"]["r"]) > t["rem"] or c["l"] < t["sheets"][-1]["r"] + 10 * t["rem"]):
+            errs.append(f"{w}x{h}: «Compra» is not at the right end of the page (stub {c['l']:.0f}–{c['r']:.0f}, ruler ends at {t['track']['r']:.0f})")
+        if phone and t["stubs"][1]["href"] != home: errs.append(f"{w}x{h}: «Avisa» opens {t['stubs'][1]['href']}, expected {home}")
         for x in t["stubs"]:
             if "drop-shadow" not in x["shadow"]: errs.append(f"{w}x{h}: «{x['text']}» is not raised ({x['shadow']})")
             if x["wrap"] > 60: errs.append(f"{w}x{h}: «{x['text']}» breaks into two lines ({x['wrap']:.0f} px tall)")
@@ -1805,11 +1810,22 @@ async def check_talons(browser):
             for name, o in [("a day sheet", y) for y in t["sheets"]] + [("the ruler", t["track"]), ("«ara»", t["ara"])]:
                 if o and x["l"] < o["r"] and o["l"] < x["r"] and x["t"] < o["b"] and o["t"] < x["b"]: errs.append(f"{w}x{h}: «{x['text']}» covers {name}")
         await page.close()
+    # late in the evening «ara» and the station clock stand at the ruler's right end, under the desktop stub
+    for at in ("2026-09-28T20:00:00Z", "2026-09-28T21:00:00Z"):
+        page = await hero_page(browser, 1440, 900, at=at)
+        for clock in (False, True):
+            if clock: await page.focus("#t"); await page.keyboard.press("Home"); await page.wait_for_timeout(300)
+            t = await page.evaluate(TALONS)
+            o = await page.evaluate("(e => e && !e.hidden ? (r => ({l: r.left, r: r.right, t: r.top, b: r.bottom}))(e.getBoundingClientRect()) : null)(document.getElementById('nowBtn'))")
+            for x in t["stubs"]:
+                for name, b in (("«ara»", t["ara"]), ("the station clock", o)):
+                    if b and x["l"] < b["r"] and b["l"] < x["r"] and x["t"] < b["b"] and b["t"] < x["b"]: errs.append(f"1440x900 at {at}: «{x['text']}» covers {name}")
+        await page.close()
     return errs
 
 BOARD = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), rows = [...document.querySelectorAll('#board .trip')];
-  // the big train's route (desktop) is for the eye only, read by check_journey; the stub «Compra ↗» by the pad (A3,
-  // Àlex 18-10) is the time's second link to Renfe
+  // the big train's route (desktop) is for the eye only, read by check_journey; the stub «Compra» (A3, Àlex 18-10)
+  // is the time's second link to Renfe
   const text = r => { const c = r.cloneNode(true); c.querySelectorAll('.rec').forEach(x => x.remove()); return n(c.textContent); };
   const dep = document.getElementById('dep'), word = document.querySelector('#talons .compra'), q = dep?.href ? new URL(dep.href).searchParams : null;
   return {rows: rows.map(text), buy: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), host: new URL(dep.href).host, query: Object.fromEntries(q),
@@ -1921,7 +1937,7 @@ RENFE_FIELDS = {"adultos_": "1", "ninos_": "0", "ninosMenores": "0", "tipoBusque
                 "currenLocation": "menuBusqueda", "vengoderenfecom": "SI"}
 
 def buy_link(b, frm, to, day):
-    """The big train's time and the stub «Compra ↗» open Renfe's search for its trip and day, in a new tab (src/buy.ts)."""
+    """The big train's time and the stub «Compra» open Renfe's search for its trip and day, in a new tab (src/buy.ts)."""
     k = b.get("buy")
     if not k: return ["the train shown (#dep) is not a link to Renfe"]
     errs = []
@@ -1932,7 +1948,7 @@ def buy_link(b, frm, to, day):
     missing = [f for f, v in RENFE_FIELDS.items() if k["query"].get(f) != v]
     if missing: errs.append(f"the buy link lacks the fields Renfe needs to search ({', '.join(missing)}): «{k['query']}»")
     if not k["tab"]: errs.append("the buy links do not open in a new tab")
-    if not k["same"]: errs.append("the stub «Compra ↗» and the time do not open the same search")
+    if not k["same"]: errs.append("the stub «Compra» and the time do not open the same search")
     if "Renfe" not in (k["label"] or ""): errs.append(f"the time's label does not say it buys on Renfe («{k['label']}»)")
     return errs
 
