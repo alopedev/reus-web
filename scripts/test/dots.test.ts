@@ -1,14 +1,9 @@
-// what the tear-off pad of «Avui · Demà» prints in dots (src/dots.ts): the month on its cardboard, the weekday on each
-// sheet, as the ticket's machine prints its date. `npm test`, no browser
+// what the tear-off pad of «Avui · Demà» prints in dots (src/dots.ts): the month on its cardboard, as the ticket's
+// machine prints its date. `npm test`, no browser
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dotText, padMonth, weekday } from '../../src/dots.ts';
+import { dotText, padMonth } from '../../src/dots.ts';
 
-test('the weekday of a sheet, in capitals without accents as the machine prints them', () => {
-  assert.equal(weekday('2026-10-15'), 'DIJOUS');
-  assert.equal(weekday('2026-10-16'), 'DIVENDRES');
-  assert.equal(weekday('2026-10-18'), 'DIUMENGE');
-});
 test('the cardboard says the month of both sheets, and both months when they differ', () => {
   assert.equal(padMonth('2026-10-15', '2026-10-16'), 'OCTUBRE 2026');
   assert.equal(padMonth('2026-10-31', '2026-11-01'), 'OCT · NOV 2026');

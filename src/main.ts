@@ -49,11 +49,11 @@ const hint = createHint(l => {
 }, { still: reduce });
 hero.classList.toggle('duda', hint.look().raised);
 hero.addEventListener('animationend', e => { if(e.animationName === 'batec') hero.classList.remove('batec'); });
-// pressing the time, «compra’l» or the big row is understanding it; a click on the hero where nothing answers (the
+// pressing the time, a stub by the pad or the big row is understanding it; a click on the hero where nothing answers (the
 // window, the wall) is a doubt. A click, not a pointerdown: a finger that scrolls the page clicks nothing
 document.addEventListener('click', e => {
   const t = e.target as Element;
-  if(t.closest('#dep, #board .buy, #board button.big')) hint.press();
+  if(t.closest('#dep, #talons .talo, #board button.big')) hint.press();
   else if(t.closest('#hero') && !t.closest('a, button, input, label, select, dialog, .tk, .ruler')) hint.miss();
 });
 const scenery = createScenery(world, flaps.play);

@@ -71,9 +71,6 @@
    you can press */
 .big a{ color:inherit; text-decoration:none; }
 .big a:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
-.big .buy{ font-weight:700; color:var(--paper); white-space:nowrap; margin-left:.35em; text-shadow:var(--alzado-pared); }
-.big .buy:hover{ text-shadow:var(--alzado-pared-hover); }
-.big .buy:active{ text-shadow:none; }
 /* the other trips are doors to them: the whole row presses, its time stands off the wall (raised, the hard offset
    shadow of the ticket); pressing flattens it */
 .tt{ font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; text-align:left; cursor:pointer; text-shadow:inherit; }
@@ -122,13 +119,13 @@
 #dep.swap{ animation:swap .45s ease; }
 /* the highlighted time says it can be pressed, only if you hesitate (option C, Àlex 12-10; hint.ts): raised like
    everything you can press until it is first pressed, then flat for good. A touch where nothing answers makes it beat
-   with its sign, «compra’l» on a desktop and «›» on a phone (.batec). (A sweep of golden light after 5 s without a
+   with its sign, «›» on a phone, and the stubs by the pad (.batec). (A sweep of golden light after 5 s without a
    touch was dropped, Àlex 12-10) */
 #hero.duda a#dep, #hero.duda button.big #dep{ display:inline-block; text-shadow:.06em .06em 0 var(--shadow); }
 #hero.duda a#dep:active, #hero.duda button.big:active #dep{ text-shadow:0 1px 2px rgba(0,0,0,.35); transform:translate(.06em,.06em); }
-#hero.duda .big .buy, #hero.duda .big .mas{ display:inline-block; }
+#hero.duda .big .mas{ display:inline-block; }
 @media (prefers-reduced-motion:no-preference){
-  #hero.batec a#dep, #hero.batec button.big #dep, #hero.batec .big .buy, #hero.batec .big .mas{ animation:batec .9s ease-out; }
+  #hero.batec a#dep, #hero.batec button.big #dep, #hero.batec .big .mas, #hero.batec .talo .in{ animation:batec .9s ease-out; }
 }
 @keyframes batec{ 0%{ transform:scale(1); } 18%{ transform:scale(1.1); filter:drop-shadow(0 0 .25em rgba(255,214,150,.9)); } 36%{ transform:scale(1); }
   54%{ transform:scale(1.07); filter:drop-shadow(0 0 .2em rgba(255,214,150,.7)); } 100%{ transform:scale(1); filter:none; } }
@@ -142,7 +139,7 @@
 .rulerHead{ display:flex; justify-content:flex-start; align-items:flex-end; margin-bottom:1.5rem; }
 /* «Avui · Demà» (B3, Àlex 15-10): two sheets of a tear-off pad, the day's word over its number. Drawn as a wall
    calendar (Àlex 15-10, A): a stapled cardboard that prints the month in dots, like the ticket's date, and the sheets
-   hanging from its perforation with their weekday in dots and the bottom torn by hand. The day looked at lies flat,
+   hanging from its perforation with the bottom torn by hand (shorter since 18-10, H2: no weekday, a smaller number). The day looked at lies flat,
    its number in red; the other is raised, with the hard shadow of what can be pressed and a corner lifting, and gives
    way when pressed. They sit over «ara»'s row, never on it */
 .days{ position:relative; display:grid; grid-template-columns:auto auto; column-gap:.3rem; padding:0 .3rem; }
@@ -156,15 +153,14 @@
 .taco::before{ left:.55rem; } .taco::after{ right:.55rem; }
 .full{ position:relative; padding:0; border:0; background:none; cursor:pointer; font:inherit; color:inherit;
   filter:drop-shadow(.3rem .3rem 0 rgba(14,9,6,.9)); transition:filter .12s; }
-.full .pp{ display:flex; flex-direction:column; align-items:center; width:3.7rem; padding:0 0 1.05rem; line-height:1;
+.full .pp{ display:flex; flex-direction:column; align-items:center; width:3.7rem; padding:0 0 .5rem; line-height:1;
   background:#EFE6D2 var(--grain); color:#2D241C; transform-origin:50% 0; transition:transform .12s; }
 .full:not(.on) .pp{ transform:rotate(-2.5deg) translateY(.05rem); }
 /* the perforation it was torn from */
 .full .perf{ align-self:stretch; height:.32rem; margin-bottom:.12rem; border-bottom:1px dashed rgba(45,36,28,.2);
   background:radial-gradient(circle, rgba(45,36,28,.6) .055rem, transparent .07rem) 0 50%/.3rem .32rem repeat-x; }
 .full i{ font:700 .93rem var(--texto); font-style:normal; }
-.full b{ font:400 2rem 'Young Serif', serif; margin-top:.05rem; }
-.full .pp svg{ height:.36rem; margin-top:.28rem; opacity:.85; }
+.full b{ font:400 1.55rem 'Young Serif', serif; margin-top:.05rem; }
 /* the corner that lifts, on the sheet that can be pressed */
 .full:not(.on)::after{ content:''; position:absolute; right:.1rem; bottom:.08rem; width:.5rem; height:.5rem;
   background:linear-gradient(315deg, transparent 0 50%, #D5C8AE 50%); transform:rotate(-2.5deg);
@@ -176,6 +172,24 @@
 .full.on .pp{ background-color:#E8DECB; }
 .full.on b{ color:#B5361F; }
 .full:focus-visible{ outline:2px solid var(--paper); outline-offset:4px; border-radius:2px; }
+/* the stubs by the pad (A3, Àlex 18-10; talons.ts): what the highlighted time leads to, out on the wall. Ticket stubs
+   with a notch on each side, a drawing of what they do behind a dotted line, and the verb; raised like everything
+   that can be pressed (the shadow on the link, the notches cut from the paper inside it, or the mask would cut the
+   shadow too). Side by side on a desktop, one over the other on a phone */
+.talons{ display:flex; gap:.7rem; align-items:flex-start; margin:0 0 .6rem 1.3rem; }
+.talo{ display:inline-block; text-decoration:none; color:#2D241C; filter:drop-shadow(.22rem .22rem 0 rgba(14,9,6,.9));
+  transform:rotate(-1.5deg); transition:filter .12s, transform .12s; }
+.talo.avisa{ transform:rotate(1deg); }
+.talo .in{ display:inline-flex; align-items:center; gap:.4rem; min-height:max(2.75rem, 44px); box-sizing:border-box; padding:.3rem .75rem .3rem .65rem;
+  background:#EFE6D2 var(--grain); font:700 .95rem var(--texto); white-space:nowrap;
+  -webkit-mask:radial-gradient(circle at 0 50%, transparent .3rem, #000 .32rem) left/51% 100% no-repeat, radial-gradient(circle at 100% 50%, transparent .3rem, #000 .32rem) right/51% 100% no-repeat;
+  mask:radial-gradient(circle at 0 50%, transparent .3rem, #000 .32rem) left/51% 100% no-repeat, radial-gradient(circle at 100% 50%, transparent .3rem, #000 .32rem) right/51% 100% no-repeat; }
+.talo i{ display:inline-flex; padding-right:.4rem; border-right:1.5px dashed rgba(45,36,28,.45); line-height:0; }
+.talo svg{ height:1.05rem; width:auto; }
+.talo:hover{ filter:drop-shadow(.3rem .3rem 0 rgba(14,9,6,.9)); }
+.talo:active{ filter:none; transform:translate(.15rem,.15rem) rotate(-1.5deg); }
+.talo.avisa:active{ transform:translate(.15rem,.15rem) rotate(1deg); }
+.talo:focus-visible{ outline:2px solid var(--paper); outline-offset:4px; border-radius:2px; }
 /* away from now, a station clock (Hilfiker's, the Swiss one) stands on the orange line of «ara» in place of its word,
    telling the time now; pressing it goes back to now (Àlex 09-10). Raised like the rest that can be pressed */
 .now{ position:absolute; z-index:1; bottom:calc(50% + .9rem); width:2.5rem; padding:0; border:0; background:none; cursor:pointer;
@@ -265,6 +279,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .now{ width:1.75rem; }
   /* the sheets reach a third of a phone's ruler: room under them for the station clock, away from now in the morning */
   .rulerHead{ margin-bottom:2.1rem; }
+  .talons{ flex-direction:column; gap:.6rem; margin:0 0 .3rem 1rem; }
 }
 /* a phone held sideways (Àlex 12-10, option A): too short for the stacked hero, whose window shrank to a slit. Two
    columns: the window on the left, as tall as the screen allows; the name, the ticket, the board and the ruler on the

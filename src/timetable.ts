@@ -2,11 +2,12 @@ import { reduce, state } from './state';
 import { madridNow, firstDay, lastDay, source, NET, bcnName, bcnShort, addDays } from './time';
 import { shown, tomorrowAt, type Mark } from './shown';
 import { board } from './board';
+import { talons } from './talons';
 import { cut, torn } from './paper';
 import { setupChooser } from './chooser';
 import { setupDetail, type Trip } from './detail';
 import { fitJourney } from './journey';
-import { dotDate, dotText, padMonth, weekday } from './dots';
+import { dotDate, dotText, padMonth } from './dots';
 import { byId } from './dom';
 import type { World } from './world';
 import type { Table } from './table';
@@ -45,6 +46,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     setRoute(route(state.dir==='casa', NET.estaciones[state.town].nombre));
     marks = v.ruler; tomorrow = v.tomorrow;
     setDays(now.date, v.tomorrow);
+    setTalons(talons(v, narrow.matches));
     byId('lbl').textContent = v.label;
     tIn.value = String(v.knob ?? Math.min(R1, Math.max(R0, now.min)));
     tIn.setAttribute('aria-valuetext', v.valuetext);
@@ -125,17 +127,26 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   function setDays(today: string, tom: boolean){
     const tw = addDays(today, 1);
     // a tear-off pad (Àlex 15-10, A): a cardboard with the month printed in dots, and two sheets hanging from its
-    // perforation, each with its weekday in dots and its bottom torn by hand
+    // perforation, their bottom torn by hand. No weekday on them since 18-10 (H2, Àlex: shorter sheets); the name says it
     const sheet = (key: string, word: string, iso: string, on: boolean, seed: number) =>
       `<button type="button" class="full${on ? ' on' : ''}" data-dia="${key}" aria-pressed="${on}" aria-label="${word}, ${longDay(iso)}">`
       + `<span class="pp" aria-hidden="true" style="clip-path:${torn(seed)}"><span class="perf"></span>`
-      + `<i>${word.toLowerCase()}</i> <b>${+iso.slice(8)}</b>${dotText(weekday(iso), '#B5361F')}</span></button>`;
+      + `<i>${word.toLowerCase()}</i> <b>${+iso.slice(8)}</b></span></button>`;
     const html = `<span class="taco" aria-hidden="true">${dotText(padMonth(today, tw), '#F1EADC')}</span>`
       + sheet('avui', 'Avui', today, !tom, 7) + sheet('dema', 'Demà', tw, tom, 20);
     if(html === daysHtml) return;
     const had = days.querySelector<HTMLElement>(':focus')?.dataset.dia;
     days.innerHTML = daysHtml = html;
     if(had) days.querySelector<HTMLElement>(`[data-dia="${had}"]`)?.focus({preventScroll:true});
+  }
+  // the stubs by the pad (A3, Àlex 18-10; talons.ts): redrawn only when they change, so a stub keeps the focus
+  const talonsEl = byId('talons');
+  let talonsHtml = '';
+  function setTalons(html: string){
+    if(html === talonsHtml) return;
+    const had = talonsEl.querySelector<HTMLElement>(':focus')?.classList[1];
+    talonsEl.innerHTML = talonsHtml = html;
+    if(had) talonsEl.querySelector<HTMLElement>('.' + had)?.focus({preventScroll:true});
   }
   days.addEventListener('click', e=>{
     const b = (e.target as Element).closest<HTMLElement>('.full'); if(!b) return;

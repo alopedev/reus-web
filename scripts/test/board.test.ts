@@ -95,12 +95,13 @@ test('a train picked that has already left says so where the next one would say 
 });
 
 // Renfe opens the day's list, not the train (src/buy.ts): a cancelled or departed train shown has nothing to buy, so
-// neither its time nor a «compra’l ↗» links to Renfe (12-10, option A of three); the phone's sheet loses «Compra a Renfe»
+// its time does not link to Renfe (12-10, option A of three); the phone's sheet loses «Compra a Renfe». The word
+// «compra’l ↗» left the row for the stub by the pad (talons.ts, A3, Àlex 18-10)
 const links = (html: string) => (html.match(/href="https:\/\/venta\.renfe\.com[^"]*"/g) ?? []).length;
-test('the train shown links to Renfe twice; cancelled or already gone, not at all', () => {
+test('the train shown links to Renfe by its time; cancelled or already gone, not at all', () => {
   const [big] = board(at('2026-10-01', '10:00', HOME), true, false);
-  assert.equal(links(big), 2);
-  assert.match(big, /compra’l ↗/);
+  assert.equal(links(big), 1);
+  assert.doesNotMatch(big, /compra’l/);
   for(const row of [atLive({ estat: 'cancelat' }, false)[0], board(at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 543 }), true, false)[0]]){
     assert.equal(links(row), 0);
     assert.doesNotMatch(row, /compra’l/);

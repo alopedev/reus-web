@@ -34,14 +34,13 @@ function trip(r: Row, buy: string, ida: boolean, phone: boolean, rec: string): s
     const label = `${isAve ? 'AVE' : r.line} de les ${hhmm(r.dep)}${where}${said || (big && until ? ', surt en ' + until : morrow ? ', demà' : '') + `, arriba a les ${hhmm(r.arr)}`}. Veure el detall i comprar`;
     return `<button type="button" class="trip${big ? ' big' : ' tt'}" data-m="${r.dep}" data-d="${r.day}"${isAve ? ' data-ave' : ''} aria-haspopup="dialog" aria-label="${label}">${cells}</button>`;
   }
-  // the big train's time and «compra’l ↗» open Renfe in a new tab; the word repeats the link for the eye only
+  // the big train's time opens Renfe in a new tab («compra’l ↗» left the row for the stub by the pad, A3 Àlex 18-10)
   const to = ` href="${buy.replace(/&/g, '&amp;')}" target="_blank" rel="noopener"`;
   const soon = big ? soonW : '';
-  const word = big && buy ? ` <a class="buy"${to} tabindex="-1" aria-hidden="true">compra’l ↗</a>` : '';
   const lead = late ? `<span class="nova">${hhmm(late.dep)}</span><span class="nx"><span class="mes">+${late.min} min</span>${until ? ', ' : ''}</span>${soon}`
     : live?.kind === 'cancel' ? '<span class="nx mes">cancel·lat</span>'
     : `<span class="nx">${r.gone ? 'ja ha sortit' : morrow ? 'demà' : 'el pròxim'}${until ? ', ' : ''}</span>${soon}${live?.kind === 'unknown' ? ' <span class="gris">· sense dades en directe encara</span>' : ''}`;
-  const where = (big ? lead : morrow ? 'demà' : 'després') + word;
+  const where = big ? lead : morrow ? 'demà' : 'després';
   // the big train's words keep to one line, and its route takes the rest of the gap up to the arrival
   const w = big ? `<span class="lead">${where}</span>${rec}` : where;
   const camp = isAve ? ` <span class="st">${ida ? 'fins a' : 'des de'} Camp de Tarragona</span>` : '';
