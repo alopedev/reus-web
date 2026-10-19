@@ -317,6 +317,13 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .carta > .talo.compra{ position:absolute; right:.9rem; bottom:.3rem; transform:rotate(1.2deg); filter:var(--dura); }
   .carta > .talo.compra:active{ filter:none; transform:translate(.15rem,.15rem) rotate(1.2deg); }
   .carta .talo .in{ font-size:1rem; }
+  /* short screens (320 x 568, a phone held sideways): the card a little tighter, so the window keeps its height and the
+     ruler still fits under it (mockup 1, Àlex 19-10) */
+  @media (max-height:620px){
+    .carta{ margin-bottom:.2rem; } .carta .cos{ padding:.3rem .55rem .15rem; }
+    .carta .tira{ min-height:46px; margin-top:.15rem; padding-top:.15rem; } .carta > .talo.compra{ bottom:.05rem; }
+    .rulerHead{ margin-bottom:1.3rem; }
+  }
 }
 /* the craft of the papers on a phone (mockup 1, Àlex 19-10): a fibre running along the paper, a finer grain, the
    scene's light (--luz, set from daylight() by timetable.ts) and two shadows, a soft one for what lies on the wall and
@@ -340,10 +347,6 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .info{ grid-column:2; grid-row:2; }
   #dep{ font-size:2.7rem; } .trip .t{ font-size:1.25rem; } .big .arr{ font-size:1.4rem; }
   .tk .route{ font-size:1.35rem; } .tk .pp{ padding:.5rem 4.6rem .5rem .8rem; }
-  /* the card and the ticket a little tighter: the ruler still fits under them (mockup 1, Àlex 19-10) */
-  .carta{ margin-bottom:.2rem; } .carta .cos{ padding:.3rem .55rem .15rem; }
-  .carta .tira{ min-height:46px; margin-top:.15rem; padding-top:.15rem; } .carta > .talo.compra{ bottom:.05rem; }
-  .rulerHead{ margin-bottom:1.3rem; }
 }
 /* the root's safe-area padding never reaches the fixed hero: on a phone its foot keeps clear of the home bar and of
    whatever inset Safari gives for its toolbar (Àlex, 09-10, option A) */
