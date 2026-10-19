@@ -72,3 +72,10 @@ export function daylight(min: number, iso: string = madridNow().date): Daylight 
   }
   return m[m.length-1][1];
 }
+
+/* the same light on the papers of a phone's hero (mockup 1, Àlex 19-10): the colour of the light that comes in through
+   the window, from its side (the sun's x), fading across the paper into a shade that deepens as the light weakens */
+export function paperLight(d: Daylight): string {
+  const [c, k, [x]] = d.dir, r = c >> 16, g = (c >> 8) & 255, b = c & 255;
+  return `linear-gradient(${x < 0 ? 160 : 200}deg, rgba(${r},${g},${b},${(.4 * k).toFixed(2)}), rgba(${r},${g},${b},0) 45%, rgba(70,40,30,${(.14 + .2 * (1 - k)).toFixed(2)}))`;
+}

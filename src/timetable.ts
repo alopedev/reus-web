@@ -8,7 +8,8 @@ import { setupChooser } from './chooser';
 import { setupDetail, type Trip } from './detail';
 import { fitJourney } from './journey';
 import { dotDate, dotText, padMonth } from './dots';
-import { byId } from './dom';
+import { byId, find } from './dom';
+import { daylight, paperLight } from './light';
 import type { World } from './world';
 import type { Table } from './table';
 import type { Scenery } from './scenery';
@@ -46,7 +47,8 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     setRoute(route(state.dir==='casa', NET.estaciones[state.town].nombre));
     marks = v.ruler; tomorrow = v.tomorrow;
     setDays(now.date, v.tomorrow);
-    setTalons(talons(v, narrow.matches));
+    // on a phone «Compra» lies on the card of the highlighted time (board.ts; mockup 1, Àlex 19-10)
+    setTalons(narrow.matches ? '' : talons(v));
     byId('lbl').textContent = v.label;
     tIn.value = String(v.knob ?? Math.min(R1, Math.max(R0, now.min)));
     tIn.setAttribute('aria-valuetext', v.valuetext);
@@ -54,6 +56,8 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     nowBtn.hidden = state.useNow || v.tomorrow;
     if(world) world.setTime(v.light);
     table.setTime(v.light);
+    // the papers of a phone's hero take the same light (mockup 1, Àlex 19-10)
+    byId('hero').style.setProperty('--luz', paperLight(daylight(v.light)));
     setDate(v.day);
     if(v.kind === 'none'){
       byId('ticks').innerHTML = nowLine(now.min);
@@ -72,7 +76,10 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     setStamp(narrow.matches ? [] : ns);
     const turn = said !== null && said !== v.key;
     if(html !== drawn || turn){
+      // the countdown redraws the board every minute: a finger or a key on «Compra» or the big trip keeps its place
+      const had = byId('board').querySelector(':focus')?.matches('.talo') ? '.talo' : byId('board').querySelector('button.big:focus') ? 'button.big' : null;
       byId('board').innerHTML = drawn = html; if(turn && !reduce) byId('dep').classList.add('swap');
+      if(had) byId('board').querySelector<HTMLElement>(had)?.focus({preventScroll:true});
       const rec = byId('board').querySelector<HTMLElement>('.rec'); if(rec) laid.observe(rec);
     }
     const told = said !== v.key;
@@ -199,6 +206,10 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
       <span class="pp"><span class="k">Bitllet</span>
       <span class="route"></span></span><span class="stub" aria-hidden="true"></span><span class="fecha" aria-hidden="true"></span>
     </div>`;
+  // on a phone the day is punched on the ticket's stub, as a conductor would (mockup 1, Àlex 19-10): fewer pieces on
+  // the wall; on a desktop the pad hangs over the ruler
+  const placeDays = () => { if(narrow.matches) find('.tk').append(days); else find('.rulerHead').prepend(days); };
+  placeDays(); narrow.addEventListener('change', placeDays);
   const detail = setupDetail(), notice = setupNotice();
   const chooser = setupChooser(
     id => { state.town = id; again(); byId('tickets').querySelector<HTMLElement>('.end.town')?.focus(); },

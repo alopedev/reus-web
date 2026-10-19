@@ -130,7 +130,7 @@
 .taco{ grid-column:1 / -1; position:relative; display:flex; align-items:center; justify-content:center; height:1.15rem;
   margin:0 -.3rem; border-radius:2px 2px 1px 1px; background:#6E4232 var(--grain);
   box-shadow:0 .12rem .25rem rgba(14,9,6,.45), inset 0 -.08rem 0 rgba(0,0,0,.25); }
-.taco svg{ width:auto; height:.36rem; }
+.taco svg{ width:auto; height:.36rem; overflow:visible; }
 /* the two staples */
 .taco::before, .taco::after{ content:''; position:absolute; top:.18rem; width:.55rem; height:.16rem; background:#B9B3AA;
   box-shadow:0 .05rem 0 rgba(0,0,0,.35); }
@@ -159,9 +159,13 @@
 /* the stubs (A3, Àlex 18-10; talons.ts): what the highlighted time leads to, out on the wall. Ticket stubs with a
    notch on each side, a drawing of what they do behind a dotted line, and the verb; raised like everything that can
    be pressed (the shadow on the link, the notches cut from the paper inside it, or the mask would cut the shadow
-   too). At the right end of the page, over the ruler's end (Àlex 18-10): on a phone one over the other, their right
-   edges together */
-.talons{ display:flex; gap:.7rem; align-items:flex-start; margin:0 0 .6rem auto; }
+   too). On a desktop over the highlighted time; on a phone in a row under the board, the day pad up by the ticket
+   (Àlex 18-10) */
+/* on a desktop just over the highlighted time (Àlex 18-10), out of the flow so the window keeps its height: the
+   ruler lets .info hold it (the ruler is static here), and the board's top is .info's */
+.info{ position:relative; }
+.ruler{ position:static; }
+.talons{ position:absolute; left:0; bottom:100%; display:flex; gap:.7rem; align-items:flex-start; margin-bottom:.7rem; }
 .talo{ display:inline-block; text-decoration:none; color:#2D241C; filter:drop-shadow(.22rem .22rem 0 rgba(14,9,6,.9));
   transform:rotate(-1.5deg); transition:filter .12s, transform .12s; }
 .talo.avisa{ transform:rotate(1deg); }
@@ -262,10 +266,67 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   #board .tt::before{ content:""; position:absolute; left:0; right:0; top:50%; height:max(2.75rem, 44px); transform:translateY(-50%); }
   .ruler{ margin-top:.4rem; }
   .now{ width:1.75rem; }
-  /* the sheets reach a third of a phone's ruler: room under them for the station clock, away from now in the morning */
-  .rulerHead{ margin-bottom:2.1rem; }
-  .talons{ flex-direction:column; align-items:flex-end; gap:.6rem; margin:0 0 .3rem auto; }
+  /* nothing over a phone's ruler but «ara» and the station clock: the day went to the ticket, «Compra» to the card */
+  .rulerHead{ margin-bottom:1.6rem; }
+  .talons{ display:none; }
+
+  /* fewer pieces (mockup 1, Àlex 19-10): two papers on the wall instead of five. Their craft (direction 3, light):
+     fibre and grain in the paper, the light of the scene on it and a soft shadow, as on things lying in it; the hard
+     shadow of «press me» is kept for «Compra» alone */
+  .tk{ filter:var(--blanda); }
+  .tk .pp, .carta .cos, .carta .talo .in{ background:var(--luz), var(--fibra), var(--grano2), var(--papel); }
+  /* the day punched on the ticket's stub, as a conductor would: a wider stub, no date printed on it, no pad */
+  .tk .pp{ display:flex; flex-direction:column; justify-content:center; min-height:max(5.9rem, 92px); box-sizing:border-box; padding:.6rem 4.6rem .6rem .8rem; }
+  .tk .stub{ right:3.75rem; top:.6rem; bottom:.6rem; }
+  .tk .fecha, .tk .taco{ display:none; }
+  .tk .days{ position:absolute; top:0; bottom:0; right:.05rem; width:3.6rem; padding:0; display:flex; flex-direction:column; justify-content:center; }
+  .tk .full{ flex:0 0 max(2.9rem, 44px); filter:none; display:flex; align-items:center; justify-content:center; }
+  .tk .full .pp{ clip-path:none !important; background:none; width:auto; min-height:0; padding:0; transform:none; display:flex; flex-direction:column; align-items:center; gap:.05rem; }
+  .tk .full .perf{ display:none; }
+  .tk .full i{ font-size:max(.8rem, 13px); line-height:1; }
+  .tk .full b{ font-size:1.05rem; margin:0; }
+  .tk .full:not(.on) .pp{ opacity:.62; }
+  .tk .full:hover{ filter:none; } .tk .full:not(.on):hover .pp{ opacity:.85; }
+  .tk .full.on .pp{ background:none; }
+  .tk .full:focus-visible{ outline-color:var(--shadow); outline-offset:0; }
+  /* a short phone (320 × 568, held sideways): smaller days, so the ticket stays low and the window keeps a view; each
+     still answers a finger over 44 px, reaching outwards past the drawn day */
+  @media (max-height:620px){
+    .tk .pp{ min-height:4.6rem; }
+    .tk .full{ flex-basis:2.3rem; min-height:0; }
+    .tk .full .pp{ gap:0; } .tk .full b{ font-size:1rem; line-height:1; }
+    .tk .full::before{ content:''; position:absolute; left:0; right:0; height:max(2.75rem, 44px); }
+    .tk .full[data-dia="avui"]::before{ bottom:0; } .tk .full[data-dia="dema"]::before{ top:0; }
+  }
+  /* the conductor's hole, left of the day looked at */
+  .tk .full::after, .tk .full:not(.on)::after{ content:none; }
+  .tk .full.on::after{ content:''; position:absolute; left:calc(50% - 1.75rem); top:50%; width:.62rem; height:.62rem; margin-top:-.31rem; border-radius:50%;
+    background:radial-gradient(circle at 60% 65%, #5a463c, #2a1f1a 70%); box-shadow:inset .06rem .06rem .08rem rgba(0,0,0,.7), 0 0 0 .04rem rgba(45,36,28,.4); }
+  /* the highlighted time on a card of its own, cut like the ticket; its tear-off strip says how long the trip is and
+     holds «Compra». The rows keep the board's columns (subgrid), so the arrivals still line up */
+  .carta{ grid-column:1 / -1; display:grid; grid-template-columns:subgrid; position:relative; filter:var(--blanda); margin:.1rem -.55rem .45rem; transform:rotate(-.6deg); }
+  .carta .cos{ grid-column:1 / -1; display:grid; grid-template-columns:subgrid; padding:.55rem .55rem .35rem; clip-path:var(--cut); }
+  .carta .trip, .carta .trip *{ color:var(--shadow); text-shadow:none; }
+  .carta .trip .pill{ color:var(--t, #fff); }
+  .carta .trip .w, .carta .gris{ color:#6C5D50; opacity:1; }
+  .carta .big .nova, .carta .big .mes, .carta .big .arr .nv{ color:#A9480C; text-shadow:none; }
+  .carta button.big:focus-visible{ outline-color:var(--shadow); }
+  .carta .tira{ grid-column:1 / -1; display:flex; align-items:center; min-height:max(3rem, 48px); margin-top:.35rem; padding:.4rem 0 0; border-top:1.5px dashed rgba(45,36,28,.45); }
+  .carta .lema{ font-size:max(.85rem, 13px); color:#6C5D50; padding-right:8.5rem; }
+  /* out of the cut, or the cut would take its shadow */
+  .carta > .talo.compra{ position:absolute; right:.9rem; bottom:.3rem; transform:rotate(1.2deg); filter:var(--dura); }
+  .carta > .talo.compra:active{ filter:none; transform:translate(.15rem,.15rem) rotate(1.2deg); }
+  .carta .talo .in{ font-size:1rem; }
 }
+/* the craft of the papers on a phone (mockup 1, Àlex 19-10): a fibre running along the paper, a finer grain, the
+   scene's light (--luz, set from daylight() by timetable.ts) and two shadows, a soft one for what lies on the wall and
+   the hard one for «Compra» */
+:root{ --fibra:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='.03 .22' numOctaves='3' seed='7'/><feColorMatrix values='0 0 0 0 .32  0 0 0 0 .25  0 0 0 0 .17  0 0 0 .32 -.1'/></filter><rect width='240' height='240' filter='url(%23f)'/></svg>");
+  --grano2:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='2' seed='11'/><feColorMatrix values='0 0 0 0 .3  0 0 0 0 .24  0 0 0 0 .16  0 0 0 .16 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
+  --luz:linear-gradient(200deg, rgba(255,214,170,.32), rgba(255,236,210,0) 45%, rgba(70,40,30,.14));
+  --papel:#EDE3CD;
+  --blanda:drop-shadow(0 .06rem .05rem rgba(22,12,8,.55)) drop-shadow(.18rem .45rem .55rem rgba(22,12,8,.42));
+  --dura:drop-shadow(.22rem .22rem 0 rgba(14,9,6,.92)); }
 /* a phone held sideways (Àlex 12-10, option A): too short for the stacked hero, whose window shrank to a slit. Two
    columns: the window on the left, as tall as the screen allows; the name, the ticket, the board and the ruler on the
    right, with the phone's board (a button per trip). Clear of the notch and the home bar */
@@ -273,12 +334,16 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .stage{ grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); column-gap:1.4rem;
     padding:.9rem calc(1.2rem + env(safe-area-inset-right, 0px)) calc(.9rem + env(safe-area-inset-bottom, 0px)) calc(1.2rem + env(safe-area-inset-left, 0px)); }
   .top{ grid-column:2; grid-row:1; gap:.5rem; }
-  .tauler{ font-size:2.3rem; } .sub{ display:none; }
+  .tauler{ font-size:2rem; } .sub{ display:none; }
   .winCell{ grid-column:1; grid-row:1 / 3; }
   #win{ width:min(100cqw, 100cqh * 1.25); height:min(100cqh, 100cqw / 1.1); }
   .info{ grid-column:2; grid-row:2; }
-  #dep{ font-size:3rem; } .trip .t{ font-size:1.25rem; } .big .arr{ font-size:1.4rem; }
-  .tk .route{ font-size:1.35rem; } .tk .pp{ padding:.5rem 2.4rem .5rem .8rem; }
+  #dep{ font-size:2.7rem; } .trip .t{ font-size:1.25rem; } .big .arr{ font-size:1.4rem; }
+  .tk .route{ font-size:1.35rem; } .tk .pp{ padding:.5rem 4.6rem .5rem .8rem; }
+  /* the card and the ticket a little tighter: the ruler still fits under them (mockup 1, Àlex 19-10) */
+  .carta{ margin-bottom:.2rem; } .carta .cos{ padding:.3rem .55rem .15rem; }
+  .carta .tira{ min-height:46px; margin-top:.15rem; padding-top:.15rem; } .carta > .talo.compra{ bottom:.05rem; }
+  .rulerHead{ margin-bottom:1.3rem; }
 }
 /* the root's safe-area padding never reaches the fixed hero: on a phone its foot keeps clear of the home bar and of
    whatever inset Safari gives for its toolbar (Àlex, 09-10, option A) */
