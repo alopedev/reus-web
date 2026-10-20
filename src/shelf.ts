@@ -24,29 +24,15 @@ export function setupShelf(w: World | null): void {
   gsap.matchMedia().add({motion:'(prefers-reduced-motion: no-preference)', wide:'(min-width:701px)', pinned:PINNED}, ctx => {
     if(!ctx.conditions?.motion) return;
     const {pinned} = ctx.conditions, shelf = byId('repisa');
-    // the hinge reads the scroll directly: it must match the table's real position on every frame. The direction
-    // of the last scroll is kept for the magnet below
-    let lastY = scrollY, dir = 0;
-    const onScroll = () => { if(scrollY !== lastY){ dir = Math.sign(scrollY - lastY); lastY = scrollY; } pitch(); };
+    // the hinge reads the scroll directly: it must match the table's real position on every frame
+    const onScroll = () => { pitch(); magnet.scrolled(); };
     // the letters' rest positions scale with the root: re-measure on resize, from the same listener as pitch()
     const onResize = () => { restTop = shelf.offsetTop; letters.measure(); pitch(); };
     restTop = shelf.offsetTop;
+    const magnet = createMagnet();
     addEventListener('scroll', onScroll, {passive:true}); addEventListener('resize', onResize);
     document.fonts ? document.fonts.ready.then(() => { letters.measure(); pitch(); }) : letters.measure();
     pitch();
-    // let go halfway through the turn and the page finishes it (option 2, Àlex 20-10): on in the direction you were
-    // going, or back from a nudge (magnet.ts). While the finger moves, the hinge still follows it 1:1 (Apple,
-    // «Designing Fluid Interfaces», WWDC 2018); only once the scroll rests does the page move on its own, and any
-    // new scroll stops it. Below the turn nothing snaps. Only a hand's scroll (a wheel, a finger, a key; the
-    // finger's own fling can carry on for a second or two after it lifts) is finished: one the page's code makes
-    // is left where it put the page
-    let byHand = 0;
-    const hand = () => { byHand = performance.now(); };
-    const HANDS = ['wheel', 'touchstart', 'touchmove', 'keydown', 'pointerdown'] as const;
-    HANDS.forEach(t => addEventListener(t, hand, {passive:true}));
-    const magnet = ScrollTrigger.create({start:0, end:() => shelf.offsetTop, invalidateOnRefresh:true,
-      snap:{snapTo:() => performance.now() - byHand < 3000 ? settle(dropped(), dir) : dropped(),
-        directional:false, inertia:false, delay:.12, duration:{min:.3, max:.7}, ease:'power2.inOut'}});
     // each paper with the tilt it rests at (the same as in the stylesheet)
     const papers = ([['#folleto', -2.5], ['#cuaderno', 1], ['#reverso', -1.2]] as const).map(([s, r]): [HTMLElement, number] => [find(s), r]);
     const leaf = find('.cuaderno .izq');
@@ -65,12 +51,49 @@ export function setupShelf(w: World | null): void {
       gsap.timeline({scrollTrigger:between(papers[1][0], .55, .2)}).add(side ? openLeaf(leaf, 'Y', 1) : openLeaf(leaf, 'X', -1));
     }
     return () => {
-      magnet.kill(); HANDS.forEach(t => removeEventListener(t, hand));
+      magnet.kill();
       removeEventListener('scroll', onScroll); removeEventListener('resize', onResize); pitch(true);
       letters.reset();
       [...papers.map(([el]) => el), leaf].forEach(rest);
     };
   });
+}
+
+// let go halfway through the turn and the page finishes it (option 2, Àlex 20-10): on in the direction you were going,
+// or back from a nudge (magnet.ts). While a hand moves the page, the hinge follows it 1:1 (Apple, «Designing Fluid
+// Interfaces», WWDC 2018); only once the scroll has ended (the wheel's glide, a finger's fling) and no finger is on
+// the screen does the page move on its own, and any new hand stops it. Only a hand's scroll is finished (a wheel, a
+// finger, a key): one the page's code makes is left where it put the page. Below the turn nothing moves.
+// The end of a scroll is the browser's `scrollend`; without it (older Safari), a pause in the scroll events
+function createMagnet(){
+  const HANDS = ['wheel', 'touchstart', 'touchmove', 'keydown', 'pointerdown'] as const;
+  const ENDS = 'onscrollend' in window;
+  let byHand = -1e9, touching = false, lastY = scrollY, dir = 0, wait = 0, going: gsap.core.Tween | null = null;
+  const stop = () => { going?.kill(); going = null; };
+  const later = (ms: number) => { clearTimeout(wait); wait = window.setTimeout(finish, ms); };
+  const hand = () => { byHand = performance.now(); stop(); clearTimeout(wait); };
+  const down = () => { touching = true; }, up = () => { touching = false; if(!ENDS) later(200); };
+  const ended = () => { if(!going) later(150); };
+  function finish(){
+    const p = dropped();
+    if(touching || going || p <= 0 || p >= 1 || performance.now() - byHand > 4000) return;
+    const to = settle(p, dir) * tableRest(), k = {y: scrollY};
+    going = gsap.to(k, {y: to, duration: .3 + .4 * Math.abs(to - scrollY) / tableRest(), ease: 'power2.inOut',
+      onUpdate: () => scrollTo({top: k.y, behavior: 'instant'}), onComplete: () => { going = null; }});
+  }
+  function scrolled(){
+    if(scrollY !== lastY){ dir = Math.sign(scrollY - lastY); lastY = scrollY; }
+    if(!going && !ENDS) later(200);
+  }
+  HANDS.forEach(t => addEventListener(t, hand, {passive:true}));
+  addEventListener('touchstart', down, {passive:true}); addEventListener('touchend', up, {passive:true}); addEventListener('touchcancel', up, {passive:true});
+  if(ENDS) addEventListener('scrollend', ended);
+  return { scrolled, kill(){
+    stop(); clearTimeout(wait);
+    HANDS.forEach(t => removeEventListener(t, hand));
+    removeEventListener('touchstart', down); removeEventListener('touchend', up); removeEventListener('touchcancel', up);
+    removeEventListener('scrollend', ended);
+  } };
 }
 
 const inOut = (t: number) => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
