@@ -119,8 +119,16 @@ export function createTable(): Table {
     if(e.isIntersecting && !started){ started = true; paint(!reduce && dropped() > 0); }
   }).observe(esc);
   let rs = 0;
-  // a new size: repaint once it stops changing; a paint-in still under way carries on at the new size
-  const resized = () => { clearTimeout(rs); rs = setTimeout(() => { if(!started) return; if(cv.dataset.pintada || !prog) paint(false); else { layout(); size(); } }, 200); };
+  // a new size: repaint once it stops changing; a paint-in still under way carries on at the new size. A resize
+  // that leaves the table as it was (iOS Safari's toolbar, which shrinks as the page scrolls into the table)
+  // repaints nothing: it would land in the middle of the transition
+  const resized = () => { clearTimeout(rs); rs = setTimeout(() => {
+    if(!started) return;
+    const before = JSON.stringify(G);
+    layout();
+    if(cv.dataset.pintada && JSON.stringify(G) === before) return;
+    if(cv.dataset.pintada || !prog) paint(false); else size();
+  }, 200); };
   addEventListener('resize', resized);
   // the papers can settle after the table was measured (on a slow network the web fonts arrive later and the text
   // wraps anew): the travel things follow them at once, the painted table once the scene stops changing size

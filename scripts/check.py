@@ -831,9 +831,13 @@ async def check_table_at_load(browser):
         try: await page.wait_for_function("document.getElementById('lienzo')?.dataset.pintada === '1'", timeout=12000)
         except Exception: errs.append(f"{name}: the table never gets painted at load"); await page.close(); continue
         await page.wait_for_timeout(5000)   # past the 3.4 s an animated paint-in would take
-        draws, y = await page.evaluate("[window.__mesaDraws, scrollY]"); await page.close()
+        draws, y = await page.evaluate("[window.__mesaDraws, scrollY]")
+        # a resize that leaves the table its size (iOS Safari's toolbar, which shrinks mid-transition) repaints nothing
+        await page.evaluate("dispatchEvent(new Event('resize'))"); await page.wait_for_timeout(800)
+        again = await page.evaluate("window.__mesaDraws"); await page.close()
         if y: errs.append(f"{name}: the page scrolled to {y} on its own (the check proves nothing)"); continue
         if draws > 2: errs.append(f"{name}: the hidden table is drawn {draws} times at load; painted at once it takes 1 or 2")
+        if again > draws: errs.append(f"{name}: a resize that leaves the table its size repaints it ({again - draws} draws)")
     return errs
 
 async def check_still_window(browser):
