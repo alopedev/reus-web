@@ -3,6 +3,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { byId, find } from './dom';
 import type { World } from './world';
 import * as letters from './letters';
+import { settle } from './magnet';
 
 let world: World | null = null;   // the landscape, for the wash on the wall; null without WebGL
 
@@ -24,10 +25,11 @@ export function setupShelf(w: World | null): void {
     if(!ctx.conditions?.motion) return;
     const {pinned} = ctx.conditions, shelf = byId('repisa');
     // the hinge reads the scroll directly: it must match the table's real position on every frame
-    const onScroll = () => pitch();
+    const onScroll = () => { pitch(); magnet.scrolled(); };
     // the letters' rest positions scale with the root: re-measure on resize, from the same listener as pitch()
     const onResize = () => { restTop = shelf.offsetTop; letters.measure(); pitch(); };
     restTop = shelf.offsetTop;
+    const magnet = createMagnet(pitch);
     addEventListener('scroll', onScroll, {passive:true}); addEventListener('resize', onResize);
     document.fonts ? document.fonts.ready.then(() => { letters.measure(); pitch(); }) : letters.measure();
     pitch();
@@ -49,11 +51,52 @@ export function setupShelf(w: World | null): void {
       gsap.timeline({scrollTrigger:between(papers[1][0], .55, .2)}).add(side ? openLeaf(leaf, 'Y', 1) : openLeaf(leaf, 'X', -1));
     }
     return () => {
+      magnet.kill();
       removeEventListener('scroll', onScroll); removeEventListener('resize', onResize); pitch(true);
       letters.reset();
       [...papers.map(([el]) => el), leaf].forEach(rest);
     };
   });
+}
+
+// let go halfway through the turn and the page finishes it (option 2, Àlex 20-10): on in the direction you were going,
+// or back from a nudge (magnet.ts). While a hand moves the page, the hinge follows it 1:1 (Apple, «Designing Fluid
+// Interfaces», WWDC 2018); only once the scroll has ended (the wheel's glide, a finger's fling) and no finger is on
+// the screen does the page move on its own, and any new hand stops it. Only a hand's scroll is finished (a wheel, a
+// finger, a key): one the page's code makes is left where it put the page. Below the turn nothing moves.
+// The end of a scroll is the browser's `scrollend`; without it (older Safari), 200 ms with no scroll events and
+// no finger down.
+// Each step it moves the page, it turns the wall to match there and then (`follow`): the scroll event comes a frame
+// later, and a frame with the table moved and the wall not yet would show the page behind them
+function createMagnet(follow: () => void){
+  const HANDS = ['wheel', 'touchstart', 'touchmove', 'keydown', 'pointerdown'] as const;
+  const ENDS = 'onscrollend' in window;
+  let byHand = -1e9, touching = false, lastY = scrollY, dir = 0, wait = 0, going: gsap.core.Tween | null = null;
+  const stop = () => { going?.kill(); going = null; };
+  const later = (ms: number) => { clearTimeout(wait); wait = window.setTimeout(finish, ms); };
+  const hand = () => { byHand = performance.now(); stop(); clearTimeout(wait); };
+  const down = () => { touching = true; }, up = () => { touching = false; if(!ENDS) later(200); };
+  const ended = () => { if(!going) later(150); };
+  function finish(){
+    const p = dropped();
+    if(touching || going || p <= 0 || p >= 1 || performance.now() - byHand > 4000) return;
+    const to = settle(p, dir) * tableRest(), k = {y: scrollY};
+    going = gsap.to(k, {y: to, duration: .3 + .4 * Math.abs(to - scrollY) / tableRest(), ease: 'power2.inOut',
+      onUpdate: () => { scrollTo({top: k.y, behavior: 'instant'}); follow(); }, onComplete: () => { going = null; }});
+  }
+  function scrolled(){
+    if(scrollY !== lastY){ dir = Math.sign(scrollY - lastY); lastY = scrollY; }
+    if(!going && !ENDS) later(200);
+  }
+  HANDS.forEach(t => addEventListener(t, hand, {passive:true}));
+  addEventListener('touchstart', down, {passive:true}); addEventListener('touchend', up, {passive:true}); addEventListener('touchcancel', up, {passive:true});
+  if(ENDS) addEventListener('scrollend', ended);
+  return { scrolled, kill(){
+    stop(); clearTimeout(wait);
+    HANDS.forEach(t => removeEventListener(t, hand));
+    removeEventListener('touchstart', down); removeEventListener('touchend', up); removeEventListener('touchcancel', up);
+    removeEventListener('scrollend', ended);
+  } };
 }
 
 const inOut = (t: number) => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;

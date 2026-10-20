@@ -820,6 +820,81 @@ async def check_table_follows(browser):
 COUNT_TABLE_DRAWS = """(() => { window.__mesaDraws = 0; const draw = WebGLRenderingContext.prototype.drawArrays;
   WebGLRenderingContext.prototype.drawArrays = function(...a){ if(this.canvas && this.canvas.id === 'lienzo') window.__mesaDraws++; return draw.apply(this, a); }; })()"""
 
+# every frame as painted (read in a task right after it, before the next frame's scroll event): where the wall's hinge
+# sits (the hero's transform-origin) against where the table's edge is for the scroll. Apart, the page shows between them
+HINGE_LAG = """window.__hingeLag = [];
+  const look = () => { const h = document.getElementById('hero'); if(!h || !window.reus || !h.style.transform) return;
+    const off = Math.abs(parseFloat(h.style.transformOrigin.split(' ')[1]) - reus.hingeAt(reus.dropped()));
+    if(off > 1) window.__hingeLag.push(off); };
+  const tick = () => { setTimeout(look, 0); requestAnimationFrame(tick); }; requestAnimationFrame(tick);"""
+
+async def check_magnet(browser):
+    """Let go halfway through the turn and the page finishes it (option 2, Àlex 20-10): on in the direction the
+    gesture was going, never resting with the wall half turned and the letters in the air; a nudge at either end is
+    not a turn and goes back (magnet.ts, whose rule npm test checks). With real gestures: the wheel on a desk, a
+    finger on a phone. Below the turn, reading the table, nothing moves; with reduced motion there is no turn."""
+    errs = []
+    WHERE = "Math.round(reus.dropped() * 1000) / 1000"
+    async def rests(page):
+        # the page has stopped: the same scroll for three seconds (software rendering gives a frame or two a second,
+        # so a snap can take a while to start)
+        last, same = None, 0
+        for _ in range(60):
+            y = await page.evaluate("scrollY")
+            same = same + 1 if y == last else 0
+            if same >= 6: return await page.evaluate(WHERE)
+            last = y; await page.wait_for_timeout(500)
+        return await page.evaluate(WHERE)
+    async def gesture(page, cdp, to, touch):
+        # from where the page is to a share of the turn, then let go. Programmatic scrolls are not gestures: the page
+        # leaves them where they put it. The wheel through Input.synthesizeScrollGesture; a finger as raw touch events
+        # (synthesizeScrollGesture does not scroll a phone here), slowly, so it does not fling on
+        y, top, w, h = await page.evaluate("[scrollY, reus.hingeAt(0), innerWidth, innerHeight]")
+        dy = top * to - y
+        if not touch:
+            await cdp.send("Input.synthesizeScrollGesture", {"x": w / 2, "y": h / 2, "yDistance": -dy, "speed": 400,
+                "gestureSourceType": "mouse", "preventFling": True})
+            return
+        x, y0 = w / 2, h / 2 + dy / 2
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y0}]})
+        for i in range(1, 21):
+            await cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": x, "y": y0 - dy * i / 20}]})
+            await page.wait_for_timeout(40)
+        await page.wait_for_timeout(300)
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    for name, opts in {"1440x900": dict(viewport={"width": 1440, "height": 900}),
+                       "390x844": dict(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)}.items():
+        page = await open_page(browser, **opts); cdp = await page.context.new_cdp_session(page)
+        await page.add_init_script(HINGE_LAG)
+        await page.goto(page_url); await page.wait_for_timeout(9000); await hero_settled(page)
+        for label, start, to, want in (("down to 35%", 0, .35, 1), ("down a nudge (5%)", 0, .05, 0),
+                                       ("up from the table to 65%", 1, .65, 0), ("up a nudge from the table (95%)", 1, .95, 1)):
+            await page.evaluate(f"scrollTo({{top: reus.hingeAt(0) * {start}, behavior: 'instant'}})"); await page.wait_for_timeout(1500)
+            await gesture(page, cdp, to, "is_mobile" in opts)
+            p = await rests(page)
+            if abs(p - want) > .002: errs.append(f"{name}: let go {label}, the page rests at {p:.0%} of the turn (expected {want:.0%})")
+            lag = await page.evaluate("window.__hingeLag.splice(0)")
+            if lag: errs.append(f"{name}: let go {label}, {len(lag)} frames show the wall's hinge away from the table's edge "
+                                f"(up to {max(lag):.0f} px: the page shows behind them)")
+        # a scroll the page's code makes (a link, a check), not a hand, is left where it put the page
+        await page.wait_for_timeout(3500)
+        await page.evaluate("scrollTo({top: reus.hingeAt(0) * .5, behavior: 'instant'})")
+        p = await rests(page)
+        if abs(p - .5) > .002: errs.append(f"{name}: a scroll by the page's code to 50% of the turn moves on its own to {p:.0%}")
+        # below the turn, the table is read as it is
+        await page.evaluate("scrollTo({top: reus.hingeAt(0) * 1.4, behavior: 'instant'})"); await page.wait_for_timeout(300)
+        await gesture(page, cdp, 1.6, "is_mobile" in opts)
+        y0 = await page.evaluate("scrollY"); await page.wait_for_timeout(2500)
+        if await page.evaluate("scrollY") != y0: errs.append(f"{name}: reading the table below the turn, the page moves on its own")
+        await page.close()
+    page = await open_page(browser, viewport={"width": 1440, "height": 900}, reduced_motion="reduce"); cdp = await page.context.new_cdp_session(page)
+    await page.goto(page_url); await page.wait_for_timeout(3000)
+    await gesture(page, cdp, .4, False)
+    p = await rests(page)
+    if abs(p - .4) > .02: errs.append(f"reduced motion: let go at 40%, the page moves on its own to {p:.0%}")
+    await page.close()
+    return errs
+
 async def check_table_at_load(browser):
     """At load the table is out of sight under the hero (the wall covers the screen until you scroll), yet it gets
     painted then, while the landscape is being painted. Nobody can see it: it is painted at once, in a draw or two
@@ -832,9 +907,13 @@ async def check_table_at_load(browser):
         try: await page.wait_for_function("document.getElementById('lienzo')?.dataset.pintada === '1'", timeout=12000)
         except Exception: errs.append(f"{name}: the table never gets painted at load"); await page.close(); continue
         await page.wait_for_timeout(5000)   # past the 3.4 s an animated paint-in would take
-        draws, y = await page.evaluate("[window.__mesaDraws, scrollY]"); await page.close()
+        draws, y = await page.evaluate("[window.__mesaDraws, scrollY]")
+        # a resize that leaves the table its size (iOS Safari's toolbar, which shrinks mid-transition) repaints nothing
+        await page.evaluate("dispatchEvent(new Event('resize'))"); await page.wait_for_timeout(800)
+        again = await page.evaluate("window.__mesaDraws"); await page.close()
         if y: errs.append(f"{name}: the page scrolled to {y} on its own (the check proves nothing)"); continue
         if draws > 2: errs.append(f"{name}: the hidden table is drawn {draws} times at load; painted at once it takes 1 or 2")
+        if again > draws: errs.append(f"{name}: a resize that leaves the table its size repaints it ({again - draws} draws)")
     return errs
 
 async def check_still_window(browser):
@@ -1403,8 +1482,8 @@ async def check_wall_kept(browser):
         if max(shares) > min(.6, area * 1.3): errs.append(f"{tag}: once painted, each frame repaints {max(shares):.0%} of the screen (the window is {area:.0%})")
         # only the painting is compared: the texts on the wall hide (the station clock's second hand turns with motion)
         for pg in (page, still): await pg.add_style_tag(content="#stage{visibility:hidden!important}")
-        async def same_wall(when):
-            box = await page.evaluate(WIN_BOX)   # the board may have grown a line and moved the window
+        async def same_wall(when, margin=12):
+            box = await page.evaluate(WIN_BOX.replace("m = 12", f"m = {margin}"))   # the board may have grown a line and moved the window
             shot, ref = await page.screenshot(), await still.screenshot()
             n, worst = wall_difference(shot, ref, [round(v * dpr) for v in box])
             if n > 50:
@@ -1412,10 +1491,24 @@ async def check_wall_kept(browser):
                 d.paste(80, tuple(round(v * dpr) for v in box)); bb = d.point(lambda v: 255 if v == 255 else 0).getbbox()
                 errs.append(f"{tag}: {when}, around {bb}, the wall differs from a still frame at that hour in {n} px (by up to {worst})")
         await same_wall("moving")
-        # a wash on the way to the table, and back to the hero
+        # a wash on the way to the table, and back to the hero. While the wall turns away its wash changes every
+        # frame, but the wall under it does not: the watercolour still repaints only the window (twice: with and
+        # without the wash), and the wash is laid over the wall already painted
         await page.evaluate("scrollTo({top: innerHeight * .3, behavior: 'instant'})"); await page.wait_for_timeout(2000)
+        turning = []
+        for i in range(4):
+            await page.evaluate(f"scrollTo({{top: innerHeight * {.3 + .02 * (i + 1)}, behavior: 'instant'}})"); await page.wait_for_timeout(400)
+            turning.append(await page.evaluate("window.reus.acuarela()"))
+        if max(turning) > min(.9, area * 2.6): errs.append(f"{tag}: while the wall turns away, each frame repaints {max(turning):.0%} of the screen in watercolour (the window is {area:.0%})")
         await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await page.wait_for_timeout(2500)
         await same_wall("after a wash and back")
+        # a new size while the wall is turned (iOS Safari's toolbar shrinks as the page scrolls, mid-transition): the
+        # window is still painted where #win rests, not where the tilted wall put it. The frame around the glass is
+        # part of the wall, so this compares it too, with only the wobble of the glass's edge left out
+        await page.evaluate("scrollTo({top: innerHeight * .3, behavior: 'instant'})"); await page.wait_for_timeout(2000)
+        await page.evaluate("dispatchEvent(new Event('resize'))"); await page.wait_for_timeout(1500)
+        await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await page.wait_for_timeout(2500)
+        await same_wall("after a new size mid-turn and back", margin=4)
         # another hour on the ruler: 23:00, another light on the wall
         at_night = "(() => { const t = document.getElementById('t'); t.value = 1380; t.dispatchEvent(new Event('input', {bubbles: true})); })()"
         await page.evaluate(at_night); await still.evaluate(at_night)
@@ -2862,6 +2955,9 @@ async def main():
                 failures += [f"{name}: {e}" for e in await check_one_paint(page)]
                 await page.close()
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · pintado"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["iman"]:
+            failures += await check_magnet(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · iman"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["talons"]:
             failures += await check_talons(browser) + await check_days(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · talons"); sys.exit(1 if failures else 0)
@@ -2927,6 +3023,7 @@ async def main():
         failures += [f"red: {e}" for e in await check_red(browser)]
         failures += [f"firma: {e}" for e in await check_firma(browser)]
         failures += [f"hero: {e}" for e in await check_hero(browser)]
+        failures += [f"iman: {e}" for e in await check_magnet(browser)]
         failures += [f"mesa: {e}" for e in await check_table_at_load(browser)]
         failures += [f"mesa: {e}" for e in await check_table_follows(browser)]
         failures += [f"mesa: {e}" for e in await check_things_clear(browser)]
