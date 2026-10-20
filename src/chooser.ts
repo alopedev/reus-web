@@ -4,6 +4,7 @@ import { state } from './state';
 import { byId } from './dom';
 import { NET, BCN, hasAve } from './time';
 import { rag } from './paper';
+import { closeSheet, closesSoftly, still } from './sheet';
 
 export interface Chooser { open(): void; openStation(): void }
 
@@ -28,7 +29,7 @@ function reach(id: string): string {
 // single step, chooses the Barcelona station (3.5)
 export function setupChooser(onPick: (id: string) => void, onStation: (id: string) => void): Chooser {
   const dialog = byId<HTMLDialogElement>('selp');
-  let group: Group | null = null, picking = false, station = false;
+  let group: Group | null = null, station = false, picked = false;
 
   const question = () => state.dir === 'casa' ? 'On vas?' : 'D’on tornes?';
   // the pills in line-number order (R14 over R15), as in the prototype; the strip itself starts with the main line
@@ -51,39 +52,57 @@ export function setupChooser(onPick: (id: string) => void, onStation: (id: strin
   }
   // the sheet is cut with scissors like the ticket: the shadow sits on .sheet, the ragged paper is .pp
   const edge = `--cut:${rag(11)}`;
-  function draw(): void {
+  // a step turns like a page (option B, Àlex 20-10): the old page is left where it was, inert, and slides away to one
+  // side while the new one comes in from the other (forward, from the right). With reduced motion it just changes
+  function draw(dir = 0): void {
     const body = station ? stepStations() : group ? stepTowns(group) : stepGroups();
-    dialog.innerHTML = `<div class="sheet"><div class="pp" style="${edge}"><button type="button" class="x" aria-label="Tancar">✕</button>${body}</div></div>`;
+    const old = dir && dialog.open && !still() ? dialog.querySelector<HTMLElement>('.sheet:not(.va)') : null;
+    if(old){
+      const d = dialog.getBoundingClientRect();
+      Object.assign(old.style, {position: 'fixed', margin: '0', left: `${d.left + old.offsetLeft}px`, top: `${d.top + old.offsetTop}px`, width: `${old.offsetWidth}px`});
+      old.classList.add('va'); old.inert = true;
+      const gone = (): void => old.remove();
+      old.addEventListener('animationend', gone, {once: true}); setTimeout(gone, 600);
+    }
+    dialog.querySelectorAll('.sheet:not(.va)').forEach(s => s.remove());
+    dialog.classList.toggle('pas', !!old); dialog.classList.toggle('enrere', dir < 0);
+    dialog.insertAdjacentHTML('beforeend', `<div class="sheet"><div class="pp" style="${edge}"><button type="button" class="x" aria-label="Tancar">✕</button>${body}</div></div>`);
   }
   const focusSel = (sel: string) => dialog.querySelector<HTMLElement>(sel)?.focus();
 
   function open(): void {
-    picking = false; group = null; station = false;
-    draw();
+    group = null; station = false;
+    dialog.replaceChildren(); draw();
     dialog.showModal();
     focusSel('.ln');
   }
   function openStation(): void {
-    picking = false; group = null; station = true;
-    draw();
+    group = null; station = true;
+    dialog.replaceChildren(); draw();
     dialog.showModal();
     focusSel(`.est[data-station="${state.station}"]`);
   }
+  // it leaves the way paper would (sheet.ts): a tap outside, Esc or ✕ send it back down before it closes
+  closesSoftly(dialog);
   dialog.addEventListener('click', e => {
     const t = e.target as HTMLElement;
-    if(t === dialog){ dialog.close(); return; }                          // the backdrop: dialog itself, outside .sheet
-    if(t.closest('.x')){ dialog.close(); return; }
-    if(t.closest('.back')){ const from = group!.key; group = null; draw(); focusSel(`.ln[data-group="${from}"]`); return; }
+    if(t.closest('.x')){ closeSheet(dialog); return; }
+    if(t.closest('.back')){ const from = group!.key; group = null; draw(-1); focusSel(`.ln[data-group="${from}"]`); return; }
     const ln = t.closest<HTMLElement>('.ln[data-group]');
-    if(ln){ group = GROUPS.find(g => g.key === ln.dataset.group) ?? null; draw();
+    if(ln){ group = GROUPS.find(g => g.key === ln.dataset.group) ?? null; draw(1);
       focusSel(group!.towns.some(x => x.id === state.town) ? `.opt[data-town="${state.town}"]` : '.opt'); return; }
     const opt = t.closest<HTMLElement>('.opt[data-town]');
-    if(opt){ picking = true; const id = opt.dataset.town!; dialog.close(); onPick(id); return; }
+    if(opt){ picked = true; closeSheet(dialog); onPick(opt.dataset.town!); return; }
     const est = t.closest<HTMLElement>('.est[data-station]');
-    if(est){ picking = true; const id = est.dataset.station!; dialog.close(); onStation(id); }
+    if(est){ picked = true; closeSheet(dialog); onStation(est.dataset.station!); }
   });
-  // Esc and the backdrop close the dialog through the browser's own 'cancel'/'close' handling; picking a town
-  // also closes it (above) but has already told the caller, so only an unpicked close returns the focus here
-  dialog.addEventListener('close', () => { if(!picking) byId('tickets').querySelector<HTMLElement>(station ? '.end.bcn' : '.end.town')?.focus(); });
+  // once it has gone (the page behind is inert until then), the focus goes back to the ticket's end that opened it,
+  // rebuilt by then if a town or a station was picked, and then stamped on the ticket (option B, Àlex 20-10)
+  dialog.addEventListener('close', () => {
+    const end = byId('tickets').querySelector<HTMLElement>(station ? '.end.bcn' : '.end.town');
+    end?.focus();
+    if(picked && end && !still()){ end.classList.add('estampat'); end.addEventListener('animationend', () => end.classList.remove('estampat'), {once: true}); }
+    picked = false;
+  });
   return { open, openStation };
 }
