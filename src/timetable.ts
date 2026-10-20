@@ -4,6 +4,7 @@ import { shown, tomorrowAt, looked, type Mark } from './shown';
 import { board } from './board';
 import { talons } from './talons';
 import { cut, torn } from './paper';
+import { crossing } from './cross';
 import { setupChooser } from './chooser';
 import { setupDetail, type Trip } from './detail';
 import { fitJourney } from './journey';
@@ -151,6 +152,17 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     talonsEl.innerHTML = talonsHtml = html;
     if(had) talonsEl.querySelector<HTMLElement>('.' + had)?.focus({preventScroll:true});
   }
+  // «Compra» is punched when pressed, like a ticket at the gate (option B, Àlex 20-10): a hole on its dotted line, and
+  // the chad falls to the floor. It stays punched until another train redraws the stub (its label names the train)
+  talonsEl.addEventListener('click', e => {
+    const c = (e.target as Element).closest<HTMLElement>('.compra'); if(!c || c.classList.contains('picat')) return;
+    c.classList.add('picat');
+    const i = c.querySelector<HTMLElement>('i'); if(reduce || !i) return;
+    const chad = document.createElement('span'); chad.className = 'xapa'; chad.setAttribute('aria-hidden', 'true');
+    Object.assign(chad.style, {left: `${i.offsetLeft + i.offsetWidth}px`, top: `${i.offsetTop + i.offsetHeight / 2}px`});
+    chad.addEventListener('animationend', () => chad.remove(), {once: true}); setTimeout(() => chad.remove(), 900);
+    c.append(chad);
+  });
   days.addEventListener('click', e=>{
     // the day pressed is the day looked at already: nothing to do (at night «demà» is pressed with tomorrow's first train)
     const b = (e.target as Element).closest<HTMLElement>('.full'); if(!b || b.classList.contains('on')) return;
@@ -209,8 +221,8 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   placeDays(); narrow.addEventListener('change', placeDays);
   const detail = setupDetail(), notice = setupNotice();
   const chooser = setupChooser(
-    id => { state.town = id; again(); byId('tickets').querySelector<HTMLElement>('.end.town')?.focus(); },
-    id => { state.station = id; again(); byId('tickets').querySelector<HTMLElement>('.end.bcn')?.focus(); });
+    id => { state.town = id; again(); },
+    id => { state.station = id; again(); });
   // a new town or station starts again from now, on the day looked at
   function again(){
     if(tomorrow) Object.assign(state, { useNow: false, ...tomorrowAt(madridNow(), state) });
@@ -219,7 +231,14 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   }
   byId('tickets').addEventListener('click', e=>{
     const t = e.target as HTMLElement;
-    if(t.closest('.swap')){ state.dir = state.dir==='casa' ? 'bcn' : 'casa'; render(); if(world) world.resize(); }
+    if(t.closest('.swap')){
+      // the two ends cross over to their new places (option B, Àlex 20-10; cross.ts): measured before and after
+      const ends = () => [...byId('tickets').querySelectorAll<HTMLElement>('.end')];
+      const was = new Map(ends().map(e => [e.classList[1], e.getBoundingClientRect()]));
+      state.dir = state.dir==='casa' ? 'bcn' : 'casa'; render(); if(world) world.resize();
+      if(!reduce) for(const e of ends()){ const r = was.get(e.classList[1]);
+        if(r) e.animate(crossing(r, e.getBoundingClientRect()), {duration: 340, easing: 'cubic-bezier(.45,0,.2,1)', id: 'creua'}); }
+    }
     else if(t.closest('.end.town')) chooser.open();
     else if(t.closest('.end.bcn')) chooser.openStation();
     else if(t.closest('.segell')) notice.open(shownNotices, avisos.read());

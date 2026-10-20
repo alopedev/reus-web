@@ -1719,6 +1719,7 @@ async def check_hero(browser):
     errs += [f"strip: {e}" for e in await check_strip_whole(browser)]
     errs += [f"phone: {e}" for e in await check_phone_board(browser)]
     errs += [f"phone sheet: {e}" for e in await check_sheet_close(browser)]
+    errs += [f"paper: {e}" for e in await check_paper_motion(browser)]
     errs += await check_sheet_holds_page(browser)
     # 3.5 · the Barcelona station
     errs += [f"station: {e}" for e in await check_station(browser)]
@@ -2786,6 +2787,194 @@ async def check_sheet_close(browser):
         await page.close()
     return errs
 
+# every CSS animation that starts on the page, with its keyframes' ends, as it starts (a slow software frame can end
+# a short animation before a check gets to read it)
+REC = """(() => { if(window.__rec) { window.__rec.length = 0; return; } window.__rec = []; const seen = new WeakSet();
+  const ends = k => k ? {transform: (k.transform || '').replace(/\\s+/g, ''), opacity: String(k.opacity ?? '')} : null;
+  const look = () => { for(const a of document.getAnimations()){ if(seen.has(a) || !(a.animationName || a.id)) continue; seen.add(a);
+    const t = a.effect.target, k = a.effect.getKeyframes();
+    window.__rec.push({name: a.animationName || a.id, el: (t.id ? '#' + t.id + ' ' : '') + (typeof t.className === 'string' ? t.className : ''),
+      pseudo: a.effect.pseudoElement || '', first: ends(k[0]), last: ends(k.at(-1)), ms: a.effect.getTiming().duration}); } };
+  // read the moment something changes (a slow software frame can end a short animation before a check gets to it)
+  new MutationObserver(look).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['open', 'class', 'style']});
+  document.addEventListener('animationstart', look, true); })()"""
+# whether a dialog was still open once a gesture's own handlers had run, and when it closed
+SHUT = """((id) => { const d = document.getElementById(id);
+  window.__shut = new Promise(done => { let held = null;
+    const go = e => { const t0 = performance.now(); if(e.type === 'cancel') held = e.cancelable;
+      setTimeout(() => { const still = d.open;
+        (function wait(){ if(d.open && performance.now() - t0 < 4000) return setTimeout(wait, 20);
+          done({still, held, open: d.open, ms: Math.round(performance.now() - t0), focus: document.activeElement?.className || ''}); })(); }, 0);
+    };
+    d.addEventListener('cancel', go, {once:true, capture:true});
+    d.addEventListener('click', e => { if(e.target === d || e.target.closest('.x, .opt, .est')) go(e); }, {once:true, capture:true});
+  }); })"""
+
+# what SHUT saw, or that nothing closed the dialog within 8 s (a gesture that missed it would wait forever)
+SHUT_READ = "Promise.race([window.__shut, new Promise(r => setTimeout(() => r({still: true, held: null, open: true, ms: 8000, focus: ''}), 8000))])"
+
+async def tap_at(page, sel):
+    """A plain click at the middle of what sel finds, without waiting for it to stand still (the ticket's ends and
+    the chooser's rows may still be settling from the last move: that is not what these checks look at)"""
+    at = await page.evaluate(f"(() => {{ const r = document.querySelector('{sel}')?.getBoundingClientRect(); return r ? [r.x + r.width / 2, r.y + r.height / 2] : null; }})()")
+    if at: await page.mouse.click(*at)
+    return bool(at)
+
+def paper_moves(rec, when, way, motion, shut=None):
+    """What a sheet ran as it opened ('in') or closed ('out'), from REC (and SHUT for 'out'): option B «De papel»"""
+    errs = []
+    paper = [r for r in rec if "sheet" in r["el"] and not r["pseudo"]]
+    dim = [r for r in rec if r["pseudo"] == "::backdrop"]
+    if motion == "reduce":
+        if paper or dim: errs.append(f"{when}: with reduced motion the sheet still moves ({[r['name'] for r in paper + dim]})")
+        if shut and shut["still"]: errs.append(f"{when}: with reduced motion the sheet waits before closing")
+        return errs
+    if not paper: return [f"{when}: the sheet does not move"]
+    p = paper[-1]
+    p = {**p, "first": p["first"] or {"transform": "", "opacity": ""}, "last": p["last"] or {"transform": "", "opacity": ""}}
+    if way == "in":
+        t = p["first"]["transform"]
+        if "translateY" not in t or "rotate" not in t: errs.append(f"{when}: the sheet does not come up from below and settle (starts at {p['first']})")
+        if not 250 <= p["ms"] <= 400: errs.append(f"{when}: the sheet takes {p['ms']} ms to come in, expected about 320")
+    else:
+        if shut and not shut["still"]: errs.append(f"{when}: the sheet closes at once, without leaving" + (" (the browser would not hold Esc)" if shut.get("held") is False else ""))
+        if "translateY" not in p["last"]["transform"]: errs.append(f"{when}: the sheet does not go back down (ends at {p['last']})")
+        if p["last"]["opacity"] != "0": errs.append(f"{when}: the sheet does not fade as it leaves (ends at {p['last']})")
+        if not 120 <= p["ms"] <= 300: errs.append(f"{when}: the sheet takes {p['ms']} ms to leave, expected about 200")
+        if shut and shut["ms"] > 1500: errs.append(f"{when}: the sheet takes {shut['ms']} ms to close")
+    if not dim: errs.append(f"{when}: the backdrop does not {'darken' if way == 'in' else 'clear'} with the sheet")
+    return errs
+
+def paper_turns(rec, when, sign, motion):
+    """A step of the chooser, from REC: the new page comes in from the side the gesture points to and the old one
+    leaves to the other, neither laid down again like a new sheet; with reduced motion nothing moves."""
+    papers = [r for r in rec if "sheet" in r["el"] and not r["pseudo"]]
+    if motion == "reduce": return [f"{when}: with reduced motion the step still moves ({[r['name'] for r in papers]})"] if papers else []
+    errs = []
+    def dx(t):
+        m = re.search(r"translateX?\((-?[\d.]+)", t or ""); return float(m.group(1)) if m else 0
+    new = [r for r in papers if " va" not in r["el"] + " "]
+    old = [r for r in papers if "va" in r["el"].split()]
+    if any(r["first"] and "translateY" in r["first"]["transform"] for r in new): errs.append(f"{when}: the new page is laid down like a new sheet")
+    if not new or dx(new[-1]["first"]["transform"]) * sign <= 0: errs.append(f"{when}: the new page does not come in from the {'right' if sign > 0 else 'left'} ({new[-1]['first'] if new else None})")
+    if not old or dx(old[-1]["last"]["transform"]) * sign >= 0 or old[-1]["last"]["opacity"] != "0": errs.append(f"{when}: the old page does not leave to the {'left' if sign > 0 else 'right'} ({old[-1]['last'] if old else None})")
+    return errs
+
+async def check_paper_motion(browser):
+    """Option B «De papel» (Àlex 20-10): what opens, closes or changes moves the way paper would. The town and the
+    station choosers, the notice and privacy come up from below and settle at their tilt (0.32 s, Vaul's curve, the
+    backdrop darkening with them), and leave the way they came, down and fading (0.2 s), closed only once that ends,
+    with the focus back where it was: by ✕, a tap outside or Esc. With reduced motion, nothing moves: they open and
+    close at once, as before."""
+    errs = []
+    for (w, h, mobile) in ((390, 844, True), (1440, 900, False)):
+        for motion in ("no-preference", "reduce"):
+            where = f"{'phone' if mobile else 'desktop'} ({motion})"
+            page = await open_page(browser, viewport={"width": w, "height": h}, is_mobile=mobile, has_touch=mobile, reduced_motion=motion)
+            await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
+            # the landscape paused (P, for recording): painted in software it holds the page's thread for seconds a frame,
+            # and a 0.2 s sheet would take as long to leave; what is checked here does not move with it
+            await page.goto(parity_url + "?grabar"); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1200)
+            await page.keyboard.press("p"); await page.wait_for_timeout(300)
+            await page.add_style_tag(content=".top,.info{opacity:1!important;transition:none!important;transform:none!important}")
+            for how, end in (("✕", "town"), ("a tap outside", "bcn"), ("Esc", "town")):
+                await page.evaluate(REC)
+                await tap_at(page, f".tk .end.{end}"); await page.wait_for_timeout(700)
+                if not await page.evaluate("document.getElementById('selp').open"): errs.append(f"{where}: the chooser does not open from .end.{end}"); continue
+                errs += paper_moves(await page.evaluate("window.__rec"), f"{where}, opening", "in", motion)
+                await page.evaluate(REC); await page.evaluate(SHUT + "('selp')")
+                if how == "✕":
+                    x = await page.evaluate("(() => { const r = document.querySelector('#selp .x').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()")
+                    await page.mouse.click(*x)
+                elif how == "Esc": await page.keyboard.press("Escape")
+                else: await page.mouse.click(w // 2, h - 6)
+                c = await page.evaluate(SHUT_READ)
+                when = f"{where}, {how}"
+                if c["open"]: errs.append(f"{when}: the chooser does not close"); continue
+                if end not in c["focus"]: errs.append(f"{when}: the focus is not back on the ticket's end (on «{c['focus']}»)")
+                errs += paper_moves(await page.evaluate("window.__rec"), when, "out", motion, c)
+                await page.wait_for_timeout(300)
+            # the chooser's steps turn like pages: a line forward, «‹ Línies» back; the sheet is not laid down again
+            await tap_at(page, ".tk .end.town"); await page.wait_for_timeout(700)
+            for (step, sel, sign) in (("a line", "#selp .ln:nth-child(3)", 1), ("«‹ Línies»", "#selp .back", -1)):
+                await page.evaluate(REC)
+                if not await tap_at(page, sel): errs.append(f"{where}, {step}: no {sel} to press"); break
+                await page.wait_for_timeout(800)
+                errs += paper_turns(await page.evaluate("window.__rec"), f"{where}, {step}", sign, motion)
+                n = await page.evaluate("document.querySelectorAll('#selp .sheet').length")
+                if n != 1: errs.append(f"{where}, {step}: {n} sheets left in the chooser once it has turned")
+                if not await page.evaluate("document.getElementById('selp').contains(document.activeElement)"): errs.append(f"{where}, {step}: the focus left the chooser")
+            await page.keyboard.press("Escape"); await page.wait_for_timeout(800)
+            # the notice and privacy are the same paper: opened here straight away (their buttons are a stamp that only
+            # shows with a notice, and the notebook's cover down on the table); the notice gets a stand-in body
+            for (sheet, how) in (("avis", "✕"), ("avis", "Esc"), ("privacitat", "✕"), ("privacitat", "Esc")):
+                await page.evaluate(REC)
+                await page.evaluate(f"""(() => {{ const d = document.getElementById('{sheet}');
+                  if(!d.querySelector('.sheet')) d.innerHTML = '<div class="sheet"><div class="pp"><button type="button" class="x" aria-label="Tancar">✕</button><h3 id="avisH">Avís</h3><p>Prova</p></div></div>';
+                  d.showModal(); }})()""")
+                await page.wait_for_timeout(700)
+                errs += paper_moves(await page.evaluate("window.__rec"), f"{where}, #{sheet} opening", "in", motion)
+                await page.evaluate(REC); await page.evaluate(SHUT + f"('{sheet}')")
+                if how == "✕":
+                    x = await page.evaluate(f"(() => {{ const r = document.querySelector('#{sheet} .x').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }})()")
+                    await page.mouse.click(*x)
+                else: await page.keyboard.press("Escape")
+                c = await page.evaluate(SHUT_READ)
+                if c["open"]: errs.append(f"{where}, #{sheet} by {how}: it does not close"); continue
+                errs += paper_moves(await page.evaluate("window.__rec"), f"{where}, #{sheet} by {how}", "out", motion, c)
+                await page.wait_for_timeout(300)
+            # the arrows cross the two ends over to their new places, one over and one under
+            for turn in range(2):
+                await page.evaluate(REC)
+                await tap_at(page, ".tk .swap"); await page.wait_for_timeout(700)
+                cr = [r for r in await page.evaluate("window.__rec") if r["name"] == "creua"]
+                when = f"{where}, the arrows ({turn + 1})"
+                if motion == "reduce":
+                    if cr: errs.append(f"{when}: with reduced motion the ends still move")
+                    continue
+                def dx(r): m = re.search(r"translate\((-?[\d.]+)px", r["first"]["transform"]); return float(m.group(1)) if m else 0
+                ends = {k: [r for r in cr if f"end {k}" in r["el"]] for k in ("town", "bcn")}
+                if not all(ends.values()): errs.append(f"{when}: the ends do not cross over ({[r['el'] for r in cr]})"); continue
+                if dx(ends["town"][-1]) * dx(ends["bcn"][-1]) >= 0: errs.append(f"{when}: the ends do not come from each other's place ({ends['town'][-1]['first']}, {ends['bcn'][-1]['first']})")
+                if not 300 <= ends["town"][-1]["ms"] <= 400: errs.append(f"{when}: the ends take {ends['town'][-1]['ms']} ms to cross, expected about 340")
+            # what is picked is stamped on the ticket once the sheet has gone: the end lands from above, big, and settles
+            for (end, steps) in (("town", ["#selp .ln:nth-child(2)", "#selp .strip li:nth-child(3) .opt"]), ("bcn", ["#selp .est:nth-child(2)"])):
+                await tap_at(page, f".tk .end.{end}"); await page.wait_for_timeout(700)
+                await page.evaluate(REC)
+                for sel in steps:
+                    if not await tap_at(page, sel): errs.append(f"{where}, picking from .end.{end}: no {sel} to press"); break
+                    await page.wait_for_timeout(800)
+                await page.wait_for_timeout(600)
+                rec = await page.evaluate("window.__rec")
+                st = [r for r in rec if f"end {end}" in r["el"] and not r["pseudo"]]
+                when = f"{where}, picking from .end.{end}"
+                if motion == "reduce":
+                    if st: errs.append(f"{when}: with reduced motion the ticket's end still moves ({[r['name'] for r in st]})")
+                    continue
+                m = re.search(r"scale\(([\d.]+)", (st[-1]["first"] or {}).get("transform", "")) if st else None
+                if not m or float(m.group(1)) < 1.2: errs.append(f"{when}: the end is not stamped on the ticket ({st[-1]['first'] if st else 'it does not move'})")
+                elif not 200 <= st[-1]["ms"] <= 400: errs.append(f"{when}: the stamp takes {st[-1]['ms']} ms, expected about 300")
+            # «Compra» is punched when pressed (Renfe's tab is kept from opening here): a hole stays in the stub and its
+            # chad falls; another train is another stub, whole
+            await page.evaluate(REC)
+            await page.evaluate("document.addEventListener('click', e => { if(e.target.closest('#talons a')) e.preventDefault(); }, {once: true})")
+            b = await page.evaluate("(() => { const r = document.querySelector('#talons .compra').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()")
+            await page.mouse.click(*b); await page.wait_for_timeout(1200)
+            k = await page.evaluate("""(() => { const c = document.querySelector('#talons .compra'), i = c?.querySelector('i');
+              return {punched: !!c?.classList.contains('picat'), hole: i ? getComputedStyle(i, '::after').content : 'none', chads: document.querySelectorAll('#talons .xapa').length}; })()""")
+            when = f"{where}, «Compra»"
+            if not k["punched"] or k["hole"] in ("none", "normal"): errs.append(f"{when}: pressed, the stub is not punched ({k})")
+            if k["chads"]: errs.append(f"{when}: the chad is still there once it has fallen")
+            chad = [r for r in await page.evaluate("window.__rec") if "xapa" in r["el"]]
+            if motion == "reduce":
+                if chad: errs.append(f"{when}: with reduced motion the chad still falls")
+            elif not chad or "translate" not in (chad[-1]["last"] or {}).get("transform", "") or chad[-1]["last"]["opacity"] != "0":
+                errs.append(f"{when}: no chad falls from the stub ({chad[-1] if chad else None})")
+            await page.focus("#t"); await page.keyboard.press("ArrowRight"); await page.wait_for_timeout(500)
+            if await page.evaluate("!!document.querySelector('#talons .compra.picat')"): errs.append(f"{when}: another train's stub is still punched")
+            await page.close()
+    return errs
+
 async def check_phone_board(browser):
     """6B (Àlex, 06-10): on a phone the board keeps only the times, the countdown and a «›»; since 19-10 (P2 on
     one line) it is the highlighted time alone, a button that opens a paper sheet with its detail and «Compra a Renfe ↗».
@@ -3032,6 +3221,9 @@ async def main():
         if sys.argv[1:] == ["hora"]:
             failures += await check_hora(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · hora"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["moviment"]:
+            failures += await check_paper_motion(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · moviment"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["fulls"]:
             failures += await check_sheet_holds_page(browser)
             failures += await check_sheet_close(browser)
