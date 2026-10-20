@@ -863,6 +863,11 @@ async def check_magnet(browser):
             await gesture(page, cdp, to, "is_mobile" in opts)
             p = await rests(page)
             if abs(p - want) > .002: errs.append(f"{name}: let go {label}, the page rests at {p:.0%} of the turn (expected {want:.0%})")
+        # a scroll the page's code makes (a link, a check), not a hand, is left where it put the page
+        await page.wait_for_timeout(3500)
+        await page.evaluate("scrollTo({top: reus.hingeAt(0) * .5, behavior: 'instant'})")
+        p = await rests(page)
+        if abs(p - .5) > .002: errs.append(f"{name}: a scroll by the page's code to 50% of the turn moves on its own to {p:.0%}")
         # below the turn, the table is read as it is
         await page.evaluate("scrollTo({top: reus.hingeAt(0) * 1.4, behavior: 'instant'})"); await page.wait_for_timeout(300)
         await gesture(page, cdp, 1.6, "is_mobile" in opts)
@@ -2847,6 +2852,9 @@ async def main():
                 failures += [f"{name}: {e}" for e in await check_one_paint(page)]
                 await page.close()
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · pintado"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["iman"]:
+            failures += await check_magnet(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · iman"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["hora"]:
             failures += await check_hora(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · hora"); sys.exit(1 if failures else 0)
@@ -2909,6 +2917,7 @@ async def main():
         failures += [f"red: {e}" for e in await check_red(browser)]
         failures += [f"firma: {e}" for e in await check_firma(browser)]
         failures += [f"hero: {e}" for e in await check_hero(browser)]
+        failures += [f"iman: {e}" for e in await check_magnet(browser)]
         failures += [f"mesa: {e}" for e in await check_table_at_load(browser)]
         failures += [f"mesa: {e}" for e in await check_table_follows(browser)]
         failures += [f"mesa: {e}" for e in await check_things_clear(browser)]

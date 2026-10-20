@@ -37,9 +37,16 @@ export function setupShelf(w: World | null): void {
     // let go halfway through the turn and the page finishes it (option 2, Àlex 20-10): on in the direction you were
     // going, or back from a nudge (magnet.ts). While the finger moves, the hinge still follows it 1:1 (Apple,
     // «Designing Fluid Interfaces», WWDC 2018); only once the scroll rests does the page move on its own, and any
-    // new scroll stops it. Below the turn nothing snaps
+    // new scroll stops it. Below the turn nothing snaps. Only a hand's scroll (a wheel, a finger, a key; the
+    // finger's own fling can carry on for a second or two after it lifts) is finished: one the page's code makes
+    // is left where it put the page
+    let byHand = 0;
+    const hand = () => { byHand = performance.now(); };
+    const HANDS = ['wheel', 'touchstart', 'touchmove', 'keydown', 'pointerdown'] as const;
+    HANDS.forEach(t => addEventListener(t, hand, {passive:true}));
     const magnet = ScrollTrigger.create({start:0, end:() => shelf.offsetTop, invalidateOnRefresh:true,
-      snap:{snapTo:() => settle(dropped(), dir), directional:false, inertia:false, delay:.12, duration:{min:.3, max:.7}, ease:'power2.inOut'}});
+      snap:{snapTo:() => performance.now() - byHand < 3000 ? settle(dropped(), dir) : dropped(),
+        directional:false, inertia:false, delay:.12, duration:{min:.3, max:.7}, ease:'power2.inOut'}});
     // each paper with the tilt it rests at (the same as in the stylesheet)
     const papers = ([['#folleto', -2.5], ['#cuaderno', 1], ['#reverso', -1.2]] as const).map(([s, r]): [HTMLElement, number] => [find(s), r]);
     const leaf = find('.cuaderno .izq');
@@ -58,7 +65,7 @@ export function setupShelf(w: World | null): void {
       gsap.timeline({scrollTrigger:between(papers[1][0], .55, .2)}).add(side ? openLeaf(leaf, 'Y', 1) : openLeaf(leaf, 'X', -1));
     }
     return () => {
-      magnet.kill();
+      magnet.kill(); HANDS.forEach(t => removeEventListener(t, hand));
       removeEventListener('scroll', onScroll); removeEventListener('resize', onResize); pitch(true);
       letters.reset();
       [...papers.map(([el]) => el), leaf].forEach(rest);
