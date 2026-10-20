@@ -2281,6 +2281,9 @@ async def check_wagon(browser):
     if (await page.evaluate(WAGON))["wagon"]: errs.append("the next train, still at Sants, has a wagon on its route")
     if (t := await page.evaluate(lead)) != "el pròxim,": errs.append(f"the next train's board says «{t}», expected «el pròxim,»")
     await page.evaluate(pick); await page.wait_for_timeout(400)
+    # fitJourney places the names on a later frame, and software rendering gives few frames: wait until they are spread
+    try: await page.wait_for_function("new Set([...document.querySelectorAll('#board .trip.big .rec .s')].filter(s => !s.hidden).map(s => Math.round(s.getBoundingClientRect().left))).size > 1", timeout=CLICK_MS)
+    except Exception: pass
     # a train that has already left is not «el pròxim» (Àlex 10-10)
     if (t := await page.evaluate(lead)) != "ja ha sortit": errs.append(f"the 09:03, gone at 10:00, says «{t}» on the board, expected «ja ha sortit»")
     j = await page.evaluate(WAGON)
@@ -2305,7 +2308,7 @@ async def check_wagon(browser):
     page = await hero_page(browser, 390, 844)
     await page.click("#board button.big"); await page.wait_for_timeout(500)
     if await page.evaluate("!!document.querySelector('#detalle .viatge')"): errs.append("phone: the next train's sheet has a wagon")
-    await page.click("#detalle .x"); await page.wait_for_timeout(300)
+    await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
     await page.evaluate(pick); await page.wait_for_timeout(400)
     await page.click("#board button.big"); await page.wait_for_timeout(500)
     s = await page.evaluate("""(() => { const v = document.querySelector('#detalle .viatge'); if(!v) return null;
