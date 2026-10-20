@@ -820,6 +820,14 @@ async def check_table_follows(browser):
 COUNT_TABLE_DRAWS = """(() => { window.__mesaDraws = 0; const draw = WebGLRenderingContext.prototype.drawArrays;
   WebGLRenderingContext.prototype.drawArrays = function(...a){ if(this.canvas && this.canvas.id === 'lienzo') window.__mesaDraws++; return draw.apply(this, a); }; })()"""
 
+# every frame as painted (read in a task right after it, before the next frame's scroll event): where the wall's hinge
+# sits (the hero's transform-origin) against where the table's edge is for the scroll. Apart, the page shows between them
+HINGE_LAG = """window.__hingeLag = [];
+  const look = () => { const h = document.getElementById('hero'); if(!h || !window.reus || !h.style.transform) return;
+    const off = Math.abs(parseFloat(h.style.transformOrigin.split(' ')[1]) - reus.hingeAt(reus.dropped()));
+    if(off > 1) window.__hingeLag.push(off); };
+  const tick = () => { setTimeout(look, 0); requestAnimationFrame(tick); }; requestAnimationFrame(tick);"""
+
 async def check_magnet(browser):
     """Let go halfway through the turn and the page finishes it (option 2, Àlex 20-10): on in the direction the
     gesture was going, never resting with the wall half turned and the letters in the air; a nudge at either end is
@@ -857,6 +865,7 @@ async def check_magnet(browser):
     for name, opts in {"1440x900": dict(viewport={"width": 1440, "height": 900}),
                        "390x844": dict(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)}.items():
         page = await open_page(browser, **opts); cdp = await page.context.new_cdp_session(page)
+        await page.add_init_script(HINGE_LAG)
         await page.goto(page_url); await page.wait_for_timeout(9000); await hero_settled(page)
         for label, start, to, want in (("down to 35%", 0, .35, 1), ("down a nudge (5%)", 0, .05, 0),
                                        ("up from the table to 65%", 1, .65, 0), ("up a nudge from the table (95%)", 1, .95, 1)):
@@ -864,6 +873,9 @@ async def check_magnet(browser):
             await gesture(page, cdp, to, "is_mobile" in opts)
             p = await rests(page)
             if abs(p - want) > .002: errs.append(f"{name}: let go {label}, the page rests at {p:.0%} of the turn (expected {want:.0%})")
+            lag = await page.evaluate("window.__hingeLag.splice(0)")
+            if lag: errs.append(f"{name}: let go {label}, {len(lag)} frames show the wall's hinge away from the table's edge "
+                                f"(up to {max(lag):.0f} px: the page shows behind them)")
         # a scroll the page's code makes (a link, a check), not a hand, is left where it put the page
         await page.wait_for_timeout(3500)
         await page.evaluate("scrollTo({top: reus.hingeAt(0) * .5, behavior: 'instant'})")

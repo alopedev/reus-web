@@ -29,7 +29,7 @@ export function setupShelf(w: World | null): void {
     // the letters' rest positions scale with the root: re-measure on resize, from the same listener as pitch()
     const onResize = () => { restTop = shelf.offsetTop; letters.measure(); pitch(); };
     restTop = shelf.offsetTop;
-    const magnet = createMagnet();
+    const magnet = createMagnet(pitch);
     addEventListener('scroll', onScroll, {passive:true}); addEventListener('resize', onResize);
     document.fonts ? document.fonts.ready.then(() => { letters.measure(); pitch(); }) : letters.measure();
     pitch();
@@ -64,8 +64,11 @@ export function setupShelf(w: World | null): void {
 // Interfaces», WWDC 2018); only once the scroll has ended (the wheel's glide, a finger's fling) and no finger is on
 // the screen does the page move on its own, and any new hand stops it. Only a hand's scroll is finished (a wheel, a
 // finger, a key): one the page's code makes is left where it put the page. Below the turn nothing moves.
-// The end of a scroll is the browser's `scrollend`; without it (older Safari), a pause in the scroll events
-function createMagnet(){
+// The end of a scroll is the browser's `scrollend`; without it (older Safari), 200 ms with no scroll events and
+// no finger down.
+// Each step it moves the page, it turns the wall to match there and then (`follow`): the scroll event comes a frame
+// later, and a frame with the table moved and the wall not yet would show the page behind them
+function createMagnet(follow: () => void){
   const HANDS = ['wheel', 'touchstart', 'touchmove', 'keydown', 'pointerdown'] as const;
   const ENDS = 'onscrollend' in window;
   let byHand = -1e9, touching = false, lastY = scrollY, dir = 0, wait = 0, going: gsap.core.Tween | null = null;
@@ -79,7 +82,7 @@ function createMagnet(){
     if(touching || going || p <= 0 || p >= 1 || performance.now() - byHand > 4000) return;
     const to = settle(p, dir) * tableRest(), k = {y: scrollY};
     going = gsap.to(k, {y: to, duration: .3 + .4 * Math.abs(to - scrollY) / tableRest(), ease: 'power2.inOut',
-      onUpdate: () => scrollTo({top: k.y, behavior: 'instant'}), onComplete: () => { going = null; }});
+      onUpdate: () => { scrollTo({top: k.y, behavior: 'instant'}); follow(); }, onComplete: () => { going = null; }});
   }
   function scrolled(){
     if(scrollY !== lastY){ dir = Math.sign(scrollY - lastY); lastY = scrollY; }
