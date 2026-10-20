@@ -1,13 +1,14 @@
 import { reduce, state } from './state';
 import { madridNow, firstDay, lastDay, source, NET, bcnName, bcnShort, addDays } from './time';
-import { shown, tomorrowAt, type Mark } from './shown';
+import { shown, tomorrowAt, looked, type Mark } from './shown';
 import { board } from './board';
+import { talons } from './talons';
 import { cut, torn } from './paper';
 import { setupChooser } from './chooser';
 import { setupDetail, type Trip } from './detail';
 import { fitJourney } from './journey';
-import { dotDate, dotText, padMonth, weekday } from './dots';
-import { byId } from './dom';
+import { dotDate, dotText, padMonth } from './dots';
+import { byId, find } from './dom';
 import type { World } from './world';
 import type { Table } from './table';
 import type { Scenery } from './scenery';
@@ -44,7 +45,8 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     retards.follow();
     setRoute(route(state.dir==='casa', NET.estaciones[state.town].nombre));
     marks = v.ruler; tomorrow = v.tomorrow;
-    setDays(now.date, v.tomorrow);
+    setDays(now.date, looked(v, now.date));
+    setTalons(talons(v));
     byId('lbl').textContent = v.label;
     tIn.value = String(v.knob ?? Math.min(R1, Math.max(R0, now.min)));
     tIn.setAttribute('aria-valuetext', v.valuetext);
@@ -70,7 +72,10 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     setStamp(narrow.matches ? [] : ns);
     const turn = said !== null && said !== v.key;
     if(html !== drawn || turn){
+      // the countdown redraws the board every minute: a finger or a key on «Compra» or the big trip keeps its place
+      const had = byId('board').querySelector(':focus')?.matches('.talo') ? '.talo' : byId('board').querySelector('button.big:focus') ? 'button.big' : null;
       byId('board').innerHTML = drawn = html; if(turn && !reduce) byId('dep').classList.add('swap');
+      if(had) byId('board').querySelector<HTMLElement>(had)?.focus({preventScroll:true});
       const rec = byId('board').querySelector<HTMLElement>('.rec'); if(rec) laid.observe(rec);
     }
     const told = said !== v.key;
@@ -122,23 +127,33 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   const days = byId('days');
   let daysHtml = '';
   const longDay = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('ca-ES', { weekday:'long', day:'numeric', month:'long', timeZone:'UTC' });
-  function setDays(today: string, tom: boolean){
+  function setDays(today: string, on: 'avui' | 'dema'){
     const tw = addDays(today, 1);
     // a tear-off pad (Àlex 15-10, A): a cardboard with the month printed in dots, and two sheets hanging from its
-    // perforation, each with its weekday in dots and its bottom torn by hand
+    // perforation, their bottom torn by hand. No weekday on them since 18-10 (H2, Àlex: shorter sheets); the name says it
     const sheet = (key: string, word: string, iso: string, on: boolean, seed: number) =>
       `<button type="button" class="full${on ? ' on' : ''}" data-dia="${key}" aria-pressed="${on}" aria-label="${word}, ${longDay(iso)}">`
       + `<span class="pp" aria-hidden="true" style="clip-path:${torn(seed)}"><span class="perf"></span>`
-      + `<i>${word.toLowerCase()}</i> <b>${+iso.slice(8)}</b>${dotText(weekday(iso), '#B5361F')}</span></button>`;
+      + `<i>${word.toLowerCase()}</i> <b>${+iso.slice(8)}</b></span></button>`;
     const html = `<span class="taco" aria-hidden="true">${dotText(padMonth(today, tw), '#F1EADC')}</span>`
-      + sheet('avui', 'Avui', today, !tom, 7) + sheet('dema', 'Demà', tw, tom, 20);
+      + sheet('avui', 'Avui', today, on === 'avui', 7) + sheet('dema', 'Demà', tw, on === 'dema', 20);
     if(html === daysHtml) return;
     const had = days.querySelector<HTMLElement>(':focus')?.dataset.dia;
     days.innerHTML = daysHtml = html;
     if(had) days.querySelector<HTMLElement>(`[data-dia="${had}"]`)?.focus({preventScroll:true});
   }
+  // the stubs by the pad (A3, Àlex 18-10; talons.ts): redrawn only when they change, so a stub keeps the focus
+  const talonsEl = byId('talons');
+  let talonsHtml = '';
+  function setTalons(html: string){
+    if(html === talonsHtml) return;
+    const had = talonsEl.querySelector<HTMLElement>(':focus')?.classList[1];
+    talonsEl.innerHTML = talonsHtml = html;
+    if(had) talonsEl.querySelector<HTMLElement>('.' + had)?.focus({preventScroll:true});
+  }
   days.addEventListener('click', e=>{
-    const b = (e.target as Element).closest<HTMLElement>('.full'); if(!b) return;
+    // the day pressed is the day looked at already: nothing to do (at night «demà» is pressed with tomorrow's first train)
+    const b = (e.target as Element).closest<HTMLElement>('.full'); if(!b || b.classList.contains('on')) return;
     if(b.dataset.dia === 'avui'){ state.useNow = true; state.day = null; state.ave = false; }
     else Object.assign(state, { useNow: false, ...tomorrowAt(madridNow(), state) });
     render();
@@ -188,6 +203,10 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
       <span class="pp"><span class="k">Bitllet</span>
       <span class="route"></span></span><span class="stub" aria-hidden="true"></span><span class="fecha" aria-hidden="true"></span>
     </div>`;
+  // on a phone the days and «Compra» head the board, like a platform's board (Àlex 19-10, P2 on one line): the window
+  // keeps its height; on a desktop the pad hangs over the ruler and «Compra» stands over the highlighted time
+  const placeDays = () => { if(narrow.matches) byId('cap').append(days, talonsEl); else { find('.rulerHead').prepend(days); find('.rulerHead').append(talonsEl); } };
+  placeDays(); narrow.addEventListener('change', placeDays);
   const detail = setupDetail(), notice = setupNotice();
   const chooser = setupChooser(
     id => { state.town = id; again(); byId('tickets').querySelector<HTMLElement>('.end.town')?.focus(); },

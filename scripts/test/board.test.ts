@@ -15,7 +15,7 @@ const at = (date: string, hm: string, v: ViewState) => {
   const [h, m] = hm.split(':').map(Number), s = shown({ date, min: h * 60 + m }, v, quiet);
   assert.equal(s.kind, 'train'); return s as Extract<Shown, { kind: 'train' }>;
 };
-const read = (html: string) => html.replace(/<a class="buy".*?<\/a>/g, '').replace(/<span class="rec[^]*?<\/span><\/span>(?=<\/span>)/, '')
+const read = (html: string) => html.replace(/<a class="buy".*?<\/a>/g, '').replace(/<div class="tira">.*?<\/div>|<a class="talo.*?<\/a>/g, '').replace(/<span class="rec[^]*?<\/span><\/span>(?=<\/span>)/, '')
   .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').replace(/ ,/g, ',').trim();
 const desk = (v: ViewState, date: string, hm: string) => board(at(date, hm, v), v.dir === 'casa', false).map(read);
 
@@ -23,30 +23,37 @@ test('a weekday morning, Sants → Reus: the next regional with its countdown, t
   assert.deepEqual(desk(HOME, '2026-10-01', '10:00'), ['R15 10:03 el pròxim, en 3 min → 11:33', 'R15 11:03 després → 12:33']);
 });
 
+// the window first on a phone (Àlex 19-10, P2 on one line): the board is one line, the highlighted time alone, with
+// its «›» to the train's sheet; the next trip is on the ruler and in the sheet. No card, no stub on the board («Compra»
+// heads the board, by the days: timetable.ts). A desktop keeps both trips
+test('on a phone the board is one line: the highlighted time alone, no card and no stub', () => {
+  const v = at('2026-10-01', '10:00', HOME), rows = board(v, true, true);
+  assert.equal(rows.length, 1);
+  assert.match(rows[0], /^<button type="button" class="trip big"/);
+  assert.doesNotMatch(rows[0], /carta|talo/);
+  assert.equal(board(v, true, false).length, 2);
+});
+
 const BACK: ViewState = { ...HOME, dir: 'bcn' };
 test('Reus → Sants at night: today’s last AVE from Camp de Tarragona, then tomorrow’s first regional, «demà»', () => {
   assert.deepEqual(desk(BACK, '2026-10-01', '21:30'), ['AVE 22:17 el pròxim, en 47 min → 22:59 des de Camp de Tarragona', 'R15 05:36 demà → 07:07']);
 });
 
-// on a phone every trip is a button: its times, the countdown on the train shown, «demà» where it applies, and a «›»;
-// what a screen reader hears is the whole trip and that it opens its detail
+// on a phone the trip is a button: its times, the countdown, and a «›»; what a screen reader hears is the whole trip
+// and that it opens its detail
 const label = (html: string) => html.match(/aria-label="([^"]*)"/)?.[1];
-test('on a phone the board keeps the times, and each trip says itself in full to a screen reader', () => {
+test('on a phone the board keeps the times, and the trip says itself in full to a screen reader', () => {
   const rows = board(at('2026-10-01', '10:00', HOME), true, true);
-  assert.deepEqual(rows.map(read), ['R15 10:03 en 3 min → 11:33 ›', 'R15 11:03 → 12:33 ›']);
-  assert.deepEqual(rows.map(label), ['R15 de les 10:03, surt en 3 min, arriba a les 11:33. Veure el detall i comprar',
-    'R15 de les 11:03, arriba a les 12:33. Veure el detall i comprar']);
+  assert.deepEqual(rows.map(read), ['R15 10:03 en 3 min → 11:33 ›']);
+  assert.deepEqual(rows.map(label), ['R15 de les 10:03, surt en 3 min, arriba a les 11:33. Veure el detall i comprar']);
   const night = board(at('2026-10-01', '21:30', BACK), false, true);
-  assert.deepEqual(night.map(read), ['AVE 22:17 en 47 min → 22:59 ›', 'R15 05:36 demà → 07:07 ›']);
-  assert.deepEqual(night.map(label), ['AVE de les 22:17 des de Camp de Tarragona, surt en 47 min, arriba a les 22:59. Veure el detall i comprar',
-    'R15 de les 05:36, demà, arriba a les 07:07. Veure el detall i comprar']);
+  assert.deepEqual(night.map(read), ['AVE 22:17 en 47 min → 22:59 ›']);
+  assert.deepEqual(night.map(label), ['AVE de les 22:17 des de Camp de Tarragona, surt en 47 min, arriba a les 22:59. Veure el detall i comprar']);
 });
 
-test('on a desktop the time shown buys it at Renfe, and the other trip is a button that names itself', () => {
-  const [big, next] = board(at('2026-10-01', '10:00', HOME), true, false);
-  assert.equal(label(big), '10:03, comprar a Renfe (s’obre en una altra pestanya)');
+test('on a desktop the other trip is a button that names itself', () => {
+  const [, next] = board(at('2026-10-01', '10:00', HOME), true, false);
   assert.equal(label(next), 'R15 de les 11:03, arriba a les 12:33');
-  assert.equal(label(board(at('2026-10-01', '21:30', BACK), false, false)[0]), '22:17, comprar a Renfe (s’obre en una altra pestanya)');
 });
 
 // the live delay of the train shown (Renfe's feed): a fake of what the page knows of each train. At 10:00 on 01-10 the
@@ -94,17 +101,16 @@ test('a train picked that has already left says so where the next one would say 
   assert.deepEqual(desk({ ...HOME, useNow: false, minute: 543 }, '2026-10-01', '10:00'), ['R15 09:03 ja ha sortit → 10:33', 'AVE 09:55 després → 10:26 fins a Camp de Tarragona']);
 });
 
-// Renfe opens the day's list, not the train (src/buy.ts): a cancelled or departed train shown has nothing to buy, so
-// neither its time nor a «compra’l ↗» links to Renfe (12-10, option A of three); the phone's sheet loses «Compra a Renfe»
+// Renfe opens the day's list, not the train (src/buy.ts). The way there is the stub «Compra» (talons.ts, A3, Àlex 18-10):
+// the time is only a time, on a desktop as on a phone (the hint that it could be pressed went with it, Àlex 18-10)
 const links = (html: string) => (html.match(/href="https:\/\/venta\.renfe\.com[^"]*"/g) ?? []).length;
-test('the train shown links to Renfe twice; cancelled or already gone, not at all', () => {
-  const [big] = board(at('2026-10-01', '10:00', HOME), true, false);
-  assert.equal(links(big), 2);
-  assert.match(big, /compra’l ↗/);
-  for(const row of [atLive({ estat: 'cancelat' }, false)[0], board(at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 543 }), true, false)[0]]){
-    assert.equal(links(row), 0);
-    assert.doesNotMatch(row, /compra’l/);
-    assert.match(row, /id="dep"/);
+const noStub = (html: string) => html.replace(/<a class="talo.*?<\/a>/g, '');
+test('the train shown is only its time: no row of the board links to Renfe', () => {
+  for(const phone of [false, true]){
+    const rows = board(at('2026-10-01', '10:00', HOME), true, phone).map(noStub);
+    assert.equal(rows.map(links).reduce((a, b) => a + b), 0);
+    assert.doesNotMatch(rows[0], /<a /);
+    assert.match(rows[0], /id="dep"/);
   }
 });
 test('a cancelled or departed train shown has no Renfe link for the phone’s sheet', () => {

@@ -16,7 +16,6 @@ const GLYPH: Record<string, string> = {
 };
 const MONTH = ['GEN','FEB','MAR','ABR','MAI','JUN','JUL','AGO','SET','OCT','NOV','DES'];
 const MONTHS = ['GENER','FEBRER','MARÇ','ABRIL','MAIG','JUNY','JULIOL','AGOST','SETEMBRE','OCTUBRE','NOVEMBRE','DESEMBRE'];
-const DAYS = ['DIUMENGE','DILLUNS','DIMARTS','DIMECRES','DIJOUS','DIVENDRES','DISSABTE'];
 
 // any word the machine knows, one 5×7 cell and a gap per letter; the colour is the ink's
 export function dotText(text: string, ink = '#3A2D3A'): string {
@@ -32,8 +31,7 @@ export function dotDate(iso: string): string {
   return dotText(`${d}-${MONTH[+m - 1]}-${y.slice(2)}`);
 }
 
-// the tear-off pad of «Avui · Demà» (Àlex 15-10, A): the weekday on each sheet, the month on its cardboard
-export const weekday = (iso: string) => DAYS[new Date(`${iso}T12:00:00Z`).getUTCDay()];
+// the tear-off pad of «Avui · Demà» (Àlex 15-10, A): the month on its cardboard (the sheets lost their weekday, H2 18-10)
 export function padMonth(today: string, tomorrow: string): string {
   const [y1, m1] = today.split('-'), [y2, m2] = tomorrow.split('-');
   if(m1 === m2) return `${MONTHS[+m1 - 1]} ${y1}`;

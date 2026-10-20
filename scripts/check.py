@@ -89,6 +89,7 @@ Usage: npm run build && npm run build:paridad && python3 scripts/check.py [parid
         hero: only check 15; mesa: only check 16; compartir: only check 17, in a second; pintado: only the one-paint-per-frame part of check 6)
 """
 import asyncio, functools, html.parser, http.server, io, json, os, pathlib, re, sys, threading
+import urllib.parse
 import xml.etree.ElementTree as ET
 from PIL import Image, ImageChops, ImageStat
 from playwright.async_api import async_playwright
@@ -935,8 +936,9 @@ async def check_landscape(browser):
         # the hero's part of FIT: the table's notebook, two pages of 226 px at 932 x 430, reads well and is not this check's
         errs += [f"{name}: {e}" for e in await page.evaluate(FIT) if not e.startswith("notebook page")]
         g = await page.evaluate("""(() => { const r = s => document.querySelector(s).getBoundingClientRect().toJSON();
-          return {win: r('#win'), brd: r('.tauler'), tk: r('.tk'), info: r('#info'), phone: !!document.querySelector('#board button.big')}; })()""")
+          return {win: r('#win'), brd: r('.tauler'), tk: r('.tk'), info: r('#info'), hours: r('.hours'), phone: !!document.querySelector('#board button.big')}; })()""")
         win, brd, tk, info = g["win"], g["brd"], g["tk"], g["info"]
+        if g["hours"]["bottom"] > h: errs.append(f"{name}: the ruler's hours leave the screen ({g['hours']['bottom']:.0f} > {h})")
         if win["height"] < .55 * h: errs.append(f"{name}: the window is {win['height']:.0f} px tall, under 55% of the screen")
         if win["width"] < .35 * w: errs.append(f"{name}: the window is {win['width']:.0f} px wide, under 35% of the screen")
         meet = lambda a, b: min(a["right"], b["right"]) - max(a["left"], b["left"]) > 0 and min(a["bottom"], b["bottom"]) - max(a["top"], b["top"]) > 0
@@ -1095,9 +1097,11 @@ async def check_a11y(browser):
         await page.evaluate("scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'})"); await page.wait_for_timeout(500)
         if await page.evaluate("getComputedStyle(document.getElementById('hero')).visibility") != "hidden":
             errs.append(f"{w}x{h}, reduced motion, at the table: the hero under it can still take the focus")
-        await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await page.wait_for_timeout(500)
-        if await page.evaluate("getComputedStyle(document.getElementById('hero')).visibility") == "hidden":
-            errs.append(f"{w}x{h}, reduced motion, back at the top: the hero stays hidden")
+        # the table's still frame can hold the page's first scroll back up for a second under software rendering: wait
+        # for the hero, not for a fixed time (it once took 1.1 s at 1280 x 800)
+        await page.evaluate("scrollTo({top: 0, behavior: 'instant'})")
+        try: await page.wait_for_function("getComputedStyle(document.getElementById('hero')).visibility !== 'hidden'", timeout=5000)
+        except Exception: errs.append(f"{w}x{h}, reduced motion, back at the top: the hero stays hidden")
         await page.close()
     return errs
 
@@ -1537,7 +1541,8 @@ async def board_painted(page, label):
     if not s["gl"]: return [f"{label}: no WebGL in this browser, the painted board cannot be read"]
     if s["bg"] not in ("transparent", "rgba(0, 0, 0, 0)"): errs.append(f"{label}: the board's CSS still paints a panel ({s['bg']}) over the wall")
     if s["cells"] != "hidden": errs.append(f"{label}: the board's CSS still paints its cells over the wall")
-    await page.add_style_tag(content=".tauler{visibility:hidden !important}"); await page.wait_for_timeout(300)
+    # the ticket too: on a phone it sits just under the name (no subtitle since 19-10), and its paper would read as wall
+    await page.add_style_tag(content=".tauler, .tickets{visibility:hidden !important}"); await page.wait_for_timeout(300)
     shot = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
     await page.evaluate("document.head.lastElementChild.remove()")
     off = painted_edges(shot, s["rect"])
@@ -1647,61 +1652,33 @@ async def check_board_without_webgl(browser):
     await page.close()
     return errs
 
-# the highlighted time, «only if you hesitate» (option C, Àlex 12-10): what the page shows of it, read in the browser
+# the highlighted time: what the page shows of it, read in the browser
 HORA = """(() => { const h = document.getElementById('hero'), d = document.getElementById('dep'), c = getComputedStyle(d);
   const m = c.textShadow.match(/(-?[\\d.]+)px (-?[\\d.]+)px ([\\d.]+)px/);
   const anim = s => { const e = document.querySelector(s); return e ? getComputedStyle(e).animationName : null; };
-  return {raised: !!m && +m[1] > 0 && +m[3] === 0, shadow: c.textShadow, doubt: h.classList.contains('duda'),
-          beat: h.classList.contains('batec'), glint: getComputedStyle(d, '::before').content !== 'none',
-          dep: anim('#dep'), mas: anim('#board .big .mas'), buy: anim('#board .big .buy'), kept: (() => { try { return localStorage.getItem('capacasa.hora'); } catch { return 'blocked'; } })()}; })()"""
+  return {raised: !!m && +m[1] > 0 && +m[3] === 0, shadow: c.textShadow, link: !!d.closest('a'), cls: h.className,
+          dep: anim('#dep'), mas: anim('#board .big .mas'), talo: anim('.talo .in'),
+          kept: (() => { try { return localStorage.getItem('capacasa.hora'); } catch { return null; } })()}; })()"""
 
 async def check_hora(browser):
-    """The highlighted time says it can be pressed, only if you hesitate (option C, Àlex 12-10): raised (the hard
-    offset shadow) until it is pressed for the first time; nothing moves on the way in, nor while nothing is touched
-    (the sweep of golden light after 5 s was dropped, Àlex 12-10); a touch where nothing answers (the window) makes it
-    beat, with «compra’l» on a desktop and «›» on a phone; pressed, it lies flat and quiet, also after a reload. With
-    reduced motion only the relief is left."""
+    """The highlighted time is only a time (Àlex 18-10): the stubs «Compra» and «Avisa» say what it leads to, so the
+    hint that it could be pressed (raised until the first press, beating at a touch where nothing answers; option C,
+    12-10) is gone. Flat, not a link on a desktop, still at a touch on the window, nothing kept in the browser."""
     errs = []
     for name, (w, h) in {"desktop": (1440, 900), "phone": (390, 844)}.items():
         page = await open_page(browser, viewport={"width": w, "height": h})
         # the real clock: a fixed one also stops the landscape's paint-in, and the hero would never come in
         await page.goto(page_url); await page.evaluate("document.fonts.ready")
-        s = await page.evaluate(HORA)
-        if not s["raised"]: errs.append(f"{name}: on a first visit the highlighted time is not raised ({s['shadow']})")
         await page.wait_for_function("document.getElementById('stage').classList.contains('in')", timeout=30000)
-        # 7 s without a touch: the time stays still, no light crosses it
-        moved = await page.evaluate("""new Promise(done => { const h = document.getElementById('hero'); let seen = [];
-          const o = new MutationObserver(() => { if(h.classList.contains('batec') || h.classList.contains('brilla')) seen.push(h.className); });
-          o.observe(h, {attributes: true}); setTimeout(() => { o.disconnect(); done(seen); }, 7000); })""")
-        s = await page.evaluate(HORA)
-        if moved or s["beat"] or s["glint"] or s["dep"] not in (None, "none"): errs.append(f"{name}: the time moves without a touch ({moved}, {s})")
-        # a touch on the window, where nothing answers: the time beats with its sign
-        await page.mouse.click(*(await page.evaluate("(r => [r.x + r.width / 2, r.y + r.height / 2])(document.getElementById('win').getBoundingClientRect())")))
-        await page.wait_for_timeout(150)
-        s = await page.evaluate(HORA); sign = "buy" if name == "desktop" else "mas"
-        if not s["beat"] or s["dep"] in (None, "none") or s[sign] in (None, "none"):
-            errs.append(f"{name}: a touch on the window does not make the time and its {sign} beat ({s})")
-        # pressed: flat and quiet (the desktop's link would open Renfe: kept on the page)
-        await page.evaluate("addEventListener('click', e => { if(e.target.closest('a')) e.preventDefault(); })")
-        await page.click("#dep" if name == "desktop" else "#board button.big", timeout=CLICK_MS); await page.wait_for_timeout(300)
-        if name == "phone": await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
         await page.mouse.click(*(await page.evaluate("(r => [r.x + r.width / 2, r.y + r.height / 2])(document.getElementById('win').getBoundingClientRect())")))
         await page.wait_for_timeout(150)
         s = await page.evaluate(HORA)
-        if s["raised"] or s["doubt"] or s["beat"]: errs.append(f"{name}: once pressed the time is not flat and quiet ({s})")
-        if s["kept"] != "1": errs.append(f"{name}: the press is not remembered ({s['kept']})")
-        await page.reload(); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(500)
-        s = await page.evaluate(HORA)
-        if s["raised"]: errs.append(f"{name}: after a reload the time, already pressed, is raised again")
+        if s["raised"]: errs.append(f"{name}: the highlighted time is raised ({s['shadow']})")
+        if s["link"]: errs.append(f"{name}: the highlighted time is a link (the stub «Compra» is the way to Renfe)")
+        if any(s[k] not in (None, "none") for k in ("dep", "mas", "talo")) or "batec" in s["cls"] or "duda" in s["cls"]:
+            errs.append(f"{name}: a touch on the window makes something beat ({s})")
+        if s["kept"] is not None: errs.append(f"{name}: the browser still keeps «capacasa.hora» ({s['kept']})")
         await page.close()
-    # reduced motion: the relief only
-    page = await hero_page(browser, 390, 844)
-    await page.mouse.click(*(await page.evaluate("(r => [r.x + r.width / 2, r.y + r.height / 2])(document.getElementById('win').getBoundingClientRect())")))
-    await page.wait_for_timeout(150)
-    s = await page.evaluate(HORA)
-    if not s["raised"]: errs.append(f"reduced motion: the time is not raised ({s['shadow']})")
-    if s["beat"]: errs.append(f"reduced motion: the time moves ({s})")
-    await page.close()
     return errs
 
 async def check_hero(browser):
@@ -1748,6 +1725,7 @@ async def check_hero(browser):
     errs += [f"live delay: {e}" for e in await check_retards(browser)]
     errs += [f"time: {e}" for e in await check_hora(browser)]
     errs += [f"days: {e}" for e in await check_days(browser)]
+    errs += [f"stubs: {e}" for e in await check_talons(browser)]
     # 21:30, from Reus: no regional left today, but two AVE from Camp de Tarragona (22:17, 22:39)
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
@@ -1807,17 +1785,20 @@ async def check_hero(browser):
     return errs
 
 # «Avui · Demà» (B3, Àlex 15-10): two tear-off calendar sheets over the ruler, hanging from one cardboard that prints
-# the month in dots, each sheet with its weekday in dots (drawing A, Àlex 15-10). The day looked at is pressed flat, the
+# the month in dots (drawing A, Àlex 15-10; the sheets lost their weekday, H2 18-10). The day looked at is pressed flat, the
 # other raised; «Demà» shows tomorrow's train at this time of day with tomorrow's ruler, «Avui» goes back to now
 DAYS = """(() => { const f = [...document.querySelectorAll('#days .full')], t = document.getElementById('t'), n = s => s.replace(/\\s+/g, ' ').trim();
   const box = e => { const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
   return {sheets: f.map(b => ({dia: b.dataset.dia, text: n(b.textContent), pressed: b.getAttribute('aria-pressed'), name: b.getAttribute('aria-label'),
-            shadow: getComputedStyle(b).filter, wd: b.querySelector('.pp svg')?.dataset.t ?? null, ...box(b)})),
+            shadow: getComputedStyle(b).filter, wd: b.querySelector('.pp svg')?.dataset.t ?? null, mark: b.classList.contains('on') && getComputedStyle(b, '::after').content !== 'none', inCap: !!b.closest('#cap'), ...box(b)})),
           head: document.querySelector('#days .taco svg')?.dataset.t ?? null,
           focus: document.activeElement?.dataset?.dia ?? null, ticks: document.querySelectorAll('#ticks i').length, on: [...document.querySelectorAll('#ticks i.on')].length,
           knob: +t.value, nowline: !!document.querySelector('.nowline'), clock: !document.getElementById('nowBtn').hidden,
           dia: document.querySelector('.tk .fecha')?.dataset.dia, ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')),
           track: box(document.querySelector('.track'))}; })()"""
+
+HITS = """[...document.querySelectorAll('#days .full')].map(b => { const r = b.getBoundingClientRect(), x = r.left + r.width / 2; let n = 0;
+  for(let y = r.top - 30; y < r.bottom + 30; y++) if(document.elementFromPoint(x, y)?.closest('.full') === b) n++; return n; })"""
 
 async def check_days(browser):
     errs = []
@@ -1828,15 +1809,21 @@ async def check_days(browser):
         if texts != ["avui 28", "demà 29"]: errs.append(f"{w}x{h}: the day sheets read {texts}, expected «avui 28» and «demà 29»"); await page.close(); continue
         if [x["pressed"] for x in d["sheets"]] != ["true", "false"]: errs.append(f"{w}x{h}: at load «Avui» is not the sheet pressed")
         if [x["name"] for x in d["sheets"]] != ["Avui, dilluns, 28 de setembre", "Demà, dimarts, 29 de setembre"]: errs.append(f"{w}x{h}: the sheets are called {[x['name'] for x in d['sheets']]}")
-        if d["head"] != "SETEMBRE 2026" or [x["wd"] for x in d["sheets"]] != ["DILLUNS", "DIMARTS"]: errs.append(f"{w}x{h}: the pad prints «{d['head']}» on its cardboard and {[x['wd'] for x in d['sheets']]} on its sheets")
-        if "drop-shadow" in d["sheets"][0]["shadow"] or "drop-shadow" not in d["sheets"][1]["shadow"]: errs.append(f"{w}x{h}: «Avui» should lie flat and «Demà» be raised (shadows {d['sheets'][0]['shadow']} / {d['sheets'][1]['shadow']})")
-        if w < 600 and any(x["r"] - x["l"] < 44 or x["b"] - x["t"] < 44 for x in d["sheets"]): errs.append(f"{w}x{h}: a day sheet is smaller than a finger (44 px)")
+        if d["head"] != "SETEMBRE 2026" or [x["wd"] for x in d["sheets"]] != [None, None]: errs.append(f"{w}x{h}: the pad prints «{d['head']}» on its cardboard and {[x['wd'] for x in d['sheets']]} on its sheets (no weekday since H2)")
+        # on a phone the days are flat tabs heading the board (P2 on one line, Àlex 19-10): «Compra» is the one thing
+        # raised, and the day looked at is underlined
+        if w > 600 and ("drop-shadow" in d["sheets"][0]["shadow"] or "drop-shadow" not in d["sheets"][1]["shadow"]): errs.append(f"{w}x{h}: «Avui» should lie flat and «Demà» be raised (shadows {d['sheets'][0]['shadow']} / {d['sheets'][1]['shadow']})")
+        if w < 600 and (not all(x["inCap"] for x in d["sheets"]) or any("drop-shadow" in x["shadow"] for x in d["sheets"]) or [x["mark"] for x in d["sheets"]] != [True, False]): errs.append(f"{w}x{h}: over the board «Avui» should be underlined and neither day raised (in the head {[x['inCap'] for x in d['sheets']]}, marks {[x['mark'] for x in d['sheets']]}, shadows {[x['shadow'] for x in d['sheets']]})")
+        if w < 600:
+            hits = await page.evaluate(HITS)
+            if min(hits) < 44: errs.append(f"{w}x{h}: a day answers a finger over less than 44 px ({hits} px)")
         if any(x["b"] > d["track"]["t"] for x in d["sheets"]): errs.append(f"{w}x{h}: a day sheet reaches into the ruler")
         a = d["ara"]
         if a and any(x["l"] < a["r"] and a["l"] < x["r"] and x["t"] < a["b"] and a["t"] < x["b"] for x in d["sheets"]): errs.append(f"{w}x{h}: a day sheet covers «ara»")
         await page.click('#days .full[data-dia="dema"]'); await page.wait_for_timeout(400)
         d = await page.evaluate(DAYS); b = await page.evaluate(BOARD)
         if [x["pressed"] for x in d["sheets"]] != ["false", "true"] or d["focus"] != "dema": errs.append(f"{w}x{h}: after «Demà» the sheets are pressed {[x['pressed'] for x in d['sheets']]} with the focus on {d['focus']}")
+        if w < 600 and [x["mark"] for x in d["sheets"]] != [False, True]: errs.append(f"{w}x{h}: after «Demà» the underlines are {[x['mark'] for x in d['sheets']]}, expected on «Demà»")
         if d["nowline"] or d["clock"]: errs.append(f"{w}x{h}: tomorrow's ruler still has «ara» or the clock on it")
         if d["dia"] != "2026-09-29" or d["knob"] != 603 or d["on"] != 1: errs.append(f"{w}x{h}: «Demà» at 10:00 shows the day {d['dia']} with the knob at {d['knob']} ({d['on']} marks on), expected tomorrow's 10:03 (603)")
         if w > 600:
@@ -1850,15 +1837,116 @@ async def check_days(browser):
         d = await page.evaluate(DAYS)
         if d["dia"] != "2026-09-28" or not d["nowline"] or d["knob"] != 603 or d["sheets"][0]["pressed"] != "true": errs.append(f"{w}x{h}: «Avui» does not go back to now (day {d['dia']}, «ara» {d['nowline']}, knob {d['knob']})")
         await page.close()
+        # at 23:30 no train is left today: the board shows tomorrow's first, and «demà» is the day pressed (Àlex 19-10);
+        # pressing it again changes nothing
+        page = await hero_page(browser, w, h, at="2026-09-28T21:30:00Z")
+        d = await page.evaluate(DAYS)
+        if [x["pressed"] for x in d["sheets"]] != ["false", "true"] or d["dia"] != "2026-09-29": errs.append(f"{w}x{h} at 23:30: with tomorrow's first train on the board ({d['dia']}) the sheets pressed are {[x['pressed'] for x in d['sheets']]}, expected «Demà»")
+        await page.click('#days .full[data-dia="dema"]'); await page.wait_for_timeout(400)
+        e = await page.evaluate(DAYS)
+        if (e["dia"], e["knob"]) != (d["dia"], d["knob"]): errs.append(f"{w}x{h} at 23:30: pressing «Demà», already pressed, moves the train shown to {e['dia']} {e['knob']}")
+        await page.close()
+    return errs
+
+# the stubs (A3, Àlex 18-10; talons.ts): what the highlighted time leads to. On a desktop «Compra» over the
+# highlighted time; on a phone (P2 on one line, Àlex 19-10) heading the board at the right, the days at its left
+TALONS = """(() => { const box = e => { const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
+  const n = s => s.replace(/\\s+/g, ' ').trim();
+  return {stubs: [...document.querySelectorAll('#talons .talo, #board .talo')].map(a => ({cls: a.classList[1], text: n(a.textContent), href: a.href, tab: a.target,
+            label: a.getAttribute('aria-label'), shadow: getComputedStyle(a).filter, wrap: a.querySelector('.in').getBoundingClientRect().height, inCap: !!a.closest('#cap'), ...box(a)})),
+          sheets: [...document.querySelectorAll('#days .full')].map(box), track: box(document.querySelector('.track')),
+          ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')), vw: innerWidth, vh: innerHeight,
+          dep: box(document.getElementById('dep')), win: box(document.getElementById('win')), rows: [...document.querySelectorAll('#board .trip')].map(box),
+          sub: getComputedStyle(document.querySelector('.sub')).display, lbl: getComputedStyle(document.getElementById('lbl')).display,
+          route: box(document.querySelector('.tk .route')), tk: box(document.querySelector('.tk')), onTicket: !!document.querySelector('.tk #days'),
+          fecha: getComputedStyle(document.querySelector('.tk .fecha')).display, taco: getComputedStyle(document.querySelector('#days .taco')).display,
+          avisa: [...document.querySelectorAll('.avisa')].filter(a => !a.closest('#detalle')).length,
+          rem: parseFloat(getComputedStyle(document.documentElement).fontSize)}; })()"""
+
+def overlap(a, b): return a["l"] < b["r"] and b["l"] < a["r"] and a["t"] < b["b"] and b["t"] < a["b"]
+
+async def check_talons(browser):
+    """The stubs (A3, Àlex 18-10): «Compra», Renfe’s search for the train shown. On a desktop just over the
+    highlighted time, clear of the window (Àlex 18-10). On a phone the window first (P2 on one line, Àlex 19-10;
+    ventanilla/filosofias.md): no subtitle, the board one line, and «Compra» heading it at the right, the days at its
+    left, both above the highlighted time; the one thing raised, and no «Avisa» on the wall (it stays in the train's
+    sheet). The ticket as it was, with its printed date. Raised, on one line, a finger big, inside the screen and clear
+    of what is around it, from 320 px to the phone held sideways. On a 390 × 726 phone (an iPhone with Safari's bars)
+    the window is at least 265 px tall, as before the day pad, day and night."""
+    errs = []
+    for w, h in ((1440, 900), (1280, 800), (1920, 1080), (390, 844), (390, 726), (360, 740), (320, 568), (844, 390)):
+        page = await hero_page(browser, w, h)
+        t = await page.evaluate(TALONS); phone = w < 600 or h < 500
+        if [x["text"] for x in t["stubs"]] != ["Compra"]: errs.append(f"{w}x{h}: the stubs read {[x['text'] for x in t['stubs']]}, expected «Compra» alone"); await page.close(); continue
+        c = t["stubs"][0]
+        if "venta.renfe.com" not in c["href"] or c["tab"] != "_blank" or "Renfe" not in (c["label"] or ""): errs.append(f"{w}x{h}: «Compra» is not a link to Renfe in a new tab ({c})")
+        if "drop-shadow" not in c["shadow"]: errs.append(f"{w}x{h}: «Compra» is not raised ({c['shadow']})")
+        if c["wrap"] > 3.2 * t["rem"] + 2: errs.append(f"{w}x{h}: «Compra» breaks in two lines ({c['wrap']:.0f} px)")
+        if c["l"] < 0 or c["r"] > t["vw"] or c["b"] > t["vh"]: errs.append(f"{w}x{h}: «Compra» leaves the screen ({c})")
+        for name, o in [("the window", t["win"])] + [("a row of the board", y) for y in t["rows"]] + [("the ruler", t["track"]), ("«ara»", t["ara"])]:
+            if o and overlap(c, o): errs.append(f"{w}x{h}: «Compra» covers {name}")
+        d = t["dep"]
+        if t["avisa"]: errs.append(f"{w}x{h}: «Avisa» is on the wall (it stays in the train's sheet)")
+        if t["onTicket"] or t["fecha"] == "none": errs.append(f"{w}x{h}: the ticket lost its printed date or holds the days")
+        if not phone:
+            if c["inCap"]: errs.append(f"{w}x{h}: a desktop has «Compra» heading the board")
+            if c["b"] > d["t"] + 2 or d["t"] - c["b"] > 3 * t["rem"] or c["l"] >= d["r"] or d["l"] >= c["r"]:
+                errs.append(f"{w}x{h}: «Compra» is not just over the time (stub {c['l']:.0f}–{c['r']:.0f} × {c['t']:.0f}–{c['b']:.0f}, time {d['l']:.0f}–{d['r']:.0f} from {d['t']:.0f})")
+            if t["taco"] == "none": errs.append(f"{w}x{h}: a desktop lost its day pad")
+        else:
+            sh, rows = t["sheets"], t["rows"]
+            if len(rows) != 1: errs.append(f"{w}x{h}: the phone's board has {len(rows)} rows, expected the highlighted time alone")
+            if not c["inCap"]: errs.append(f"{w}x{h}: «Compra» does not head the board")
+            # the days at the left, «Compra» at the right, on one line over the highlighted time
+            elif max(x["r"] for x in sh) > c["l"] or any(x["b"] < c["t"] or x["t"] > c["b"] for x in sh) or c["b"] > rows[0]["t"] + 2 or c["r"] < rows[0]["r"] - 3 * t["rem"]:
+                errs.append(f"{w}x{h}: the days and «Compra» do not head the board on one line (days {sh}, stub {c}, row {rows[0]})")
+            if t["taco"] != "none": errs.append(f"{w}x{h}: a phone still hangs the day pad")
+            if w < 600 and h > 500 and t["sub"] != "none": errs.append(f"{w}x{h}: a phone still has the subtitle")
+            if t["lbl"] != "none": errs.append(f"{w}x{h}: a phone still has the label over the board")
+            if c["r"] - c["l"] < 44: errs.append(f"{w}x{h}: «Compra» is narrower than a finger ({c['r'] - c['l']:.0f} px)")
+            hits = await page.evaluate("""(a => { const r = a.getBoundingClientRect(), x = r.left + r.width / 2; let n = 0;
+              for(let y = r.top - 30; y < r.bottom + 30; y++) if(document.elementFromPoint(x, y)?.closest('.talo') === a) n++; return n; })(document.querySelector('#cap .talo'))""")
+            if hits < 44: errs.append(f"{w}x{h}: «Compra» answers a finger over {hits} px of height, under 44")
+            if overlap(t["tk"], t["win"]): errs.append(f"{w}x{h}: the ticket covers the window")
+            if t["win"]["b"] - t["win"]["t"] < 120: errs.append(f"{w}x{h}: the window is a slit ({t['win']['b'] - t['win']['t']:.0f} px tall)")
+        await page.close()
+    # the window first: on a 390 × 726 phone at least as tall as before the day pad (265 px), day and night
+    for at in ("2026-09-28T08:00:00Z", "2026-09-28T21:30:00Z"):
+        page = await hero_page(browser, 390, 726, at=at)
+        win = await page.evaluate("document.getElementById('win').getBoundingClientRect().height")
+        if win < 265: errs.append(f"390x726 at {at}: the window is {win:.0f} px tall, under 265")
+        await page.close()
+    # a long town name breaks the ticket's route in two lines: the ticket stays on the screen
+    for w, h in ((390, 844), (320, 568), (844, 390)):
+        page = await hero_page(browser, w, h)
+        e = await choose_town(page, "R16", "65420"); await page.wait_for_timeout(600)
+        if e: errs += [f"{w}x{h}: {x}" for x in e]
+        else:
+            r = await page.evaluate("(() => ({tk: document.querySelector('.tk').getBoundingClientRect().right, vw: innerWidth}))()")
+            if r["tk"] > r["vw"]: errs.append(f"{w}x{h}, L'Hospitalet de l'Infant: the ticket leaves the screen (to {r['tk']:.0f} of {r['vw']})")
+        await page.close()
+    # late in the evening «ara» and the station clock stand at the ruler's right end, early in the morning at its left
+    # end: «Compra» keeps clear of them
+    for w, h, at in ((1440, 900, "2026-09-28T20:00:00Z"), (1440, 900, "2026-09-28T21:00:00Z"), (390, 844, "2026-09-28T04:30:00Z"),
+                     (320, 568, "2026-09-28T04:30:00Z"), (390, 844, "2026-09-28T21:00:00Z"), (844, 390, "2026-09-28T04:30:00Z")):
+        page = await hero_page(browser, w, h, at=at)
+        for clock in (False, True):
+            if clock: await page.focus("#t"); await page.keyboard.press("Home"); await page.wait_for_timeout(300)
+            t = await page.evaluate(TALONS)
+            o = await page.evaluate("(e => e && !e.hidden ? (r => ({l: r.left, r: r.right, t: r.top, b: r.bottom}))(e.getBoundingClientRect()) : null)(document.getElementById('nowBtn'))")
+            for x in t["stubs"]:
+                for name, b in (("«ara»", t["ara"]), ("the station clock", o)) + tuple(("a row of the board", y) for y in t["rows"]):
+                    if b and overlap(x, b): errs.append(f"{w}x{h} at {at}: «{x['text']}» covers {name}")
+        await page.close()
     return errs
 
 BOARD = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), rows = [...document.querySelectorAll('#board .trip')];
-  // «compra’l ↗» is the big row's link to Renfe, read on its own (buy) rather than as part of the row's text
-  // the big train's route (desktop) is for the eye only, read by check_journey
-  const text = r => { const c = r.cloneNode(true); c.querySelectorAll('.buy, .rec').forEach(x => x.remove()); return n(c.textContent); };
-  const dep = document.getElementById('dep'), word = document.querySelector('#board .buy'), q = dep?.href ? new URL(dep.href).searchParams : null;
-  return {rows: rows.map(text), buy: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), host: new URL(dep.href).host, query: Object.fromEntries(q),
-            tab: dep.target === '_blank' && word?.target === '_blank', same: word?.href === dep.href, label: dep.getAttribute('aria-label')}, buttons: rows.map(r => r.matches('button.tt')), dep: document.getElementById('dep')?.textContent,
+  // the big train's route (desktop) is for the eye only, read by check_journey; the stub «Compra» (A3, Àlex 18-10)
+  // is the way to Renfe, the time is only a time
+  const text = r => { const c = r.cloneNode(true); c.querySelectorAll('.rec').forEach(x => x.remove()); return n(c.textContent); };
+  const word = document.querySelector('.talo.compra'), q = word?.href ? new URL(word.href).searchParams : null;
+  return {rows: rows.map(text), buy: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), host: new URL(word.href).host, query: Object.fromEntries(q),
+            tab: word.target === '_blank', label: word.getAttribute('aria-label') ?? word.textContent}, boardLink: !!document.querySelector('#board a[href]:not(.talo)'), buttons: rows.map(r => r.matches('button.tt')), dep: document.getElementById('dep')?.textContent,
           soon: document.querySelector('.soon')?.textContent.trim(), info: n(document.getElementById('info').textContent),
           aviso: document.getElementById('aviso').textContent}; })()"""
 
@@ -1966,19 +2054,19 @@ RENFE_FIELDS = {"adultos_": "1", "ninos_": "0", "ninosMenores": "0", "tipoBusque
                 "currenLocation": "menuBusqueda", "vengoderenfecom": "SI"}
 
 def buy_link(b, frm, to, day):
-    """The big train's time and «compra’l ↗» open Renfe's search for its trip and day, in a new tab (src/buy.ts)."""
+    """The stub «Compra» opens Renfe's search for the train shown, its trip and day, in a new tab (src/buy.ts); the
+    time itself is not a link (Àlex 18-10)."""
     k = b.get("buy")
-    if not k: return ["the train shown (#dep) is not a link to Renfe"]
-    errs = []
+    if not k: return ["the stub «Compra» is not a link to Renfe"]
+    errs = ["the board still links to Renfe (the stub «Compra» is the way there)"] if b.get("boardLink") else []
     if k["host"] != "venta.renfe.com": errs.append(f"the buy link goes to {k['host']}, expected venta.renfe.com")
     if (k["from"], k["to"], k["day"]) != (f"0071,{frm},{frm}", f"0071,{to},{to}", day):
         errs.append(f"the buy link searches {k['from']} → {k['to']} on {k['day']}, expected {frm} → {to} on {day}")
     # without these renfe.com answers E500 to a first visit, or shows a returning visitor their previous search
     missing = [f for f, v in RENFE_FIELDS.items() if k["query"].get(f) != v]
     if missing: errs.append(f"the buy link lacks the fields Renfe needs to search ({', '.join(missing)}): «{k['query']}»")
-    if not k["tab"]: errs.append("the buy links do not open in a new tab")
-    if not k["same"]: errs.append("«compra’l ↗» and the time do not open the same search")
-    if "Renfe" not in (k["label"] or ""): errs.append(f"the time's label does not say it buys on Renfe («{k['label']}»)")
+    if not k["tab"]: errs.append("the stub «Compra» does not open in a new tab")
+    if "Renfe" not in (k["label"] or ""): errs.append(f"the stub's label does not say it buys on Renfe («{k['label']}»)")
     return errs
 
 TICKET = """(() => { const t = [...document.querySelectorAll('#tickets .tk')], sw = document.querySelector('.tk .swap');
@@ -2614,24 +2702,25 @@ async def check_sheet_holds_page(browser):
 PHONE = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), d = document.getElementById('detalle'), a = d.querySelector('.comprar');
   const q = a ? new URL(a.href).searchParams : null;
   return {rows: [...document.querySelectorAll('#board .trip')].map(r => n(r.textContent)), buttons: [...document.querySelectorAll('#board .trip')].map(r => r.matches('button')),
-          buy: document.querySelectorAll('#board a').length, dep: document.getElementById('dep')?.textContent, open: d.open, sheet: n(d.textContent),
+          buy: document.querySelectorAll('#board a:not(.talo)').length, dep: document.getElementById('dep')?.textContent, open: d.open, sheet: n(d.textContent),
           link: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), tab: a.target === '_blank'},
           home: (h => h && {url: h.origin + h.pathname, text: h.searchParams.get('text'), tab: d.querySelector('.avisa').target === '_blank'})(d.querySelector('.avisa') && new URL(d.querySelector('.avisa').href)),
           focus: document.activeElement?.matches('#board button.big') ?? false}; })()"""
 
 async def check_phone_board(browser):
-    """6B (Àlex, 06-10): on a phone the board keeps only the times, the countdown on the big train and a «›» on every
-    trip; every trip is a button (the big one too) that opens a paper sheet with its detail and «Compra a Renfe ↗».
-    Tapping another trip makes it the train shown first. Esc, ✕ and the backdrop close the sheet and hand the focus
+    """6B (Àlex, 06-10): on a phone the board keeps only the times, the countdown and a «›»; since 19-10 (P2 on
+    one line) it is the highlighted time alone, a button that opens a paper sheet with its detail and «Compra a Renfe ↗».
+    Another train picked on the ruler is the one the sheet tells. Esc, ✕ and the backdrop close the sheet and hand the focus
     back to the big train. On a wide screen the board is unchanged (check_hero_board). The sheet also says «Avisar a
     casa» (Àlex 06-10, only on a phone): a link to WhatsApp (wa.me, no number) with the train written as a message."""
     errs = []
     page = await hero_page(browser, 390, 844)
     b = await page.evaluate(PHONE)
-    want = ["R15 10:03 en 3 min → 11:33 ›", "R15 11:03 → 12:33 ›"]
+    # the window first (P2 on one line, Àlex 19-10): the highlighted time alone; the next one is on the ruler
+    want = ["R15 10:03 en 3 min → 11:33 ›"]
     if b["rows"] != want: errs.append(f"at 10:00 the phone board reads {b['rows']}, expected {want}")
-    if b["buttons"] != [True, True]: errs.append(f"on a phone every trip should be a button, got {b['buttons']}")
-    if b["buy"]: errs.append("on a phone the board still holds a link (the way to Renfe belongs to the sheet)")
+    if b["buttons"] != [True]: errs.append(f"on a phone the trip should be a button, got {b['buttons']}")
+    if b["buy"]: errs.append("on a phone the board's row holds a link (the way to Renfe is «Compra» over it and in the sheet)")
     async def tap(sel, when):
         try: await page.click(sel, timeout=CLICK_MS)
         except Exception: errs.append(f"{when}: {sel} is not clickable"); return None
@@ -2642,7 +2731,9 @@ async def check_phone_board(browser):
         if h["url"] != "https://wa.me/" or h["text"] != text or not h["tab"]:
             errs.append(f"{when}: «Avisar a casa» goes to {h['url']} with «{h['text']}» (new tab: {h['tab']}), expected https://wa.me/ with «{text}»")
     async def sheet(when, dep, arr, said, link):
-        b = await tap("#board button.big", when) if when != "after tapping the 11:03" else await tap("#board .tt", when)
+        if when == "after picking the 11:03":
+            await page.focus("#t"); await page.keyboard.press("ArrowRight"); await page.wait_for_timeout(300)
+        b = await tap("#board button.big", when)
         if not b: return
         if not b["open"]: errs.append(f"{when}: the sheet does not open"); return
         for word in (f"{dep} → {arr}", said, "de viatge", "Compra a Renfe"):
@@ -2658,7 +2749,7 @@ async def check_phone_board(browser):
     b = await page.evaluate(PHONE)
     if b["open"]: errs.append("Esc does not close the sheet")
     elif not b["focus"]: errs.append("after Esc the focus is not back on the big train")
-    await sheet("after tapping the 11:03", "11:03", "12:33", "Surt en 1 h 3 min", ("0071,71801,71801", "0071,71400,71400", "28/09/2026"))
+    await sheet("after picking the 11:03", "11:03", "12:33", "Surt en 1 h 3 min", ("0071,71801,71801", "0071,71400,71400", "28/09/2026"))
     if await tap("#detalle .x", "✕") and (await page.evaluate(PHONE))["open"]: errs.append("✕ does not close the sheet")
     await tap("#board button.big", "the backdrop")
     await page.mouse.click(195, 40); await page.wait_for_timeout(300)
@@ -2855,6 +2946,9 @@ async def main():
         if sys.argv[1:] == ["iman"]:
             failures += await check_magnet(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · iman"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["talons"]:
+            failures += await check_talons(browser) + await check_days(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · talons"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["hora"]:
             failures += await check_hora(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · hora"); sys.exit(1 if failures else 0)
