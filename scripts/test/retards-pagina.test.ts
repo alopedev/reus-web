@@ -8,9 +8,11 @@ const answer = (sec: number, trens: object) => ({ llegit: new Date(T0 + sec * 10
 const TRENS = { '17505': { estat: 'circula', retard: 25, parada: '71503' }, '15918': { estat: 'cancelat' } };
 
 function setup(){
-  const t = { now: T0, next: null as unknown, asks: 0, changes: 0 };
+  const t = { now: T0, next: null as unknown, asks: 0, changes: 0, hidden: false, timer: null as null | { fn: () => void, ms: number } };
   const ask: Ask = async () => { t.asks++; return t.next; };
-  const retards = createRetards(() => { t.changes++; }, { ask, clock: () => t.now });
+  // the timer it sets itself to ask again: the test fires it, as the clock moves
+  const wait = (fn: () => void, ms: number) => { t.timer = { fn, ms }; return () => { t.timer = null; }; };
+  const retards = createRetards(() => { t.changes++; }, { ask, clock: () => t.now, wait, hidden: () => t.hidden });
   const follow = async () => { retards.follow(); await new Promise(r => setTimeout(r, 0)); };
   return { t, retards, follow };
 }
@@ -60,4 +62,15 @@ test('a failed ask keeps the last answer while it is fresh; past 3 minutes the t
   t.now += 3 * MIN; await follow();
   assert.deepEqual(retards.train('17505'), { estat: 'error' });
   assert.equal(t.changes, 2);
+});
+
+test('it asks again on its own every 30 s, without waiting for the board to be redrawn (once a minute)', async () => {
+  const { t, follow } = setup();
+  t.next = answer(-20, TRENS); await follow();
+  assert.ok(t.timer && t.timer.ms > 30e3 && t.timer.ms < 31e3, JSON.stringify(t.timer));
+  t.now += t.timer.ms; t.timer.fn(); await new Promise(r => setTimeout(r, 0));
+  assert.equal(t.asks, 2);
+  // with the tab hidden it does not ask: the next redraw, when it comes back, will
+  t.now += t.timer!.ms; t.hidden = true; t.timer!.fn(); await new Promise(r => setTimeout(r, 0));
+  assert.equal(t.asks, 2);
 });

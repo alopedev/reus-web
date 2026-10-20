@@ -1,4 +1,5 @@
 import { NET } from './time';
+import { createLive, type LiveOptions } from './live';
 
 // the weather at home, now: what the window paints over the chosen town's landscape (08-10, Àlex: raindrops on the
 // glass under a grey sky). Open-Meteo, free and keyless, answers from any web page (CORS); when it does not answer
@@ -18,31 +19,31 @@ export function kind(code: number): Weather {
 const URL_ = 'https://api.open-meteo.com/v1/forecast';
 const FRESH = 15*60e3, WAIT = 6000;
 
-// follow(town) asks for that town's weather when it changes or is older than FRESH, and calls back when the answer
-// changes what the window shows; now() is what it shows (check.py reads it)
-export function createWeather(onChange: (w: Weather) => void){
-  let town = '', shown: Weather = 'clear', asked = 0, req = 0, pending = false;
-  async function ask(id: string){
-    const ll = NET.estaciones[id]?.ll, mine = ++req;
-    if(!ll){ pending = false; show('clear'); return; }
-    pending = true; asked = Date.now();
-    let w: Weather = 'clear';
-    const stop = new AbortController(), timer = setTimeout(() => stop.abort(), WAIT);
-    try {
-      const res = await fetch(`${URL_}?latitude=${ll[0]}&longitude=${ll[1]}&current=weather_code`, {signal: stop.signal});
-      const code = res.ok ? (await res.json())?.current?.weather_code : undefined;
-      if(typeof code === 'number') w = kind(code);
-    } catch { /* no answer: fair weather */ }
-    clearTimeout(timer);
-    if(mine !== req) return;   // the visitor chose another town meanwhile: its answer will tell
-    pending = false; show(w);
-  }
-  function show(w: Weather){ if(w !== shown){ shown = w; onChange(w); } }
-  return {
-    follow(id: string){
-      if(id !== town){ town = id; show('clear'); void ask(id); }
-      else if(!pending && Date.now() - asked > FRESH) void ask(id);
-    },
-    now: () => shown,
-  };
+// Open-Meteo, for a town: what it answered, or null (no coordinates in red.json, an error, no answer in WAIT)
+export type Ask = (town: string) => Promise<unknown>;
+const askOpenMeteo: Ask = async town => {
+  const ll = NET.estaciones[town]?.ll;
+  if(!ll) return null;
+  try {
+    const res = await fetch(`${URL_}?latitude=${ll[0]}&longitude=${ll[1]}&current=weather_code`, { signal: AbortSignal.timeout(WAIT) });
+    return res.ok ? await res.json() : null;
+  } catch { return null; }
+};
+// what the window paints for an answer: fair weather when it has no code
+const read = (body: unknown): Weather => {
+  const code = (body as { current?: { weather_code?: unknown } } | null)?.current?.weather_code;
+  return typeof code === 'number' ? kind(code) : 'clear';
+};
+const isWeather = (w: unknown): w is Weather => typeof w === 'string';
+
+// follow(town) asks for that town's weather when it changes, and at most every 15 minutes (live.ts); another town
+// is fair weather until its answer comes. onChange runs when what the window shows changes; now() is what it shows
+// (check.py reads it)
+export function createWeather(onChange: (w: Weather) => void, o: Omit<Partial<LiveOptions<Weather, string>>, 'ask'> & { ask?: Ask } = {}){
+  const { ask = askOpenMeteo, ...rest } = o;
+  let shown: Weather = 'clear';
+  const now = (): Weather => live.answer() ?? 'clear';
+  const live = createLive<Weather, string>(() => { const w = now(); if(w !== shown){ shown = w; onChange(w); } },
+    { fresh: FRESH, usable: isWeather, ...rest, ask: async town => read(await ask(town)) });
+  return { follow: live.follow, now };
 }

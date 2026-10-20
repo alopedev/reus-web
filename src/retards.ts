@@ -2,6 +2,8 @@
 // per train number. What the page knows of a train is one of four things, never two: running (late, on time or
 // early), cancelled, not in Renfe's feed (a train enters it only once it runs), or unknown (the function could not be
 // reached, or its answer is old). Unknown is never taken for «on time»
+import { createLive, type LiveOptions } from './live';
+
 export type Train = { estat: 'circula', retard: number, parada: string, andana?: string } | { estat: 'cancelat' };
 export interface Answer { llegit: string, trens: Record<string, Train> }
 
@@ -26,26 +28,17 @@ const usable = (body: unknown, now: number): body is Answer => {
 
 export type Known = Train | { estat: 'sense' } | { estat: 'error' };
 
-// follow() asks when the last ask is older than FRESH; onChange runs when what is known changes
-export function createRetards(onChange: () => void, { ask = askFunction, clock = Date.now }: { ask?: Ask, clock?: () => number } = {}){
-  let known: Answer | null = null, asked = -Infinity, answered = false, pending = false, seen = '';
-  async function update(){
-    pending = true; asked = clock();
-    const body = await ask();
-    // a failed ask keeps the last answer while it is fresh, so one bad moment does not blink
-    if(usable(body, clock())) known = body;
-    else if(known && !usable(known, clock())) known = null;
-    pending = false; answered = true;
-    const now = JSON.stringify(known?.trens ?? null);
-    if(now !== seen){ seen = now; onChange(); }
-  }
+// follow() asks at most every 30 s (live.ts); onChange runs when what is known changes
+export function createRetards(onChange: () => void, o: Omit<Partial<LiveOptions<Answer, ''>>, 'ask'> & { ask?: Ask } = {}){
+  const { ask = askFunction, ...rest } = o;
+  const live = createLive<Answer, ''>(onChange, { fresh: FRESH, usable, sign: a => a.trens, ...rest, ask: () => ask() });
   return {
-    follow(){ if(!pending && clock() - asked > FRESH) void update(); },
+    follow: () => live.follow(''),
     // undefined before the first answer; then what the last answer says of it, while it is fresh
     train(n: string): Known | undefined {
-      if(!answered) return undefined;
-      if(!known || !usable(known, clock())) return { estat: 'error' };
-      return known.trens[number(n)] ?? { estat: 'sense' };
+      if(!live.answered()) return undefined;
+      const a = live.answer();
+      return a ? a.trens[number(n)] ?? { estat: 'sense' } : { estat: 'error' };
     },
   };
 }
