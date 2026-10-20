@@ -1399,8 +1399,8 @@ async def check_wall_kept(browser):
         if max(shares) > min(.6, area * 1.3): errs.append(f"{tag}: once painted, each frame repaints {max(shares):.0%} of the screen (the window is {area:.0%})")
         # only the painting is compared: the texts on the wall hide (the station clock's second hand turns with motion)
         for pg in (page, still): await pg.add_style_tag(content="#stage{visibility:hidden!important}")
-        async def same_wall(when):
-            box = await page.evaluate(WIN_BOX)   # the board may have grown a line and moved the window
+        async def same_wall(when, margin=12):
+            box = await page.evaluate(WIN_BOX.replace("m = 12", f"m = {margin}"))   # the board may have grown a line and moved the window
             shot, ref = await page.screenshot(), await still.screenshot()
             n, worst = wall_difference(shot, ref, [round(v * dpr) for v in box])
             if n > 50:
@@ -1412,6 +1412,13 @@ async def check_wall_kept(browser):
         await page.evaluate("scrollTo({top: innerHeight * .3, behavior: 'instant'})"); await page.wait_for_timeout(2000)
         await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await page.wait_for_timeout(2500)
         await same_wall("after a wash and back")
+        # a new size while the wall is turned (iOS Safari's toolbar shrinks as the page scrolls, mid-transition): the
+        # window is still painted where #win rests, not where the tilted wall put it. The frame around the glass is
+        # part of the wall, so this compares it too, with only the wobble of the glass's edge left out
+        await page.evaluate("scrollTo({top: innerHeight * .3, behavior: 'instant'})"); await page.wait_for_timeout(2000)
+        await page.evaluate("dispatchEvent(new Event('resize'))"); await page.wait_for_timeout(1500)
+        await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await page.wait_for_timeout(2500)
+        await same_wall("after a new size mid-turn and back", margin=4)
         # another hour on the ruler: 23:00, another light on the wall
         at_night = "(() => { const t = document.getElementById('t'); t.value = 1380; t.dispatchEvent(new Event('input', {bubbles: true})); })()"
         await page.evaluate(at_night); await still.evaluate(at_night)

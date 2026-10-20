@@ -135,6 +135,9 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     renderer.setPixelRatio(1); renderer.setSize(W, H, false);
     U.sres.value.set(W, H); U.aspect.value = W/H;
     kept.setSize(W, H); copy.uniforms.size.value.set(W, H); wallKept = false;
+    // the wall's boxes at rest: a new size can come while the wall is turned away (iOS Safari's toolbar shrinks as
+    // the page scrolls), and its tilt (shelf.ts) would put the window and the board elsewhere on the screen
+    const tilt = hero.style.transform; hero.style.transform = '';
     const win = document.getElementById('win')!, r = win.getBoundingClientRect();
     U.win.value.set(r.left/cw, 1-r.bottom/ch, r.right/cw, 1-r.top/ch);
     U.wrad.value = parseFloat(getComputedStyle(win).borderTopLeftRadius)/ch;
@@ -142,6 +145,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     // the board cancels their rise with a transform of its own, so it never moves on the wall
     const b = document.querySelector('.tauler')?.getBoundingClientRect();
     if(b) U.brd.value.set(b.left/cw, 1-b.bottom/ch, b.right/cw, 1-b.top/ch);
+    hero.style.transform = tilt;
     U.seats.value = (cw/ch > 1.15 && r.left > cw*.12) ? 1 : 0;
     const k = s * .8 * (STACKED.matches ? 2 : 1);
     const rw = Math.max(2, Math.round(r.width*k)), rh = Math.max(2, Math.round(r.height*k));
