@@ -819,6 +819,64 @@ async def check_table_follows(browser):
 COUNT_TABLE_DRAWS = """(() => { window.__mesaDraws = 0; const draw = WebGLRenderingContext.prototype.drawArrays;
   WebGLRenderingContext.prototype.drawArrays = function(...a){ if(this.canvas && this.canvas.id === 'lienzo') window.__mesaDraws++; return draw.apply(this, a); }; })()"""
 
+async def check_magnet(browser):
+    """Let go halfway through the turn and the page finishes it (option 2, Àlex 20-10): on in the direction the
+    gesture was going, never resting with the wall half turned and the letters in the air; a nudge at either end is
+    not a turn and goes back (magnet.ts, whose rule npm test checks). With real gestures: the wheel on a desk, a
+    finger on a phone. Below the turn, reading the table, nothing moves; with reduced motion there is no turn."""
+    errs = []
+    WHERE = "Math.round(reus.dropped() * 1000) / 1000"
+    async def rests(page):
+        # the page has stopped: the same scroll for three seconds (software rendering gives a frame or two a second,
+        # so a snap can take a while to start)
+        last, same = None, 0
+        for _ in range(60):
+            y = await page.evaluate("scrollY")
+            same = same + 1 if y == last else 0
+            if same >= 6: return await page.evaluate(WHERE)
+            last = y; await page.wait_for_timeout(500)
+        return await page.evaluate(WHERE)
+    async def gesture(page, cdp, to, touch):
+        # from where the page is to a share of the turn, then let go. Programmatic scrolls are not gestures: the page
+        # leaves them where they put it. The wheel through Input.synthesizeScrollGesture; a finger as raw touch events
+        # (synthesizeScrollGesture does not scroll a phone here), slowly, so it does not fling on
+        y, top, w, h = await page.evaluate("[scrollY, reus.hingeAt(0), innerWidth, innerHeight]")
+        dy = top * to - y
+        if not touch:
+            await cdp.send("Input.synthesizeScrollGesture", {"x": w / 2, "y": h / 2, "yDistance": -dy, "speed": 400,
+                "gestureSourceType": "mouse", "preventFling": True})
+            return
+        x, y0 = w / 2, h / 2 + dy / 2
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y0}]})
+        for i in range(1, 21):
+            await cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": x, "y": y0 - dy * i / 20}]})
+            await page.wait_for_timeout(40)
+        await page.wait_for_timeout(300)
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    for name, opts in {"1440x900": dict(viewport={"width": 1440, "height": 900}),
+                       "390x844": dict(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)}.items():
+        page = await open_page(browser, **opts); cdp = await page.context.new_cdp_session(page)
+        await page.goto(page_url); await page.wait_for_timeout(9000); await hero_settled(page)
+        for label, start, to, want in (("down to 35%", 0, .35, 1), ("down a nudge (5%)", 0, .05, 0),
+                                       ("up from the table to 65%", 1, .65, 0), ("up a nudge from the table (95%)", 1, .95, 1)):
+            await page.evaluate(f"scrollTo({{top: reus.hingeAt(0) * {start}, behavior: 'instant'}})"); await page.wait_for_timeout(1500)
+            await gesture(page, cdp, to, "is_mobile" in opts)
+            p = await rests(page)
+            if abs(p - want) > .002: errs.append(f"{name}: let go {label}, the page rests at {p:.0%} of the turn (expected {want:.0%})")
+        # below the turn, the table is read as it is
+        await page.evaluate("scrollTo({top: reus.hingeAt(0) * 1.4, behavior: 'instant'})"); await page.wait_for_timeout(300)
+        await gesture(page, cdp, 1.6, "is_mobile" in opts)
+        y0 = await page.evaluate("scrollY"); await page.wait_for_timeout(2500)
+        if await page.evaluate("scrollY") != y0: errs.append(f"{name}: reading the table below the turn, the page moves on its own")
+        await page.close()
+    page = await open_page(browser, viewport={"width": 1440, "height": 900}, reduced_motion="reduce"); cdp = await page.context.new_cdp_session(page)
+    await page.goto(page_url); await page.wait_for_timeout(3000)
+    await gesture(page, cdp, .4, False)
+    p = await rests(page)
+    if abs(p - .4) > .02: errs.append(f"reduced motion: let go at 40%, the page moves on its own to {p:.0%}")
+    await page.close()
+    return errs
+
 async def check_table_at_load(browser):
     """At load the table is out of sight under the hero (the wall covers the screen until you scroll), yet it gets
     painted then, while the landscape is being painted. Nobody can see it: it is painted at once, in a draw or two
