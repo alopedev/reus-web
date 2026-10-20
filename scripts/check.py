@@ -1412,8 +1412,15 @@ async def check_wall_kept(browser):
                 d.paste(80, tuple(round(v * dpr) for v in box)); bb = d.point(lambda v: 255 if v == 255 else 0).getbbox()
                 errs.append(f"{tag}: {when}, around {bb}, the wall differs from a still frame at that hour in {n} px (by up to {worst})")
         await same_wall("moving")
-        # a wash on the way to the table, and back to the hero
+        # a wash on the way to the table, and back to the hero. While the wall turns away its wash changes every
+        # frame, but the wall under it does not: the watercolour still repaints only the window (twice: with and
+        # without the wash), and the wash is laid over the wall already painted
         await page.evaluate("scrollTo({top: innerHeight * .3, behavior: 'instant'})"); await page.wait_for_timeout(2000)
+        turning = []
+        for i in range(4):
+            await page.evaluate(f"scrollTo({{top: innerHeight * {.3 + .02 * (i + 1)}, behavior: 'instant'}})"); await page.wait_for_timeout(400)
+            turning.append(await page.evaluate("window.reus.acuarela()"))
+        if max(turning) > min(.9, area * 2.6): errs.append(f"{tag}: while the wall turns away, each frame repaints {max(turning):.0%} of the screen in watercolour (the window is {area:.0%})")
         await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await page.wait_for_timeout(2500)
         await same_wall("after a wash and back")
         # a new size while the wall is turned (iOS Safari's toolbar shrinks as the page scrolls, mid-transition): the

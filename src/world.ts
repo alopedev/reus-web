@@ -106,7 +106,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
       skyTop:{value:new Vector3()}, skyHor:{value:new Vector3()}, sunCol:{value:new Vector3()}, sunPos:{value:new Vector2()}, sunA:{value:.85},
       aspect:{value:1}, waspect:{value:1}, hor:{value:.42}, win:{value:new Vector4(.2,.3,.8,.8)}, wrad:{value:.04}, seats:{value:1},
       wallA:{value:new Vector3()}, wallB:{value:new Vector3()}, wood:{value:new Vector3()}, seat:{value:new Vector3()},
-      foldY:{value:0}, shade:{value:0}, wx:{value:0}, brd:{value:new Vector4(0,0,0,0)} },
+      foldY:{value:0}, shade:{value:0}, wx:{value:0}, brd:{value:new Vector4(0,0,0,0)}, washAll:{value:0} },
     vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`,
     fragmentShader: watercolorFrag,
   });
@@ -122,7 +122,14 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     vertexShader:`void main(){ gl_Position=vec4(position.xy,0.,1.); }`,
     fragmentShader:`uniform sampler2D tKept; uniform vec2 size; void main(){ gl_FragColor = texture2D(tKept, gl_FragCoord.xy/size); }` });
   const copyScene = new Scene(); copyScene.add(new Mesh(new PlaneGeometry(2,2), copy));
-  let wallKept = false, share = 1;
+  // while the wall turns away (a wash, see shelf.ts), the wall is also kept fully washed in `wet`, and the WASH_PASS
+  // of the same shader lays each frame's wash between the two: the watercolour still only repaints the window
+  const wet = new WebGLRenderTarget(2, 2, {format:RGBAFormat, minFilter:NearestFilter, magFilter:NearestFilter, depthBuffer:false});
+  const washU = { ...U, tDry:{value:kept.texture}, tWet:{value:wet.texture} };
+  const washMat = new ShaderMaterial({ uniforms:washU, vertexShader:post.vertexShader, fragmentShader:'#define WASH_PASS\n' + watercolorFrag });
+  const washScene = new Scene(); washScene.add(new Mesh(new PlaneGeometry(2,2), washMat));
+  // wallKept/wetKept: the wall is painted in kept/wet; dryFresh/wetFresh: their window holds the latest landscape
+  let wallKept = false, wetKept = false, dryFresh = false, wetFresh = false, share = 1;
   // the stacked hero (phones, portrait tablets; the same media query as hero.css) has a small window: its landscape
   // is painted twice as fine, since the brush strokes are sized in the target's pixels and would read as pixels there
   const STACKED = matchMedia('(max-width:700px), (max-aspect-ratio:4/5)');
@@ -134,7 +141,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     const W = Math.max(2, Math.round(cw*s)), H = Math.max(2, Math.round(ch*s));
     renderer.setPixelRatio(1); renderer.setSize(W, H, false);
     U.sres.value.set(W, H); U.aspect.value = W/H;
-    kept.setSize(W, H); copy.uniforms.size.value.set(W, H); wallKept = false;
+    kept.setSize(W, H); wet.setSize(W, H); copy.uniforms.size.value.set(W, H); wallKept = wetKept = false;
     // the wall's boxes at rest: a new size can come while the wall is turned away (iOS Safari's toolbar shrinks as
     // the page scrolls), and its tilt (shelf.ts) would put the window and the board elsewhere on the screen
     const tilt = hero.style.transform; hero.style.transform = '';
@@ -162,7 +169,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     const p = daylight(min);
     U.skyTop.value.set(...p.top); U.skyHor.value.set(...p.hor); U.sunCol.value.set(...p.sun); U.sunPos.value.set(...p.sunUV); U.sunA.value = p.glow;
     U.wallA.value.set(...p.wallA); U.wallB.value.set(...p.wallB); U.wood.value.set(...p.wood); U.seat.value.set(...p.seat);
-    wallKept = false;
+    wallKept = wetKept = false;
     hemi.color.set(p.hemi[0]); hemi.groundColor.set(p.hemi[1]); hemi.intensity = p.hemi[2]*LUX;
     sun.color.set(p.dir[0]); sun.intensity = p.dir[1]*LUX; sun.position.set(...p.dir[2]);
     // Safari on iPhone paints the strip around the Dynamic Island in one flat colour, read at load: the top edge of
@@ -182,33 +189,41 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     const hx = -(((offset % RW)+RW) % RW); headlands[0].position.x = hx - RW/2; headlands[1].position.x = hx + RW/2;
     U.tq.value = time; U.reveal.value = reveal;
     renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, camera);
+    dryFresh = wetFresh = false;
     paint();
     washed = true;
   }
-  // the watercolour pass onto the screen. While the wall changes (painting in, a wash), all of it, straight to the
-  // screen; once it rests, all of it once into `kept`, then only the window's box, with a margin for the painted
-  // wobble of its edge (up to .003 of the screen) and its rounded corners
+  // the watercolour pass onto the screen. While the wall paints in, all of it, straight to the screen; once it is
+  // painted, all of it once into `kept`, then only the window's box, with a margin for the painted wobble of its
+  // edge (up to .003 of the screen) and its rounded corners. While it turns away, the same into `wet` (the wall
+  // fully washed), and the wash is laid between the two (WASH_PASS); at rest `kept` is copied as it is
   function paint(){
-    if(U.reveal.value < 1 || U.shade.value > 0){
-      wallKept = false; share = 1;
+    if(U.reveal.value < 1){
+      wallKept = wetKept = false; share = 1;
       renderer.setRenderTarget(null); renderer.render(postScene, postCam); return;
     }
     const W = kept.width, H = kept.height, w = U.win.value, m = .006;
     const x0 = Math.max(0, Math.floor((w.x - m)*W) - 2), y0 = Math.max(0, Math.floor((w.y - m)*H) - 2);
     const x1 = Math.min(W, Math.ceil((w.z + m)*W) + 2), y1 = Math.min(H, Math.ceil((w.w + m)*H) + 2);
-    kept.scissorTest = wallKept; kept.scissor.set(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
-    share = wallKept ? (x1 - x0)*(y1 - y0)/(W*H) : 1;
-    renderer.setRenderTarget(kept); renderer.render(postScene, postCam);
-    wallKept = true;
-    renderer.setRenderTarget(null); renderer.render(copyScene, postCam);
+    const box = Math.max(0, x1 - x0)*Math.max(0, y1 - y0)/(W*H);
+    // into a target: the whole wall the first time, then the window's box; returns the share of the screen painted
+    const into = (target: WebGLRenderTarget, whole: boolean) => {
+      target.scissorTest = !whole; target.scissor.set(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
+      renderer.setRenderTarget(target); renderer.render(postScene, postCam); return whole ? 1 : box;
+    };
+    const shade = U.shade.value; share = 0;
+    U.shade.value = 0;
+    if(!wallKept || !dryFresh){ share += into(kept, !wallKept); wallKept = dryFresh = true; }
+    if(shade > 0 && (!wetKept || !wetFresh)){ U.washAll.value = 1; share += into(wet, !wetKept); wetKept = wetFresh = true; U.washAll.value = 0; }
+    U.shade.value = shade;
+    renderer.setRenderTarget(null); renderer.render(shade > 0 ? washScene : copyScene, postCam);
   }
   // the wash follows the scroll directly (no smoothing of its own). It must show even when the loop is not
-  // running (paused, or before the landscape starts), so it redraws just the post pass over the scene
-  // already in the render target, at most once per frame however many scroll events arrive. Scroll events come
-  // before the animation frames: when the loop paints in that same frame it already paints this wash, and a
-  // second full-screen pass would only double the cost (washed: the latest wash is on screen)
+  // running (paused, or before the landscape starts), so it lays the wash again over the wall already painted
+  // (paint(): with the landscape unchanged, no watercolour at all), at most once per frame however many scroll
+  // events arrive. Scroll events come before the animation frames: when the loop paints in that same frame it
+  // already lays this wash, and a second pass would only double the cost (washed: the latest wash is on screen)
   function setWash(foldY: number, shade: number){
-    if(U.foldY.value !== foldY || U.shade.value !== shade) wallKept = false;
     U.foldY.value = foldY; U.shade.value = shade; washed = false;
     if(!washRaf) washRaf = requestAnimationFrame(() => { washRaf = 0; if(washed) return; paint(); washed = true; });
   }

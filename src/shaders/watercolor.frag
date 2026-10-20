@@ -1,6 +1,6 @@
 precision highp float;
 uniform sampler2D tScene; uniform vec2 res, sres; uniform float tq, reveal, aspect, waspect, hor, wrad, seats, foldY, shade;
-uniform vec3 skyTop, skyHor, sunCol, wallA, wallB, wood, seat; uniform vec2 sunPos; uniform float sunA; uniform vec4 win; uniform float wx; uniform vec4 brd;
+uniform vec3 skyTop, skyHor, sunCol, wallA, wallB, wood, seat; uniform vec2 sunPos; uniform float sunA; uniform vec4 win; uniform float wx; uniform vec4 brd; uniform float washAll;
 varying vec2 vUv;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
@@ -54,6 +54,27 @@ vec3 outside(vec2 w, float t, out float e, out float pen){
 }
 float ring(float sd, float w){ return 1. - smoothstep(0., w, abs(sd)); }
 
+// the wash's front at this point of the wall: where it has climbed to (foldY, shade), roughened by 2D noise
+float washFront(vec2 uv){
+  float washTop = foldY + shade*(1.08 - foldY);
+  return uv.y - washTop - (fbm(uv*vec2(9.,6.)*vec2(aspect,1.) + 4.7) - .5)*.11;
+}
+#ifdef WASH_PASS
+// While the wall turns away only its wash changes. Rather than painting the whole wall again every frame, the wall is
+// kept painted twice, dry and fully washed (washAll), and this pass lays the wash between them: in the pigment model
+// below the paint is linear in how much the wash darkens the colour, so a part-wash is the mix of the two. Its rim
+// darkens the paint the way the full pass's edge term does
+uniform sampler2D tDry, tWet;
+void main(){
+  vec2 uv = vUv;
+  float washD = washFront(uv);
+  float wash = (1. - smoothstep(-.04, .04, washD)) * step(.001, shade);
+  vec3 c = mix(texture2D(tDry, uv).rgb, texture2D(tWet, uv).rgb, wash*(.35 + .65*shade));
+  vec3 paper = vec3(.94,.93,.90) * (.965 + .06*fbm(uv*sres*.09));
+  c = paper - (paper - c)*(1. + ring(washD, .03)*wash*.32);
+  gl_FragColor = vec4(max(c, 0.), 1.);
+}
+#else
 void main(){
   vec2 uv = vUv, t2 = vec2(tq);
   float t = tq;
@@ -152,11 +173,11 @@ void main(){
   // and climbs the whole wall, window included, as the wall turns (shade); it deepens as it climbs.
   // Its front is one continuous line roughened by 2D noise, so it advances unevenly by zone, and
   // darker and grainier at its rim, like a real wash
-  float washTop = foldY + shade*(1.08 - foldY);
-  float washD = uv.y - washTop - (fbm(uv*vec2(9.,6.)*vec2(aspect,1.) + 4.7) - .5)*.11;
+  // (washAll: the whole wall fully washed, with no rim, the far end the WASH_PASS mixes towards)
+  float washD = washFront(uv);
   float wash = (1. - smoothstep(-.04, .04, washD)) * step(.001, shade);
-  col *= mix(vec3(1.), vec3(.42,.38,.35), wash*(.35 + .65*shade));
-  edge += ring(washD, .03)*wash*.8;
+  col *= mix(vec3(1.), vec3(.42,.38,.35), washAll > .5 ? 1. : wash*(.35 + .65*shade));
+  edge += ring(washD, .03)*wash*.8*(1. - washAll);
 
   // paint it: absorbance, uneven density, granulation, darker edges, paper
   float wet = clamp((reveal*1.3 - order)/.16, 0., 1.);
@@ -171,3 +192,4 @@ void main(){
   c *= 1. - pen*wet*vec3(.62,.6,.55);
   gl_FragColor = vec4(c, 1.);
 }
+#endif
