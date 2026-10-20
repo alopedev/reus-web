@@ -23,18 +23,15 @@ test('a weekday morning, Sants → Reus: the next regional with its countdown, t
   assert.deepEqual(desk(HOME, '2026-10-01', '10:00'), ['R15 10:03 el pròxim, en 3 min → 11:33', 'R15 11:03 després → 12:33']);
 });
 
-// fewer pieces on a phone (Àlex 19-10, mockup 1): the highlighted time lies on a card of its own, and its tear-off
-// strip says how long the trip is and holds «Compra»; the other trip stays on the wall. A desktop has no card
-const card = (html: string) => html.match(/^<div class="carta"[^>]*>/) ? html.match(/<div class="tira">(.*?)<\/div>/)?.[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : null;
-test('on a phone the highlighted time comes on a card, its strip with the trip’s length and «Compra»', () => {
+// the window first on a phone (Àlex 19-10, P2 on one line): the board is one line, the highlighted time alone, with
+// its «›» to the train's sheet; the next trip is on the ruler and in the sheet. No card, no stub on the board («Compra»
+// heads the board, by the days: timetable.ts). A desktop keeps both trips
+test('on a phone the board is one line: the highlighted time alone, no card and no stub', () => {
   const v = at('2026-10-01', '10:00', HOME), rows = board(v, true, true);
-  assert.equal(card(rows[0]), '1 h 30 min de viatge');
-  assert.ok(rows[0].includes(`href="${v.buy.replace(/&/g, '&amp;')}"`), 'the card holds the stub to buy');
-  assert.equal(card(rows[1]), null);
-  assert.equal(card(board(v, true, false)[0]), null);
-  const gone = at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 543 });
-  assert.equal(card(board(gone, true, true)[0]), '1 h 30 min de viatge');
-  assert.ok(!board(gone, true, true)[0].includes('talo'), 'a departed train has nothing to buy');
+  assert.equal(rows.length, 1);
+  assert.match(rows[0], /^<button type="button" class="trip big"/);
+  assert.doesNotMatch(rows[0], /carta|talo/);
+  assert.equal(board(v, true, false).length, 2);
 });
 
 const BACK: ViewState = { ...HOME, dir: 'bcn' };
@@ -42,18 +39,16 @@ test('Reus → Sants at night: today’s last AVE from Camp de Tarragona, then t
   assert.deepEqual(desk(BACK, '2026-10-01', '21:30'), ['AVE 22:17 el pròxim, en 47 min → 22:59 des de Camp de Tarragona', 'R15 05:36 demà → 07:07']);
 });
 
-// on a phone every trip is a button: its times, the countdown on the train shown, «demà» where it applies, and a «›»;
-// what a screen reader hears is the whole trip and that it opens its detail
+// on a phone the trip is a button: its times, the countdown, and a «›»; what a screen reader hears is the whole trip
+// and that it opens its detail
 const label = (html: string) => html.match(/aria-label="([^"]*)"/)?.[1];
-test('on a phone the board keeps the times, and each trip says itself in full to a screen reader', () => {
+test('on a phone the board keeps the times, and the trip says itself in full to a screen reader', () => {
   const rows = board(at('2026-10-01', '10:00', HOME), true, true);
-  assert.deepEqual(rows.map(read), ['R15 10:03 en 3 min → 11:33 ›', 'R15 11:03 → 12:33 ›']);
-  assert.deepEqual(rows.map(label), ['R15 de les 10:03, surt en 3 min, arriba a les 11:33. Veure el detall i comprar',
-    'R15 de les 11:03, arriba a les 12:33. Veure el detall i comprar']);
+  assert.deepEqual(rows.map(read), ['R15 10:03 en 3 min → 11:33 ›']);
+  assert.deepEqual(rows.map(label), ['R15 de les 10:03, surt en 3 min, arriba a les 11:33. Veure el detall i comprar']);
   const night = board(at('2026-10-01', '21:30', BACK), false, true);
-  assert.deepEqual(night.map(read), ['AVE 22:17 en 47 min → 22:59 ›', 'R15 05:36 demà → 07:07 ›']);
-  assert.deepEqual(night.map(label), ['AVE de les 22:17 des de Camp de Tarragona, surt en 47 min, arriba a les 22:59. Veure el detall i comprar',
-    'R15 de les 05:36, demà, arriba a les 07:07. Veure el detall i comprar']);
+  assert.deepEqual(night.map(read), ['AVE 22:17 en 47 min → 22:59 ›']);
+  assert.deepEqual(night.map(label), ['AVE de les 22:17 des de Camp de Tarragona, surt en 47 min, arriba a les 22:59. Veure el detall i comprar']);
 });
 
 test('on a desktop the other trip is a button that names itself', () => {
@@ -107,8 +102,7 @@ test('a train picked that has already left says so where the next one would say 
 });
 
 // Renfe opens the day's list, not the train (src/buy.ts). The way there is the stub «Compra» (talons.ts, A3, Àlex 18-10):
-// the time is only a time, on a desktop as on a phone (the hint that it could be pressed went with it, Àlex 18-10).
-// On a phone the stub lies on the card of the highlighted time (mockup 1, Àlex 19-10): it is the only way to Renfe
+// the time is only a time, on a desktop as on a phone (the hint that it could be pressed went with it, Àlex 18-10)
 const links = (html: string) => (html.match(/href="https:\/\/venta\.renfe\.com[^"]*"/g) ?? []).length;
 const noStub = (html: string) => html.replace(/<a class="talo.*?<\/a>/g, '');
 test('the train shown is only its time: no row of the board links to Renfe', () => {

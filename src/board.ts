@@ -1,26 +1,16 @@
 import { hhmm } from './time';
 import { lineStyle } from './towns';
 import { journey } from './journey';
-import { talons } from './talons';
-import { cut } from './paper';
 import type { Row, Shown } from './shown';
 
 // the board's trips as they read: one row's HTML per trip, the train shown first. Every word of a row is decided here
 // («el pròxim» or «ja ha sortit», «després» or «demà», a delay, «cancel·lat», «sense dades», Camp de Tarragona, what a
 // screen reader hears); timetable.ts only puts it on the page. Pure: the direction and the phone come in as values, so
 // scripts/test/ reads the rows in Node against the frozen timetable
+// The window first on a phone (Àlex 19-10, P2 on one line): the board is one line, the highlighted time alone; the
+// next trip is on the ruler and in the train's sheet
 export function board(v: Extract<Shown, { kind: 'train' }>, ida: boolean, phone: boolean): string[] {
-  return v.rows.map(r => {
-    const row = trip(r, ida, phone, r.big ? journey(v.stops, r.dep, r.arr, v.where?.at ?? null) : '');
-    return phone && r.big ? card(row, v) : row;
-  });
-}
-
-// fewer pieces on a phone (Àlex 19-10, mockup 1): the highlighted time lies on a card of its own, cut with scissors
-// like the ticket, and its tear-off strip says how long the trip is and holds «Compra» (talons.ts). The stub stands
-// outside the cut, or the cut would take its shadow, the one hard «press me» shadow on a phone
-function card(row: string, v: Extract<Shown, { kind: 'train' }>): string {
-  return `<div class="carta" style="--cut:${cut(11)}"><div class="cos">${row}<div class="tira"><span class="lema">${v.trip.length} de viatge</span></div></div>${talons(v)}</div>`;
+  return v.rows.filter(r => !phone || r.big).map(r => trip(r, ida, phone, r.big ? journey(v.stops, r.dep, r.arr, v.where?.at ?? null) : ''));
 }
 
 // one trip of the board: line, departure, which one it is («el pròxim», with its countdown, and «després»; «demà»

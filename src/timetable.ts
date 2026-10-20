@@ -1,6 +1,6 @@
 import { reduce, state } from './state';
 import { madridNow, firstDay, lastDay, source, NET, bcnName, bcnShort, addDays } from './time';
-import { shown, tomorrowAt, type Mark } from './shown';
+import { shown, tomorrowAt, looked, type Mark } from './shown';
 import { board } from './board';
 import { talons } from './talons';
 import { cut, torn } from './paper';
@@ -9,7 +9,6 @@ import { setupDetail, type Trip } from './detail';
 import { fitJourney } from './journey';
 import { dotDate, dotText, padMonth } from './dots';
 import { byId, find } from './dom';
-import { daylight, paperLight } from './light';
 import type { World } from './world';
 import type { Table } from './table';
 import type { Scenery } from './scenery';
@@ -46,9 +45,8 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     retards.follow();
     setRoute(route(state.dir==='casa', NET.estaciones[state.town].nombre));
     marks = v.ruler; tomorrow = v.tomorrow;
-    setDays(now.date, v.tomorrow);
-    // on a phone «Compra» lies on the card of the highlighted time (board.ts; mockup 1, Àlex 19-10)
-    setTalons(narrow.matches ? '' : talons(v));
+    setDays(now.date, looked(v, now.date));
+    setTalons(talons(v));
     byId('lbl').textContent = v.label;
     tIn.value = String(v.knob ?? Math.min(R1, Math.max(R0, now.min)));
     tIn.setAttribute('aria-valuetext', v.valuetext);
@@ -56,8 +54,6 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     nowBtn.hidden = state.useNow || v.tomorrow;
     if(world) world.setTime(v.light);
     table.setTime(v.light);
-    // the papers of a phone's hero take the same light (mockup 1, Àlex 19-10)
-    byId('hero').style.setProperty('--luz', paperLight(daylight(v.light)));
     setDate(v.day);
     if(v.kind === 'none'){
       byId('ticks').innerHTML = nowLine(now.min);
@@ -131,7 +127,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   const days = byId('days');
   let daysHtml = '';
   const longDay = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('ca-ES', { weekday:'long', day:'numeric', month:'long', timeZone:'UTC' });
-  function setDays(today: string, tom: boolean){
+  function setDays(today: string, on: 'avui' | 'dema'){
     const tw = addDays(today, 1);
     // a tear-off pad (Àlex 15-10, A): a cardboard with the month printed in dots, and two sheets hanging from its
     // perforation, their bottom torn by hand. No weekday on them since 18-10 (H2, Àlex: shorter sheets); the name says it
@@ -140,7 +136,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
       + `<span class="pp" aria-hidden="true" style="clip-path:${torn(seed)}"><span class="perf"></span>`
       + `<i>${word.toLowerCase()}</i> <b>${+iso.slice(8)}</b></span></button>`;
     const html = `<span class="taco" aria-hidden="true">${dotText(padMonth(today, tw), '#F1EADC')}</span>`
-      + sheet('avui', 'Avui', today, !tom, 7) + sheet('dema', 'Demà', tw, tom, 20);
+      + sheet('avui', 'Avui', today, on === 'avui', 7) + sheet('dema', 'Demà', tw, on === 'dema', 20);
     if(html === daysHtml) return;
     const had = days.querySelector<HTMLElement>(':focus')?.dataset.dia;
     days.innerHTML = daysHtml = html;
@@ -156,7 +152,8 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     if(had) talonsEl.querySelector<HTMLElement>('.' + had)?.focus({preventScroll:true});
   }
   days.addEventListener('click', e=>{
-    const b = (e.target as Element).closest<HTMLElement>('.full'); if(!b) return;
+    // the day pressed is the day looked at already: nothing to do (at night «demà» is pressed with tomorrow's first train)
+    const b = (e.target as Element).closest<HTMLElement>('.full'); if(!b || b.classList.contains('on')) return;
     if(b.dataset.dia === 'avui'){ state.useNow = true; state.day = null; state.ave = false; }
     else Object.assign(state, { useNow: false, ...tomorrowAt(madridNow(), state) });
     render();
@@ -206,9 +203,9 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
       <span class="pp"><span class="k">Bitllet</span>
       <span class="route"></span></span><span class="stub" aria-hidden="true"></span><span class="fecha" aria-hidden="true"></span>
     </div>`;
-  // on a phone the day is punched on the ticket's stub, as a conductor would (mockup 1, Àlex 19-10): fewer pieces on
-  // the wall; on a desktop the pad hangs over the ruler
-  const placeDays = () => { if(narrow.matches) find('.tk').append(days); else find('.rulerHead').prepend(days); };
+  // on a phone the days and «Compra» head the board, like a platform's board (Àlex 19-10, P2 on one line): the window
+  // keeps its height; on a desktop the pad hangs over the ruler and «Compra» stands over the highlighted time
+  const placeDays = () => { if(narrow.matches) byId('cap').append(days, talonsEl); else { find('.rulerHead').prepend(days); find('.rulerHead').append(talonsEl); } };
   placeDays(); narrow.addEventListener('change', placeDays);
   const detail = setupDetail(), notice = setupNotice();
   const chooser = setupChooser(
