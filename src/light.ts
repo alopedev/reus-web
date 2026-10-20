@@ -72,3 +72,4 @@ export function daylight(min: number, iso: string = madridNow().date): Daylight 
   }
   return m[m.length-1][1];
 }
+

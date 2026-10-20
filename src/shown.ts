@@ -143,6 +143,10 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
     ave: isAve, rows, buy, stops, trip, where, lines: [...new Set(rows.filter(r => !r.ave).map(r => r.line))] };
 }
 
+// the day sheet pressed, «avui» or «demà»: the day of the train shown (Àlex 19-10), so that at night, with tomorrow's
+// first trains on the board, «demà» is pressed
+export function looked(s: Shown, today: string): 'avui' | 'dema' { return s.day > today ? 'dema' : 'avui'; }
+
 // the «Demà» sheet (B3, Àlex 15-10): tomorrow's train at this time of day, the first to leave from now's minute on,
 // regional or AVE (late at night, tomorrow's last). Whoever looks at tomorrow mostly repeats today's trip; the ruler
 // takes them to any other hour

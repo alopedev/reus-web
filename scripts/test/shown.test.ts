@@ -2,7 +2,7 @@
 // of 2026). `npm test`, in a second, no browser: check.py keeps the look, these keep the rules
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { shown, tomorrowAt, type Shown } from '../../src/shown.ts';
+import { shown, tomorrowAt, looked, type Shown } from '../../src/shown.ts';
 import type { ViewState } from '../../src/state.ts';
 import type { Known } from '../../src/retards.ts';
 import { GROUPS } from '../../src/towns.ts';
@@ -282,4 +282,13 @@ test('a train shown that has already left says so on the board, on its way or ar
   assert.equal(train(at('2026-10-01', '09:00', PICKED)).rows[0].gone, false);
   assert.equal(train(at('2026-10-01', '10:00', HOME)).rows[0].gone, false);
   assert.equal(train(at('2026-10-01', '23:10', BACK)).rows[0].gone, false);
+});
+
+// «avui · demà» says the day of the train shown (Àlex 19-10): at night, once the board has moved on to tomorrow's
+// first trains, «demà» is the one pressed, not «avui»; today's last AVE is still today's
+test('the day sheet pressed is the day of the train shown', () => {
+  assert.equal(looked(at('2026-10-01', '10:00', HOME), '2026-10-01'), 'avui');
+  assert.equal(looked(at('2026-10-01', '23:30', HOME), '2026-10-01'), 'dema');
+  assert.equal(looked(at('2026-10-01', '21:30', BACK), '2026-10-01'), 'avui');
+  assert.equal(looked(at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 603, day: '2026-10-02' }), '2026-10-01'), 'dema');
 });
