@@ -60,7 +60,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
       byId('board').innerHTML = drawn = ''; cur = null; setStamp([]);
       if(said !== v.key){ byId('aviso').textContent = v.say; said = v.key; }
       byId('note').textContent = v.note;
-      if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
+      scenery.still();
       return;
     }
     // the ruler has one mark: the knob always stands on the train shown; now is a thin line with its word
@@ -85,7 +85,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     if(nk !== noticed){ if(ns.length) byId('aviso').textContent = (told ? byId('aviso').textContent + ' ' : '') + heard(ns); noticed = nk; }
     detail.refresh(cur);
     byId('note').textContent = v.note;
-    if(world && (!scenery.isPlaying() || reduce)) world.frame(0,0,1);
+    scenery.still();
   }
   // the ticket's route: both ends are buttons, the town's opens the town chooser and Barcelona's the station
   // chooser (3.5); the arrows turn the order around, so the DOM order matches what is read: «Sants ▶▶▷ Reus» / «Reus ▶▶▷ Sants»

@@ -35,7 +35,7 @@ const table = createTable();
 const flaps = createFlaps(world ? r => world.snap(r) : undefined);
 const scenery = createScenery(world, flaps.play);
 // the weather at home: the window repaints when it changes (also the still frame of reduced motion, or paused)
-const weather = createWeather(w => { if(!world) return; world.setWeather(w); if(!scenery.isPlaying()) world.frame(0, 0, 1); });
+const weather = createWeather(w => { if(!world) return; world.setWeather(w); scenery.still(); });
 // the lines' notices: the board redraws its stamp when what is known changes
 const avisos = createAvisos(() => render());
 // the live delay of the train shown (Renfe's real-time feed): the board redraws when what is known changes
@@ -44,7 +44,7 @@ const { render } = setupTimetable({ world, table, scenery, weather, avisos, reta
 render();
 // the window's size depends on the tickets and the fonts: measure it again once they are in, and repaint the still
 // frame too (reduced motion, or paused), which otherwise keeps the window where it was first painted
-document.fonts && document.fonts.ready.then(()=> { if(!world) return; world.resize(); if(!scenery.isPlaying()) world.frame(0, 0, 1); });
+document.fonts && document.fonts.ready.then(()=> { if(!world) return; world.resize(); scenery.still(); });
 scenery.repaint();
 setupShelf(world);
 setupPrivacy();

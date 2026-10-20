@@ -2,7 +2,9 @@ import { reduce, state } from './state';
 import { byId } from './dom';
 import type { World } from './world';
 
-export interface Scenery { repaint(): void; kick(): void; isPlaying(): boolean }
+// still(): whoever changes what the window shows (the time, the weather, its size) asks for the still frame again;
+// while the landscape moves, its own loop paints it and still() does nothing
+export interface Scenery { repaint(): void; kick(): void; still(): void; isPlaying(): boolean }
 
 // the landscape's loop: it paints itself in, then the train sets off; it rests when the hero is out of view
 // or the tab is hidden. R repaints and P pauses, for recording only: with ?grabar in the URL (one-key shortcuts
@@ -15,7 +17,7 @@ export function createScenery(world: World | null, onIn: () => void = () => {}):
   function show(){ if(stage.classList.contains('in')) return; stage.classList.add('in'); onIn(); }
   function repaint(){
     t0 = performance.now(); v = 0; stage.classList.remove('in');
-    if(reduce || !world){ show(); if(world) world.frame(0,0,1); return; }
+    if(reduce || !world){ show(); still(); return; }
     playing = true; kick();
   }
   function loop(t: number){
@@ -32,17 +34,18 @@ export function createScenery(world: World | null, onIn: () => void = () => {}):
   addEventListener('scroll', ()=>{ const off = scrollY >= innerHeight - 1; if(off !== offstage){ offstage = off; if(!off && playing) kick(); } }, {passive:true});
   function kick(){ if(!rafId && world){ lastT = performance.now(); rafId = requestAnimationFrame(loop); } }
   document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && playing) kick(); });
-  addEventListener('resize', ()=>{ if(!playing && world) world.frame(0,0,1); });
+  function still(){ if(world && !playing) world.frame(0,0,1); }
+  addEventListener('resize', still);
   // the painted window follows #win, which also moves without a resize: the board grows a line at night
   // («Hoy ya no quedan regionales»), another town, a trip of tomorrow. Read only on resize, the painting would
   // keep the old window and paint it under the text. Its cell too: #win is centred in it, so it can move
   // without changing size
-  if(world){ const ro = new ResizeObserver(()=>{ world.resize(); if(!playing) world.frame(0,0,1); });
+  if(world){ const ro = new ResizeObserver(()=>{ world.resize(); still(); });
     ro.observe(byId('win')); ro.observe(byId('win').parentElement!); }
   if(new URLSearchParams(location.search).has('grabar')) addEventListener('keydown', e=>{
     if((e.target as Element).closest?.('input,button')) return;
     if(e.key==='r' || e.key==='R') repaint();
     if(e.key==='p' || e.key==='P'){ playing=!playing; if(playing) kick(); }   // space is left to scroll the page
   });
-  return { repaint, kick, isPlaying: () => playing };
+  return { repaint, kick, still, isPlaying: () => playing };
 }
