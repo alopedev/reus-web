@@ -1718,6 +1718,7 @@ async def check_hero(browser):
     errs += [f"town: {e}" for e in await check_town_fit(browser)]
     errs += [f"strip: {e}" for e in await check_strip_whole(browser)]
     errs += [f"phone: {e}" for e in await check_phone_board(browser)]
+    errs += [f"phone sheet: {e}" for e in await check_sheet_close(browser)]
     errs += await check_sheet_holds_page(browser)
     # 3.5 · the Barcelona station
     errs += [f"station: {e}" for e in await check_station(browser)]
@@ -2280,6 +2281,9 @@ async def check_wagon(browser):
     if (await page.evaluate(WAGON))["wagon"]: errs.append("the next train, still at Sants, has a wagon on its route")
     if (t := await page.evaluate(lead)) != "el pròxim,": errs.append(f"the next train's board says «{t}», expected «el pròxim,»")
     await page.evaluate(pick); await page.wait_for_timeout(400)
+    # fitJourney places the names on a later frame, and software rendering gives few frames: wait until they are spread
+    try: await page.wait_for_function("new Set([...document.querySelectorAll('#board .trip.big .rec .s')].filter(s => !s.hidden).map(s => Math.round(s.getBoundingClientRect().left))).size > 1", timeout=CLICK_MS)
+    except Exception: pass
     # a train that has already left is not «el pròxim» (Àlex 10-10)
     if (t := await page.evaluate(lead)) != "ja ha sortit": errs.append(f"the 09:03, gone at 10:00, says «{t}» on the board, expected «ja ha sortit»")
     j = await page.evaluate(WAGON)
@@ -2304,7 +2308,7 @@ async def check_wagon(browser):
     page = await hero_page(browser, 390, 844)
     await page.click("#board button.big"); await page.wait_for_timeout(500)
     if await page.evaluate("!!document.querySelector('#detalle .viatge')"): errs.append("phone: the next train's sheet has a wagon")
-    await page.click("#detalle .x"); await page.wait_for_timeout(300)
+    await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
     await page.evaluate(pick); await page.wait_for_timeout(400)
     await page.click("#board button.big"); await page.wait_for_timeout(500)
     s = await page.evaluate("""(() => { const v = document.querySelector('#detalle .viatge'); if(!v) return null;
@@ -2719,6 +2723,69 @@ PHONE = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), d = document.
           home: (h => h && {url: h.origin + h.pathname, text: h.searchParams.get('text'), tab: d.querySelector('.avisa').target === '_blank'})(d.querySelector('.avisa') && new URL(d.querySelector('.avisa').href)),
           focus: document.activeElement?.matches('#board button.big') ?? false}; })()"""
 
+# the sheet's way out, armed before the gesture: whether the sheet was still open when the gesture landed, the
+# animations it then ran (the paper's keyframes and the backdrop's) and when it closed
+SHEET_WATCH = """(() => { const d = document.getElementById('detalle'), p = d.querySelector('.pliego');
+  window.__cierre = new Promise(done => {
+    const go = () => { const t0 = performance.now();
+      setTimeout(() => {                                     // once the gesture's own handlers have run
+        const still = d.open;
+        const runs = document.getAnimations().filter(a => a.playState === 'running');
+        const paper = runs.find(a => a.effect.target === p), dim = runs.find(a => a.effect.target === d && a.effect.pseudoElement === '::backdrop');
+        const last = paper ? paper.effect.getKeyframes().at(-1).transform : null;
+        (function wait(){ if(d.open && performance.now() - t0 < 4000) return setTimeout(wait, 20);
+          done({still, last, dim: !!dim, open: d.open, ms: Math.round(performance.now() - t0),
+                focus: document.activeElement?.matches('#board button.big') ?? false}); })();
+      }, 0);
+    };
+    d.addEventListener('cancel', go, {once:true, capture:true});
+    d.addEventListener('click', e => { if(e.target === d) go(); }, {once:true, capture:true});
+  }); })()"""
+
+async def check_sheet_close(browser):
+    """The train's sheet on a phone closes softly (Àlex 20-10, option A): no handle on top (nothing can be dragged
+    yet) and no ✕ drawn (Àlex: «quita la x»); a tap outside, Esc or Android's back gesture slide the paper back down
+    the way it came while the backdrop clears, and only then is it closed, with the focus back on the big train. The
+    ✕ stays for the keyboard and the screen reader: invisible until it gets the keyboard's focus. With reduced
+    motion it closes at once, as it opens."""
+    errs = []
+    for motion in ("no-preference", "reduce"):
+        page = await open_page(browser, viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, reduced_motion=motion)
+        await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
+        await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1200)
+        await page.add_style_tag(content=".top,.info{opacity:1!important;transition:none!important;transform:none!important}")
+        for how in ("a tap outside", "Esc"):
+            await page.click("#board button.big", timeout=CLICK_MS); await page.wait_for_timeout(900)
+            if motion == "no-preference" and how == "a tap outside":
+                k = await page.evaluate("""(() => { const p = document.querySelector('#detalle .pliego'), x = document.querySelector('#detalle .x'), r = x?.getBoundingClientRect();
+                  return {handle: getComputedStyle(p, '::before').content, x: x ? {w: r.width, h: r.height, label: x.getAttribute('aria-label')} : null}; })()""")
+                if k["handle"] not in ("none", "normal"): errs.append(f"the sheet still draws a handle on top ({k['handle']})")
+                if not k["x"]: errs.append("the sheet has no close button for the keyboard and the reader")
+                elif k["x"]["w"] > 1 or k["x"]["h"] > 1: errs.append(f"the ✕ is still drawn ({k['x']['w']:.0f} × {k['x']['h']:.0f} px)")
+                elif k["x"]["label"] != "Tancar": errs.append(f"the hidden close button is called «{k['x']['label']}»")
+                await page.keyboard.press("Tab")
+                f = await page.evaluate("(() => { const x = document.activeElement, r = x.getBoundingClientRect(); return {x: x.matches('#detalle .x'), w: r.width, h: r.height}; })()")
+                if not f["x"]: errs.append("Tab from the sheet does not reach its close button first")
+                elif f["w"] < 44 or f["h"] < 44: errs.append(f"the close button is {f['w']:.0f} × {f['h']:.0f} px with the keyboard's focus: it must show, at least 44 px")
+                await page.evaluate("document.querySelector('#detalle .pliego').focus()")
+            await page.evaluate(SHEET_WATCH)
+            if how == "Esc": await page.keyboard.press("Escape")
+            else: await page.mouse.click(195, 60)
+            c = await page.evaluate("window.__cierre")
+            when = f"{how} ({motion})"
+            if c["open"]: errs.append(f"{when}: the sheet does not close")
+            elif not c["focus"]: errs.append(f"{when}: the focus is not back on the big train")
+            if motion == "reduce":
+                if c["still"]: errs.append(f"{when}: the sheet waits before closing; with reduced motion it closes at once")
+            else:
+                if not c["still"]: errs.append(f"{when}: the sheet closes at once, without sliding down")
+                if not c["last"] or "translateY(100%)" not in c["last"].replace(" ", ""): errs.append(f"{when}: the paper does not slide back down (ends at {c['last']})")
+                if not c["dim"]: errs.append(f"{when}: the backdrop does not clear with the paper")
+                if c["ms"] > 2500: errs.append(f"{when}: the sheet takes {c['ms']} ms to close")
+            await page.wait_for_timeout(300)
+        await page.close()
+    return errs
+
 async def check_phone_board(browser):
     """6B (Àlex, 06-10): on a phone the board keeps only the times, the countdown and a «›»; since 19-10 (P2 on
     one line) it is the highlighted time alone, a button that opens a paper sheet with its detail and «Compra a Renfe ↗».
@@ -2762,7 +2829,8 @@ async def check_phone_board(browser):
     if b["open"]: errs.append("Esc does not close the sheet")
     elif not b["focus"]: errs.append("after Esc the focus is not back on the big train")
     await sheet("after picking the 11:03", "11:03", "12:33", "Surt en 1 h 3 min", ("0071,71801,71801", "0071,71400,71400", "28/09/2026"))
-    if await tap("#detalle .x", "✕") and (await page.evaluate(PHONE))["open"]: errs.append("✕ does not close the sheet")
+    await page.keyboard.press("Tab"); await page.keyboard.press("Enter"); await page.wait_for_timeout(300)
+    if (await page.evaluate(PHONE))["open"]: errs.append("the close button (Tab, Enter) does not close the sheet")
     await tap("#board button.big", "the backdrop")
     await page.mouse.click(195, 40); await page.wait_for_timeout(300)
     if (await page.evaluate(PHONE))["open"]: errs.append("the backdrop does not close the sheet")
@@ -2966,6 +3034,7 @@ async def main():
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · hora"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["fulls"]:
             failures += await check_sheet_holds_page(browser)
+            failures += await check_sheet_close(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · fulls"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["a11y"]:
             failures += await check_a11y(browser)

@@ -1,5 +1,6 @@
 import './styles/detail.css';
 import { byId } from './dom';
+import { closeSheet, closesSoftly } from './sheet';
 import { whatsappUrl } from './home';
 import { news, type LineNews } from './notice';
 import { wagonSvg } from './journey';
@@ -34,7 +35,7 @@ const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;'
 
 // the trip's detail on a phone (6B, Àlex 06-10): a sheet of paper that comes up from the bottom when a train of the
 // board is tapped. A native <dialog>, like the town chooser: Esc, the trapped focus and the inert backdrop come
-// from the browser. Closing it hands the focus back to the board's big train
+// from the browser. It leaves the way it came (`sheet.ts`); closing it hands the focus back to the board's big train
 export function setupDetail(): Detail {
   const dialog = byId<HTMLDialogElement>('detalle');
   let said = '', line = '', drawn = '', late = '';
@@ -64,10 +65,10 @@ export function setupDetail(): Detail {
     if(now !== late){ dialog.querySelector('.retard')?.remove(); if(now) dialog.querySelector('.horas')?.insertAdjacentHTML('afterend', now); late = now; }
     if(way !== drawn){ dialog.querySelector('.viatge')?.remove(); (dialog.querySelector('.retard') ?? dialog.querySelector('.horas'))?.insertAdjacentHTML('afterend', way); drawn = way; }
   }
-  dialog.addEventListener('click', e => {
-    const t = e.target as HTMLElement;
-    if(t === dialog || t.closest('.x')) dialog.close();                   // the backdrop is the dialog itself, outside .pliego
-  });
+  // a tap outside, Esc or the back gesture slide it back down (Àlex 20-10, option A); the ✕ is only for the keyboard
+  // and the reader (Àlex: «quita la x»): hidden until it gets the keyboard's focus
+  closesSoftly(dialog);
+  dialog.addEventListener('click', e => { if((e.target as HTMLElement).closest('.x')) closeSheet(dialog); });
   dialog.addEventListener('close', () => byId('board').querySelector<HTMLElement>('.big')?.focus({preventScroll:true}));
   return { open, refresh };
 }

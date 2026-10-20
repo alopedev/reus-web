@@ -6,6 +6,9 @@
   --alzado-papel:.07em .07em 0 rgba(45,36,28,.4); --alzado-papel-hover:.1em .1em 0 rgba(45,36,28,.45);
   --alzado-pared:.08em .08em 0 var(--shadow); --alzado-pared-hover:.11em .11em 0 var(--shadow);
   --grano-sello:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.4 1.5'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
+  /* how a sheet comes up and goes away (the train's sheet, Àlex 20-10, option A): it leaves the way it came, fast
+     at first and slowing as it goes (Vaul's curve), in the same time it takes to come up */
+  --entra:cubic-bezier(.2,.8,.3,1); --entra-ms:.35s; --sale:cubic-bezier(.32,.72,0,1); --sale-ms:.35s;
   --serif:'Young Serif', 'Iowan Old Style', Georgia, serif;
   /* Google's Literata has no arrows (→ ↗ ↔): they come from the system sans, as they did with Karla */
   --texto:'Literata', system-ui, -apple-system, 'Segoe UI', sans-serif;
