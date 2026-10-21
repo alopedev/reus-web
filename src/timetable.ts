@@ -1,6 +1,7 @@
 import { reduce, state } from './state';
 import { madridNow, firstDay, lastDay, source, NET, bcnName, bcnShort, addDays } from './time';
-import { shown, tomorrowAt, looked, type Mark } from './shown';
+import { shown, looked, type Mark } from './shown';
+import { choose, type Choice } from './choose';
 import { board } from './board';
 import { talons } from './talons';
 import { cut, torn } from './paper';
@@ -25,7 +26,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   const R0 = 300, R1 = 1439, pos = (m: number) => ((Math.min(R1,Math.max(R0,m))-R0)/(R1-R0)*100).toFixed(2)+'%';
   byId('hours').innerHTML = [6,9,12,15,18,21].map(x=>`<span style="left:${pos(x*60)}">${x} h</span>`).join('');
   // today's trains on the ruler, regionals and AVE together in order of departure; `said` is the train #aviso last spoke of
-  let marks: Mark[] = [], said: string | null = null, drawn = '', tomorrow = false;
+  let marks: Mark[] = [], said: string | null = null, drawn = '';
   // on a phone (the stacked hero) the board is pared down to times and a «›» per trip; tapping one opens its detail
   // (6B, Àlex 06-10). The board is redrawn when the screen crosses over
   const narrow = matchMedia('(max-width:700px), (max-aspect-ratio:4/5), (orientation:landscape) and (max-height:500px)');
@@ -45,7 +46,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     avisos.follow();
     retards.follow();
     setRoute(route(state.dir==='casa', NET.estaciones[state.town].nombre));
-    marks = v.ruler; tomorrow = v.tomorrow;
+    marks = v.ruler;
     setDays(now.date, looked(v, now.date));
     setTalons(talons(v));
     byId('lbl').textContent = v.label;
@@ -166,20 +167,17 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   days.addEventListener('click', e=>{
     // the day pressed is the day looked at already: nothing to do (at night «demà» is pressed with tomorrow's first train)
     const b = (e.target as Element).closest<HTMLElement>('.full'); if(!b || b.classList.contains('on')) return;
-    if(b.dataset.dia === 'avui'){ state.useNow = true; state.day = null; state.ave = false; }
-    else Object.assign(state, { useNow: false, ...tomorrowAt(madridNow(), state) });
-    render();
+    pick({ kind: b.dataset.dia === 'avui' ? 'now' : 'tomorrow' });
   });
-  // the day of a train picked on the ruler: the ruler's day, tomorrow's when tomorrow is looked at
-  const rulerDay = () => tomorrow ? addDays(madridNow().date, 1) : null;
-  // a trip of the board keeps its day (tomorrow's stays tomorrow's)
-  function pick(m: number, ave = false, day: string | null = null){ state.useNow = false; state.minute = m; state.ave = ave; state.day = day; render(); }
-  nowBtn.addEventListener('click', ()=>{ state.useNow = true; render(); tIn.focus({preventScroll:true}); });
+  // every control turns into one choice (choose.ts), which says what the view becomes
+  const apply = (c: Choice) => Object.assign(state, choose(state, c, madridNow()));
+  function pick(c: Choice){ apply(c); render(); }
+  nowBtn.addEventListener('click', ()=>{ pick({ kind: 'now' }); tIn.focus({preventScroll:true}); });
   // the chosen trip becomes the big one: the focus moves to the ruler, which now stands on it
   // on a phone, any trip opens the sheet with its detail, after becoming the train shown
   byId('board').addEventListener('click', e=>{
     const b = (e.target as Element).closest<HTMLElement>('.tt, button.big'); if(!b) return;
-    if(b.matches('.tt')) pick(+b.dataset.m!, 'ave' in b.dataset, b.dataset.d!);
+    if(b.matches('.tt')) pick({ kind: 'trip', minute: +b.dataset.m!, ave: 'ave' in b.dataset, day: b.dataset.d! });
     if(narrow.matches){ if(cur) detail.open(cur); }
     else tIn.focus({preventScroll:true});
   });
@@ -192,7 +190,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   function snap(){
     const v = +tIn.value; if(!marks.length) return;
     const near = marks.reduce((b, x) => Math.abs(x.dep-v) < Math.abs(b.dep-v) ? x : b, marks[0]);
-    state.useNow = false; state.minute = near.dep; state.ave = near.ave; state.day = rulerDay();
+    apply({ kind: 'ruler', minute: near.dep, ave: near.ave });
     if(!rq) rq = requestAnimationFrame(()=>{ rq=0; render(); });
   }
   tIn.addEventListener('input', snap); tIn.addEventListener('change', snap); tIn.addEventListener('pointerup', ()=> setTimeout(snap, 0));
@@ -205,7 +203,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     else if(e.key==='Home') next = marks[0];
     else if(e.key==='End') next = marks[marks.length-1];
     else return;
-    e.preventDefault(); if(next) pick(next.dep, next.ave, rulerDay());
+    e.preventDefault(); if(next) pick({ kind: 'ruler', minute: next.dep, ave: next.ave });
   });
   // one ticket with both ends of the trip; the arrows turn it around. The town end opens the town chooser, Barcelona's
   // end the station chooser. The swap and both ends are rebuilt on every render() (route()), so
@@ -221,21 +219,15 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   placeDays(); narrow.addEventListener('change', placeDays);
   const detail = setupDetail(), notice = setupNotice();
   const chooser = setupChooser(
-    id => { state.town = id; again(); },
-    id => { state.station = id; again(); });
-  // a new town or station starts again from now, on the day looked at
-  function again(){
-    if(tomorrow) Object.assign(state, { useNow: false, ...tomorrowAt(madridNow(), state) });
-    else { state.useNow = true; state.ave = false; }
-    render();
-  }
+    id => pick({ kind: 'town', id }),
+    id => pick({ kind: 'station', id }));
   byId('tickets').addEventListener('click', e=>{
     const t = e.target as HTMLElement;
     if(t.closest('.swap')){
       // the two ends cross over to their new places (option B, Àlex 20-10; cross.ts): measured before and after
       const ends = () => [...byId('tickets').querySelectorAll<HTMLElement>('.end')];
       const was = new Map(ends().map(e => [e.classList[1], e.getBoundingClientRect()]));
-      state.dir = state.dir==='casa' ? 'bcn' : 'casa'; render(); if(world) world.resize();
+      pick({ kind: 'swap' }); if(world) world.resize();
       if(!reduce) for(const e of ends()){ const r = was.get(e.classList[1]);
         if(r) e.animate(crossing(r, e.getBoundingClientRect()), {duration: 340, easing: 'cubic-bezier(.45,0,.2,1)', id: 'creua'}); }
     }
