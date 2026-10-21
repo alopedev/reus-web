@@ -1,4 +1,5 @@
 import type { LineNews, Notice } from './notice';
+import { createLive, type LiveOptions } from './live';
 
 // the lines' notices, as the Generalitat publishes them (09-10): api/avisos.ts reads its feeds, since the page cannot
 // (no CORS). Three states per line, never two: a notice, normal (checked at a time), or unknown. Unknown shows
@@ -23,27 +24,21 @@ const usable = (body: unknown, now: number): body is Answer => {
   return !!a?.linies && typeof a.llegit === 'string' && now - Date.parse(a.llegit) < OLD;
 };
 
-// follow() asks when the last answer is older than FRESH; onChange runs when what is known changes. line(l) is
-// what is known of a line: undefined before the first answer, 'error' when the function cannot be reached
-export function createAvisos(onChange: () => void, { ask = askFunction, clock = Date.now }: { ask?: Ask, clock?: () => number } = {}){
-  let known: Answer | null = null, failed = false, asked = -Infinity, pending = false, seen = '';
-  async function update(){
-    pending = true; asked = clock();
-    const body = await ask();
-    // a failed ask keeps the last answer while it is still fresh enough to show, so one bad minute does not blink
-    const got = usable(body, clock()) ? body : known && usable(known, clock()) ? known : null;
-    pending = false; known = got; failed = !got;
-    const now = JSON.stringify([failed, known?.linies]);
-    if(now !== seen){ seen = now; onChange(); }
-  }
+// follow() asks at most every 2 minutes (live.ts); onChange runs when what is known changes. line(l) is what is
+// known of a line: undefined before the first answer, 'error' when the function cannot be reached
+export function createAvisos(onChange: () => void, o: Omit<Partial<LiveOptions<Answer, ''>>, 'ask'> & { ask?: Ask } = {}){
+  const { ask = askFunction, ...rest } = o;
+  const live = createLive<Answer, ''>(onChange, { fresh: FRESH, usable, sign: a => a.linies, ...rest, ask: () => ask() });
+  const failed = () => live.answered() && !live.answer();
   return {
-    follow(){ if(!pending && clock() - asked > FRESH) void update(); },
+    follow: () => live.follow(''),
     line(l: string): Line | { estat: 'error' } | undefined {
-      if(failed) return { estat: 'error' };
-      return known ? known.linies[l] ?? { estat: 'error' } : undefined;
+      if(failed()) return { estat: 'error' };
+      const a = live.answer();
+      return a ? a.linies[l] ?? { estat: 'error' } : undefined;
     },
-    read: () => known?.llegit ?? null,
-    now: () => failed ? 'error' : known ? known.linies : null,   // check.py reads it
+    read: () => live.answer()?.llegit ?? null,
+    now: () => failed() ? 'error' : live.answer()?.linies ?? null,   // check.py reads it
   };
 }
 export type Avisos = ReturnType<typeof createAvisos>;

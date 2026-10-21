@@ -10,9 +10,10 @@ const AVIS = { R15: { estat: 'avis', text: 'Servei alternatiu per carretera entr
 
 // a function that answers what the test puts in `next`, and a clock the test moves
 function setup(){
-  const t = { now: T0, next: null as unknown, asks: 0, changes: 0 };
+  const t = { now: T0, next: null as unknown, asks: 0, changes: 0, timer: null as null | { fn: () => void, ms: number } };
   const ask: Ask = async () => { t.asks++; return t.next; };
-  const avisos = createAvisos(() => { t.changes++; }, { ask, clock: () => t.now });
+  const wait = (fn: () => void, ms: number) => { t.timer = { fn, ms }; return () => { t.timer = null; }; };
+  const avisos = createAvisos(() => { t.changes++; }, { ask, clock: () => t.now, wait, hidden: () => false });
   // follow() asks without waiting: let its answer land
   const follow = async () => { avisos.follow(); await new Promise(r => setTimeout(r, 0)); };
   return { t, avisos, follow };
@@ -43,6 +44,14 @@ test('it asks at most every 2 minutes', async () => {
   t.now += 2 * MIN; await follow();
   assert.equal(t.asks, 1);
   t.now += 1; await follow();
+  assert.equal(t.asks, 2);
+});
+
+test('it asks again on its own every 2 minutes', async () => {
+  const { t, follow } = setup();
+  t.next = answer(0, AVIS); await follow();
+  assert.ok(t.timer && t.timer.ms > 2 * MIN, JSON.stringify(t.timer));
+  t.now += t.timer.ms; t.timer.fn(); await new Promise(r => setTimeout(r, 0));
   assert.equal(t.asks, 2);
 });
 
