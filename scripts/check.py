@@ -5,7 +5,7 @@ Rules checked:
   2. The departure block starts below the window (window bottom < info top).
   3. No JavaScript errors on load.
   4. Small text uses Literata; times use Young Serif.
-  5. The hero shows a scroll hint; below it, the shelf holds its three paper objects,
+  5. Below the hero, the shelf holds its three paper objects,
      uses the same two fonts and nothing sticks out sideways. The notebook opens onto a single page
      («Cómo se hizo»): four concepts, each with the technology behind it.
   6. Scrolling tilts the wall away; at the end the papers have landed and the notebook is open.

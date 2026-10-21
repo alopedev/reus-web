@@ -5,10 +5,10 @@ import { byId } from './dom';
 import { NET, BCN, hasAve } from './time';
 import { rag } from './paper';
 import { closeSheet, closesSoftly, still } from './sheet';
+import { esc } from './html';
 
 export interface Chooser { open(): void; openStation(): void }
 
-const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
 // what each Barcelona station misses, read from the data: França has no R11 (named by its corridor's first town).
 // The AVE leaves only from Sants, so it is said only there, and only for a town the AVE serves
