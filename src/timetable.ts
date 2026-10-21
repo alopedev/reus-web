@@ -10,7 +10,7 @@ import { setupChooser } from './chooser';
 import { setupDetail, type Trip } from './detail';
 import { fitJourney } from './journey';
 import { dotDate, dotText, padMonth } from './dots';
-import { byId, find } from './dom';
+import { byId, find, redrawer } from './dom';
 import type { World } from './world';
 import type { Table } from './table';
 import type { Scenery } from './scenery';
@@ -27,7 +27,9 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   const R0 = 300, R1 = 1439, pos = (m: number) => ((Math.min(R1,Math.max(R0,m))-R0)/(R1-R0)*100).toFixed(2)+'%';
   byId('hours').innerHTML = [6,9,12,15,18,21].map(x=>`<span style="left:${pos(x*60)}">${x} h</span>`).join('');
   // today's trains on the ruler, regionals and AVE together in order of departure; `said` is the train #aviso last spoke of
-  let marks: Mark[] = [], said: string | null = null, drawn = '';
+  let marks: Mark[] = [], said: string | null = null;
+  // the countdown redraws the board every minute: a finger or a key on the big trip keeps its place
+  const boardDraw = redrawer(byId('board'), f => f.matches('button.big') ? 'button.big' : null);
   // on a phone (the stacked hero) the board is pared down to times and a «›» per trip; tapping one opens its detail
   // (6B, Àlex 06-10). The board is redrawn when the screen crosses over
   const narrow = matchMedia('(max-width:700px), (max-aspect-ratio:4/5), (orientation:landscape) and (max-height:500px)');
@@ -60,7 +62,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     setDate(v.day);
     if(v.kind === 'none'){
       byId('ticks').innerHTML = nowLine(now.min);
-      byId('board').innerHTML = drawn = ''; cur = null; setStamp([]);
+      boardDraw.draw(''); cur = null; setStamp([]);
       if(said !== v.key){ byId('aviso').textContent = v.say; said = v.key; }
       byId('note').textContent = v.note;
       scenery.still();
@@ -74,11 +76,9 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     const ns = notices(avisos, v.lines);
     setStamp(narrow.matches ? [] : ns);
     const turn = said !== null && said !== v.key;
-    if(html !== drawn || turn){
-      // the countdown redraws the board every minute: a finger or a key on «Compra» or the big trip keeps its place
-      const had = byId('board').querySelector(':focus')?.matches('.talo') ? '.talo' : byId('board').querySelector('button.big:focus') ? 'button.big' : null;
-      byId('board').innerHTML = drawn = html; if(turn && !reduce) byId('dep').classList.add('swap');
-      if(had) byId('board').querySelector<HTMLElement>(had)?.focus({preventScroll:true});
+    if(turn) boardDraw.reset();
+    if(boardDraw.draw(html)){
+      if(turn && !reduce) byId('dep').classList.add('swap');
       const rec = byId('board').querySelector<HTMLElement>('.rec'); if(rec) laid.observe(rec);
     }
     const told = said !== v.key;
@@ -103,15 +103,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     const bcnBtn = `<button type="button" class="end bcn" aria-haspopup="dialog" aria-label="${esc(bcnName(state.station))}, canviar d’estació de Barcelona">${esc(bcnShort(state.station))}</button>`;
     return ida ? `${bcnBtn} ${swap} ${townBtn}` : `${townBtn} ${swap} ${bcnBtn}`;
   }
-  // the route is only rebuilt when it changes (the arrows, a new town), never on the countdown's refresh; a rebuilt control
-  // hands the focus to its new self, so the arrows keep it after turning the trip around
-  let routeHtml = '';
-  function setRoute(html: string){
-    if(html === routeHtml) return;
-    const el = byId('tickets').querySelector<HTMLElement>('.route')!, had = el.querySelector(':focus')?.className;
-    el.innerHTML = routeHtml = html;
-    if(had) el.querySelector<HTMLElement>('.' + had.split(' ').join('.'))?.focus({preventScroll:true});
-  }
+  function setRoute(html: string){ routeDraw.draw(html); }
   // the stamp sits on the ticket, outside its route, so a new route never takes it away; redrawn only when it changes
   let stamped = '', noticed = '[]', shownNotices: Notice[] = [];
   // the stub's printed date: the day of the train shown (tomorrow's when the board has moved on to tomorrow)
@@ -129,7 +121,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   // then the ruler is tomorrow's. Past midnight tomorrow is today, and the sheets follow. Redrawn only when the day or
   // the date changes, so a sheet keeps the focus
   const days = byId('days');
-  let daysHtml = '';
+  const daysDraw = redrawer(days, f => `[data-dia="${f.dataset.dia}"]`);
   const longDay = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('ca-ES', { weekday:'long', day:'numeric', month:'long', timeZone:'UTC' });
   function setDays(today: string, on: 'avui' | 'dema'){
     const tw = addDays(today, 1);
@@ -141,20 +133,12 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
       + `<i>${word.toLowerCase()}</i> <b>${+iso.slice(8)}</b></span></button>`;
     const html = `<span class="taco" aria-hidden="true">${dotText(padMonth(today, tw), '#F1EADC')}</span>`
       + sheet('avui', 'Avui', today, on === 'avui', 7) + sheet('dema', 'Demà', tw, on === 'dema', 20);
-    if(html === daysHtml) return;
-    const had = days.querySelector<HTMLElement>(':focus')?.dataset.dia;
-    days.innerHTML = daysHtml = html;
-    if(had) days.querySelector<HTMLElement>(`[data-dia="${had}"]`)?.focus({preventScroll:true});
+    daysDraw.draw(html);
   }
   // the stubs by the pad (A3, Àlex 18-10; talons.ts): redrawn only when they change, so a stub keeps the focus
   const talonsEl = byId('talons');
-  let talonsHtml = '';
-  function setTalons(html: string){
-    if(html === talonsHtml) return;
-    const had = talonsEl.querySelector<HTMLElement>(':focus')?.classList[1];
-    talonsEl.innerHTML = talonsHtml = html;
-    if(had) talonsEl.querySelector<HTMLElement>('.' + had)?.focus({preventScroll:true});
-  }
+  const talonsDraw = redrawer(talonsEl, f => f.classList[1] ? '.' + f.classList[1] : null);
+  function setTalons(html: string){ talonsDraw.draw(html); }
   // «Compra» is punched when pressed, like a ticket at the gate (option B, Àlex 20-10): a hole on its dotted line, and
   // the chad falls to the floor. It stays punched until another train redraws the stub (its label names the train)
   talonsEl.addEventListener('click', e => {
@@ -183,7 +167,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     if(narrow.matches){ if(cur) detail.open(cur); }
     else tIn.focus({preventScroll:true});
   });
-  narrow.addEventListener('change', ()=>{ drawn = ''; render(); });
+  narrow.addEventListener('change', ()=>{ boardDraw.reset(); render(); });
   // the route's labels are laid out again whenever its line changes width (a new board, the screen, the fonts)
   const laid = new ResizeObserver(es => { for(const e of es) if(e.target.isConnected) fitJourney(e.target as HTMLElement); else laid.unobserve(e.target); });
   document.fonts?.ready.then(() => { const rec = byId('board').querySelector<HTMLElement>('.rec'); if(rec) fitJourney(rec); });
@@ -215,6 +199,9 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
       <span class="pp"><span class="k">Bitllet</span>
       <span class="route"></span></span><span class="stub" aria-hidden="true"></span><span class="fecha" aria-hidden="true"></span>
     </div>`;
+  // the route is only rebuilt when it changes (the arrows, a new town), never on the countdown's refresh; a rebuilt
+  // control hands the focus to its new self, so the arrows keep it after turning the trip around
+  const routeDraw = redrawer(find('#tickets .route'), f => '.' + f.className.split(' ').join('.'));
   // on a phone the days and «Compra» head the board, like a platform's board (Àlex 19-10, P2 on one line): the window
   // keeps its height; on a desktop the pad hangs over the ruler and «Compra» stands over the highlighted time
   const placeDays = () => { if(narrow.matches) byId('cap').append(days, talonsEl); else { find('.rulerHead').prepend(days); find('.rulerHead').append(talonsEl); } };
