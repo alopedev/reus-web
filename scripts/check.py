@@ -2841,7 +2841,9 @@ def paper_moves(rec, when, way, motion, shut=None):
         if "translateY" not in p["last"]["transform"]: errs.append(f"{when}: the sheet does not go back down (ends at {p['last']})")
         if p["last"]["opacity"] != "0": errs.append(f"{when}: the sheet does not fade as it leaves (ends at {p['last']})")
         if not 120 <= p["ms"] <= 300: errs.append(f"{when}: the sheet takes {p['ms']} ms to leave, expected about 200")
-        if shut and shut["ms"] > 1500: errs.append(f"{when}: the sheet takes {shut['ms']} ms to close")
+        # sheet.ts closes within a second, but a software-rendered frame holds its timers back: the same 2.5 s as
+        # check_sheet_close (main's CI took 1.8 s on 20-10 and 2.4 s on 21-10). A sheet that never closes still fails at 8 s
+        if shut and shut["ms"] > 2500: errs.append(f"{when}: the sheet takes {shut['ms']} ms to close")
     if not dim: errs.append(f"{when}: the backdrop does not {'darken' if way == 'in' else 'clear'} with the sheet")
     return errs
 
