@@ -1,6 +1,6 @@
 // how each trip of the board reads (src/board.ts), against the frozen timetable (scripts/baseline/red.json): the words
 // of a row and what a screen reader hears of it, on a desktop and on a phone. `npm test`, no browser: check.py keeps
-// the look. A row is read as check.py reads the page: tags dropped, «compra’l ↗» and the route left out, spaces collapsed
+// the look. A row is read as check.py reads the page: tags dropped, the route left out, spaces collapsed
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { shown, type Shown } from '../../src/shown.ts';

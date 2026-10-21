@@ -1,6 +1,6 @@
 import { NET, hhmm, stopName } from './time';
 
-// the big train's route, only on a desktop (Àlex 08-10, option A of three): in the gap between «compra’l ↗» and its
+// the big train's route, only on a desktop (Àlex 08-10, option A of three): in the gap between the departure and its
 // arrival, a line from departure to arrival with a dot at every stop, placed by the time the train reaches it, and
 // the stop's name above or below its dot, without its time (Àlex 09-10: the dot's place already says it). When not
 // every name fits (a long train, a small screen), the line folds (Àlex 08-10, option B of three): the first two
