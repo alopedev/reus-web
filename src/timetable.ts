@@ -19,6 +19,7 @@ import { notices, type Avisos } from './avisos';
 import type { Retards } from './retards';
 import { stamp, heard, setupNotice, type Notice } from './notice';
 import { dateSpan } from './ca';
+import { esc } from './html';
 
 // the hero's timetable: the next train, the ticket for the direction, the ruler of the day
 export function setupTimetable({ world, table, scenery, weather, avisos, retards }: { world: World | null, table: Table, scenery: Scenery, weather: ReturnType<typeof createWeather>, avisos: Avisos, retards: Retards }): { render(): void } {
@@ -97,8 +98,9 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     const swap = `<button type="button" class="swap" aria-label="Canviar el sentit"><svg class="fletxes" viewBox="0 0 46 16" aria-hidden="true">`
       + `<path d="M1 1 13 8 1 15Z" fill="#E07A1F"/><path d="M16 1 28 8 16 15Z" fill="#EDA864"/>`
       + `<path d="M31 1 43 8 31 15Z" fill="#FBEBDC" stroke="#EDA864" stroke-width=".8"/></svg></button>`;
-    const townBtn = `<button type="button" class="end town" aria-haspopup="dialog" aria-label="${townName}, canviar de poble">${townName}</button>`;
-    const bcnBtn = `<button type="button" class="end bcn" aria-haspopup="dialog" aria-label="${bcnName(state.station)}, canviar d’estació de Barcelona">${bcnShort(state.station)}</button>`;
+    const town = esc(townName);
+    const townBtn = `<button type="button" class="end town" aria-haspopup="dialog" aria-label="${town}, canviar de poble">${town}</button>`;
+    const bcnBtn = `<button type="button" class="end bcn" aria-haspopup="dialog" aria-label="${esc(bcnName(state.station))}, canviar d’estació de Barcelona">${esc(bcnShort(state.station))}</button>`;
     return ida ? `${bcnBtn} ${swap} ${townBtn}` : `${townBtn} ${swap} ${bcnBtn}`;
   }
   // the route is only rebuilt when it changes (the arrows, a new town), never on the countdown's refresh; a rebuilt control

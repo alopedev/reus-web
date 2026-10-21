@@ -4,6 +4,7 @@ import { rag } from './paper';
 import { closeSheet, closesSoftly } from './sheet';
 import { lineStyle } from './towns';
 import { gist } from './avisos';
+import { esc } from './html';
 
 // how the lines' notices show (09-10, Àlex): on a desktop, an ink stamp on the ticket when a line of the board has a
 // notice (option A), which opens a sheet with the whole text; on a phone nothing on the board, and the train's own
@@ -16,7 +17,6 @@ export type Notice = { line: string, text: string };
 export type LineNews = { kind: 'avis', line: string, text: string, read: string } | { kind: 'normal', line: string, read: string }
   | { kind: 'error' | 'pending', line: string } | { kind: 'ave' };
 
-const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const pill = (l: string) => `<span class="pill" style="${lineStyle(l)}">${esc(l)}</span>`;
 // a time read by the function, in Madrid: «11:30»
 export const at = (iso: string): string => new Date(iso).toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });

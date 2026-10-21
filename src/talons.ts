@@ -4,8 +4,8 @@
 // on a phone it is torn off the time's own card (board.ts; Àlex 19-10, mockup 1), and telling home («Avisar a casa»)
 // lives in the train's sheet only. Pure: the HTML, from shown()
 import type { Shown } from './shown';
+import { esc } from './html';
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 const TICKET = '<svg viewBox="0 0 28 18" aria-hidden="true"><path d="M2 2h24v4.2a2.8 2.8 0 0 0 0 5.6V16H2v-4.2a2.8 2.8 0 0 0 0-5.6z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M19 3.5v11" stroke="currentColor" stroke-width="1.2" stroke-dasharray="1.6 1.6"/><path d="M6 7h9M6 10.5h6" stroke="#E07A1F" stroke-width="1.8"/></svg>';
 
 const stub = (cls: string, href: string, icon: string, word: string, label: string) =>

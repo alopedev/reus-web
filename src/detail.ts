@@ -6,6 +6,7 @@ import { news, type LineNews } from './notice';
 import { wagonSvg } from './journey';
 import type { Where } from './shown';
 import { lineStyle } from './towns';
+import { esc } from './html';
 
 // what the sheet tells about the train shown: its line and trip, times, when it leaves, how long, how many stops,
 // the way to buy it, the message for home and what is known of its line's notices
@@ -31,7 +32,6 @@ function journeyLine(t: Trip): string {
 // the live delay under the times (option A, Àlex 10-10): the new times in orange; nothing when on time
 const retard = (t: Trip): string => t.live ? `<p class="retard">${esc(t.live)}</p>` : '';
 
-const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
 // the trip's detail on a phone (6B, Àlex 06-10): a sheet of paper that comes up from the bottom when a train of the
 // board is tapped. A native <dialog>, like the town chooser: Esc, the trapped focus and the inert backdrop come
