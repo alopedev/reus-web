@@ -957,6 +957,9 @@ async def check_landscape(browser):
         for n1, a, n2, b in [("the ticket", tk, "the name's board", brd), ("the name's board", brd, "the window", win),
                              ("the ticket", tk, "the window", win), ("the board", info, "the window", win), ("the ticket", tk, "the board", info)]:
             if meet(a, b): errs.append(f"{name}: {n1} overlaps {n2}")
+        # its small window is painted twice as fine, as upright (Àlex 21-10): with a desktop's grain the strokes read as pixels
+        k = await page.evaluate("window.reus.paisaje ? reus.paisaje() : null")
+        if k is None or k < 1.5 * 1.25: errs.append(f"{name}: landscape painted at {k} px per window px, expected ≥ {1.5 * 1.25:.2f} on a phone held sideways")
         if not g["phone"]: errs.append(f"{name}: the board's rows are not the phone's (no button for the big train)")
         else:
             await page.tap("#board button.big"); await page.wait_for_timeout(800)
@@ -3258,7 +3261,7 @@ async def main():
             # painted twice as fine as the desktop one, or each stroke covers too much of it and reads as pixels
             grain = await page.evaluate("""(() => { const g = window.reus.paisaje ? reus.paisaje() : null;
               return g == null ? null : {g, s: Math.min(devicePixelRatio || 1, 1.25),
-                stacked: matchMedia('(max-width:700px), (max-aspect-ratio:4/5)').matches}; })()""")
+                stacked: matchMedia('(max-width:700px), (max-aspect-ratio:4/5), (orientation:landscape) and (max-height:500px)').matches}; })()""")
             if not grain: failures.append(f"{name}: reus.paisaje() is missing (the landscape's px per window px)")
             elif grain["stacked"] and grain["g"] < 1.5 * grain["s"]: failures.append(f"{name}: landscape painted at {grain['g']:.2f} px per window px, expected ≥ {1.5 * grain['s']:.2f} on a stacked hero")
             elif not grain["stacked"] and grain["g"] > grain["s"]: failures.append(f"{name}: landscape painted at {grain['g']:.2f} px per window px on a wide hero (cost), expected ≤ {grain['s']:.2f}")

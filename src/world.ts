@@ -1,6 +1,7 @@
 import type { BufferGeometry } from 'three';
 import { BoxGeometry, Color, ColorManagement, ConeGeometry, CylinderGeometry, DirectionalLight, Float32BufferAttribute, Group, HemisphereLight, IcosahedronGeometry, InstancedMesh, LinearFilter, LinearSRGBColorSpace, NearestFilter, Mesh, MeshPhongMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, RGBAFormat, Scene, ShaderMaterial, Vector2, Vector3, Vector4, WebGLRenderTarget, WebGLRenderer } from 'three';
 import { daylight, type Hour } from './light';
+import { PHONE } from './phone';
 import type { Weather } from './weather';
 import watercolorFrag from './shaders/watercolor.frag?raw';
 
@@ -130,9 +131,9 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
   const washScene = new Scene(); washScene.add(new Mesh(new PlaneGeometry(2,2), washMat));
   // wallKept/wetKept: the wall is painted in kept/wet; dryFresh/wetFresh: their window holds the latest landscape
   let wallKept = false, wetKept = false, dryFresh = false, wetFresh = false, share = 1;
-  // the stacked hero (phones, portrait tablets; the same media query as hero.css) has a small window: its landscape
-  // is painted twice as fine, since the brush strokes are sized in the target's pixels and would read as pixels there
-  const STACKED = matchMedia('(max-width:700px), (max-aspect-ratio:4/5)');
+  // a phone's hero (phone.ts; held sideways too) has a small window: its landscape is painted twice as fine, since
+  // the brush strokes are sized in the target's pixels and would read as pixels there
+  const STACKED = matchMedia(PHONE);
   let grain = 0;
   function resize(){
     const cw = innerWidth, ch = innerHeight;
