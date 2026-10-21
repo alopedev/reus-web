@@ -3,7 +3,7 @@
 // case one never ends). With reduced motion, or nothing to wait for, it closes at once. `closesSoftly` sends a tap
 // on the backdrop and the dialog's cancel (Esc, Android's back gesture) through it. The curves and durations are
 // --entra/--entra-ms and --sale/--sale-ms in base.css
-const still = (): boolean => matchMedia('(prefers-reduced-motion: reduce)').matches;
+export const still = (): boolean => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export function closeSheet(dialog: HTMLDialogElement): void {
   if(!dialog.open || dialog.classList.contains('sale')) return;

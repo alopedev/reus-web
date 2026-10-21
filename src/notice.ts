@@ -1,6 +1,7 @@
 import './styles/notice.css';
 import { byId } from './dom';
 import { rag } from './paper';
+import { closeSheet, closesSoftly } from './sheet';
 import { lineStyle } from './towns';
 import { gist } from './avisos';
 
@@ -60,9 +61,10 @@ export function setupNotice(): { open(ns: Notice[], read: string | null): void }
       + `<p class="qui">${FROM}</p></div></div>`;
     dialog.showModal();
   }
+  closesSoftly(dialog);
   dialog.addEventListener('click', e => {
     const t = e.target as HTMLElement;
-    if(t === dialog || t.closest('.x')) dialog.close();
+    if(t.closest('.x')) closeSheet(dialog);
   });
   dialog.addEventListener('close', () => byId('tickets').querySelector<HTMLElement>('.segell')?.focus({ preventScroll: true }));
   return { open };

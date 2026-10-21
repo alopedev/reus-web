@@ -4,6 +4,33 @@
 dialog#selp, dialog#avis, dialog#privacitat{ border:0; padding:0; margin:auto; background:transparent; max-width:none; max-height:none; overflow:visible; color:var(--shadow); }
 dialog#selp::backdrop, dialog#avis::backdrop, dialog#privacitat::backdrop{ background:rgba(30,22,16,.45); }
 dialog#selp:not([open]), dialog#avis:not([open]), dialog#privacitat:not([open]){ display:none; }
+/* option B «De papel» (Àlex 20-10): the sheet is laid down like paper, coming up from below and settling at its tilt
+   (Vaul's curve), the backdrop darkening with it; it leaves the way it came, down and fading, faster (sheet.ts closes
+   the dialog once that ends). The backdrop's timings are written out: older browsers give ::backdrop no variables */
+dialog#selp, dialog#avis, dialog#privacitat{ --entra:cubic-bezier(.32,.72,0,1); --entra-ms:.32s; --sale:cubic-bezier(.3,0,.8,.15); --sale-ms:.2s; }
+dialog#selp::backdrop, dialog#avis::backdrop, dialog#privacitat::backdrop{ animation:fosc .32s ease-out; }
+dialog#selp.sale::backdrop, dialog#avis.sale::backdrop, dialog#privacitat.sale::backdrop{ animation:aclara .2s ease-in forwards; }
+dialog[open] .sheet{ animation:deixa var(--entra-ms) var(--entra); }
+dialog.sale .sheet{ animation:retira var(--sale-ms) var(--sale) forwards; }
+@keyframes deixa{ from{ opacity:0; transform:translateY(3.5rem) rotate(-2.2deg); } 35%{ opacity:1; } to{ opacity:1; transform:rotate(-.6deg); } }
+@keyframes retira{ from{ opacity:1; transform:rotate(-.6deg); } 60%{ opacity:1; } to{ opacity:0; transform:translateY(4.5rem) rotate(.6deg); } }
+/* a step of the chooser turns like a page, sideways (chooser.ts keeps the old page, .va, where it was): forward, the
+   new page comes in from the right and the old one leaves to the left; back («‹ Línies», .enrere), the other way.
+   Neither is laid down again. Closing wins over a turn still running */
+dialog.pas .sheet:not(.va){ animation:ve-dreta .26s var(--entra) .06s both; }
+dialog.pas.enrere .sheet:not(.va){ animation-name:ve-esquerra; }
+dialog.pas .sheet.va{ animation:va-esquerra .16s cubic-bezier(.3,0,.8,.15) forwards; pointer-events:none; }
+dialog.pas.enrere .sheet.va{ animation-name:va-dreta; }
+dialog.sale.pas .sheet:not(.va){ animation:retira var(--sale-ms) var(--sale) forwards; }
+@keyframes ve-dreta{ from{ opacity:0; transform:translateX(2.75rem) rotate(-.6deg); } to{ opacity:1; transform:rotate(-.6deg); } }
+@keyframes ve-esquerra{ from{ opacity:0; transform:translateX(-2.75rem) rotate(-.6deg); } to{ opacity:1; transform:rotate(-.6deg); } }
+@keyframes va-esquerra{ from{ opacity:1; transform:rotate(-.6deg); } to{ opacity:0; transform:translateX(-2.25rem) rotate(-.6deg); } }
+@keyframes va-dreta{ from{ opacity:1; transform:rotate(-.6deg); } to{ opacity:0; transform:translateX(2.25rem) rotate(-.6deg); } }
+@keyframes fosc{ from{ opacity:0; } to{ opacity:1; } }
+@keyframes aclara{ from{ opacity:1; } to{ opacity:0; } }
+@media (prefers-reduced-motion: reduce){
+  dialog[open] .sheet, dialog.sale .sheet, dialog.pas .sheet, dialog#selp::backdrop, dialog#avis::backdrop, dialog#privacitat::backdrop{ animation:none; }
+}
 
 /* the sheet carries the shadow and the tilt; its paper (.pp) is cut with scissors like the ticket (--cut, rag() in
    paper.ts), so the shadow follows the ragged edge */
