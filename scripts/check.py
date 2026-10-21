@@ -315,6 +315,20 @@ def brightness(img, xy):
     x, y = int(xy[0]), int(xy[1]); px = [img.getpixel((min(img.width - 1, max(0, x + i)), min(img.height - 1, max(0, y + j)))) for i in range(-2, 3) for j in range(-2, 3)]
     return sum(sum(p) / 3 for p in px) / len(px)
 
+async def steady_reading(page, spots, wall=False):
+    """Brightness at spots of the screen, read once two screenshots in a row agree (within 3): on the CI's software
+    rendering a screenshot can still hold an older frame, half painted or before the wash caught up with the hinge
+    (21-10: «no wash at the hinge» at 74 → 67 on the desktop, a resting wall read 33 instead of 65 on the phone).
+    With `wall`, the spots are the wall's own and go through its tilt (WALL_AT)"""
+    last = None
+    for _ in range(8):
+        img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
+        at = await page.evaluate(f"({WALL_AT})({spots})") if wall else spots
+        now = [brightness(img, xy) for xy in at]
+        if last and max(abs(a - b) for a, b in zip(now, last)) <= 3: return now
+        last = now; await page.wait_for_timeout(500)
+    return last
+
 async def check_wash(page, name):
     """The wall's shadow is a pigment wash painted in its own shader, not the flat #sombra veil: it starts at the
     hinge and climbs the wall as the wall turns away, the texts on the wall dim with it, and nothing lingers once
@@ -332,22 +346,18 @@ async def check_wash(page, name):
       const beside = innerWidth - seats - (w.right + frame) > 2 * rem;
       const x = beside ? w.right + (innerWidth - seats - w.right) / 2 : innerWidth - 1.5 * rem;
       return [[x, reus.hingeAt(.3) - .02 * innerHeight], [x, beside ? w.top + .15 * w.height : w.top - frame - .6 * rem]]; })()""")
-    rest = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
-    base = [brightness(rest, near), brightness(rest, far)]
+    base = await steady_reading(page, [near, far])
     seen = {}
     for f in (.3, .7):
         await at(f)
-        img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
-        spots = await page.evaluate(f"({WALL_AT})({[near, far]})")
-        seen[f] = [brightness(img, xy) for xy in spots]
+        seen[f] = await steady_reading(page, [near, far], wall=True)
         if await page.evaluate("+getComputedStyle(document.getElementById('sombra')).opacity > 0"): errs.append(f"the flat #sombra veil darkens the wall at {f:.0%} although WebGL paints it")
     if not seen[.3][0] < base[0] - 8: errs.append(f"no wash at the hinge at 30% ({base[0]:.0f} → {seen[.3][0]:.0f})")
     if abs(seen[.3][1] - base[1]) > 10: errs.append(f"the wash already covers the top of the wall at 30% ({base[1]:.0f} → {seen[.3][1]:.0f})")
     if not seen[.7][1] < base[1] - 8: errs.append(f"the wash does not climb the wall: its top is still bare at 70% ({base[1]:.0f} → {seen[.7][1]:.0f})")
     if await page.evaluate("getComputedStyle(document.querySelector('.stage')).filter") == "none": errs.append("the texts on the wall do not dim with the wash at 70%")
     await at(0)
-    img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
-    back = [brightness(img, near), brightness(img, far)]
+    back = await steady_reading(page, [near, far])
     if max(abs(back[0] - base[0]), abs(back[1] - base[1])) > 10: errs.append(f"the wash leaves a trace back at the top ({base[0]:.0f}/{base[1]:.0f} → {back[0]:.0f}/{back[1]:.0f})")
     return errs
 
