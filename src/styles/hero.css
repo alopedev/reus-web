@@ -244,6 +244,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 .pintada .in .tauler{ transform:none; transition:transform 1s ease; }
 @media (prefers-reduced-motion: reduce){ .pintada .tauler{ transform:none; transition:none; } }
 
+/* a phone: PHONE in phone.ts, which phone.test.ts compares with this query */
 @media (max-width:700px), (max-aspect-ratio:4/5), (orientation:landscape) and (max-height:500px){
   /* stacked: the ticket sits under the name, as wide as its text */
   .stage{ padding:1rem 1.15rem; }

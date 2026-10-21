@@ -20,6 +20,7 @@ import type { Retards } from './retards';
 import { stamp, heard, setupNotice, type Notice } from './notice';
 import { dateSpan } from './ca';
 import { esc } from './html';
+import { PHONE } from './phone';
 
 // the hero's timetable: the next train, the ticket for the direction, the ruler of the day
 export function setupTimetable({ world, table, scenery, weather, avisos, retards }: { world: World | null, table: Table, scenery: Scenery, weather: ReturnType<typeof createWeather>, avisos: Avisos, retards: Retards }): { render(): void } {
@@ -30,9 +31,9 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   let marks: Mark[] = [], said: string | null = null;
   // the countdown redraws the board every minute: a finger or a key on the big trip keeps its place
   const boardDraw = redrawer(byId('board'), f => f.matches('button.big') ? 'button.big' : null);
-  // on a phone (the stacked hero) the board is pared down to times and a «›» per trip; tapping one opens its detail
+  // on a phone (phone.ts: the stacked hero) the board is pared down to times and a «›» per trip; tapping one opens its detail
   // (6B, Àlex 06-10). The board is redrawn when the screen crosses over
-  const narrow = matchMedia('(max-width:700px), (max-aspect-ratio:4/5), (orientation:landscape) and (max-height:500px)');
+  const narrow = matchMedia(PHONE);
   let cur: Trip | null = null;
   // now on the ruler: a thin orange line with «ara»; away from now, the station clock stands on it in place of the word
   const nowLine = (m: number) => `<b class="nowline${m < R0 + 60 ? ' start' : m > R1 - 60 ? ' end' : ''}${state.useNow ? '' : ' away'}" style="left:${pos(m)}"><span>ara</span></b>`;

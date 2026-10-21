@@ -315,6 +315,20 @@ def brightness(img, xy):
     x, y = int(xy[0]), int(xy[1]); px = [img.getpixel((min(img.width - 1, max(0, x + i)), min(img.height - 1, max(0, y + j)))) for i in range(-2, 3) for j in range(-2, 3)]
     return sum(sum(p) / 3 for p in px) / len(px)
 
+async def steady_reading(page, spots, wall=False):
+    """Brightness at spots of the screen, read once two screenshots in a row agree (within 3): on the CI's software
+    rendering a screenshot can still hold an older frame, half painted or before the wash caught up with the hinge
+    (21-10: «no wash at the hinge» at 74 → 67 on the desktop, a resting wall read 33 instead of 65 on the phone).
+    With `wall`, the spots are the wall's own and go through its tilt (WALL_AT)"""
+    last = None
+    for _ in range(8):
+        img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
+        at = await page.evaluate(f"({WALL_AT})({spots})") if wall else spots
+        now = [brightness(img, xy) for xy in at]
+        if last and max(abs(a - b) for a, b in zip(now, last)) <= 3: return now
+        last = now; await page.wait_for_timeout(500)
+    return last
+
 async def check_wash(page, name):
     """The wall's shadow is a pigment wash painted in its own shader, not the flat #sombra veil: it starts at the
     hinge and climbs the wall as the wall turns away, the texts on the wall dim with it, and nothing lingers once
@@ -332,22 +346,18 @@ async def check_wash(page, name):
       const beside = innerWidth - seats - (w.right + frame) > 2 * rem;
       const x = beside ? w.right + (innerWidth - seats - w.right) / 2 : innerWidth - 1.5 * rem;
       return [[x, reus.hingeAt(.3) - .02 * innerHeight], [x, beside ? w.top + .15 * w.height : w.top - frame - .6 * rem]]; })()""")
-    rest = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
-    base = [brightness(rest, near), brightness(rest, far)]
+    base = await steady_reading(page, [near, far])
     seen = {}
     for f in (.3, .7):
         await at(f)
-        img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
-        spots = await page.evaluate(f"({WALL_AT})({[near, far]})")
-        seen[f] = [brightness(img, xy) for xy in spots]
+        seen[f] = await steady_reading(page, [near, far], wall=True)
         if await page.evaluate("+getComputedStyle(document.getElementById('sombra')).opacity > 0"): errs.append(f"the flat #sombra veil darkens the wall at {f:.0%} although WebGL paints it")
     if not seen[.3][0] < base[0] - 8: errs.append(f"no wash at the hinge at 30% ({base[0]:.0f} → {seen[.3][0]:.0f})")
     if abs(seen[.3][1] - base[1]) > 10: errs.append(f"the wash already covers the top of the wall at 30% ({base[1]:.0f} → {seen[.3][1]:.0f})")
     if not seen[.7][1] < base[1] - 8: errs.append(f"the wash does not climb the wall: its top is still bare at 70% ({base[1]:.0f} → {seen[.7][1]:.0f})")
     if await page.evaluate("getComputedStyle(document.querySelector('.stage')).filter") == "none": errs.append("the texts on the wall do not dim with the wash at 70%")
     await at(0)
-    img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
-    back = [brightness(img, near), brightness(img, far)]
+    back = await steady_reading(page, [near, far])
     if max(abs(back[0] - base[0]), abs(back[1] - base[1])) > 10: errs.append(f"the wash leaves a trace back at the top ({base[0]:.0f}/{base[1]:.0f} → {back[0]:.0f}/{back[1]:.0f})")
     return errs
 
@@ -957,6 +967,9 @@ async def check_landscape(browser):
         for n1, a, n2, b in [("the ticket", tk, "the name's board", brd), ("the name's board", brd, "the window", win),
                              ("the ticket", tk, "the window", win), ("the board", info, "the window", win), ("the ticket", tk, "the board", info)]:
             if meet(a, b): errs.append(f"{name}: {n1} overlaps {n2}")
+        # its small window is painted twice as fine, as upright (Àlex 21-10): with a desktop's grain the strokes read as pixels
+        k = await page.evaluate("window.reus.paisaje ? reus.paisaje() : null")
+        if k is None or k < 1.5 * 1.25: errs.append(f"{name}: landscape painted at {k} px per window px, expected ≥ {1.5 * 1.25:.2f} on a phone held sideways")
         if not g["phone"]: errs.append(f"{name}: the board's rows are not the phone's (no button for the big train)")
         else:
             await page.tap("#board button.big"); await page.wait_for_timeout(800)
@@ -2726,6 +2739,10 @@ PHONE = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), d = document.
 
 # the sheet's way out, armed before the gesture: whether the sheet was still open when the gesture landed, the
 # animations it then ran (the paper's keyframes and the backdrop's) and when it closed
+# sheet.ts closes a sheet within a second of page time, but on the CI's software rendering a frame holds its timers
+# back: closing took 1.8 s on 20-10, 2.4 s and 2.54 s on 21-10. A sheet that never closes still fails (SHEET_WATCH
+# gives up at 4 s)
+SHEET_SHUT_MS = 3500
 SHEET_WATCH = """(() => { const d = document.getElementById('detalle'), p = d.querySelector('.pliego');
   window.__cierre = new Promise(done => {
     const go = () => { const t0 = performance.now();
@@ -2782,7 +2799,7 @@ async def check_sheet_close(browser):
                 if not c["still"]: errs.append(f"{when}: the sheet closes at once, without sliding down")
                 if not c["last"] or "translateY(100%)" not in c["last"].replace(" ", ""): errs.append(f"{when}: the paper does not slide back down (ends at {c['last']})")
                 if not c["dim"]: errs.append(f"{when}: the backdrop does not clear with the paper")
-                if c["ms"] > 2500: errs.append(f"{when}: the sheet takes {c['ms']} ms to close")
+                if c["ms"] > SHEET_SHUT_MS: errs.append(f"{when}: the sheet takes {c['ms']} ms to close")
             await page.wait_for_timeout(300)
         await page.close()
     return errs
@@ -2841,9 +2858,8 @@ def paper_moves(rec, when, way, motion, shut=None):
         if "translateY" not in p["last"]["transform"]: errs.append(f"{when}: the sheet does not go back down (ends at {p['last']})")
         if p["last"]["opacity"] != "0": errs.append(f"{when}: the sheet does not fade as it leaves (ends at {p['last']})")
         if not 120 <= p["ms"] <= 300: errs.append(f"{when}: the sheet takes {p['ms']} ms to leave, expected about 200")
-        # sheet.ts closes within a second, but a software-rendered frame holds its timers back: the same 2.5 s as
-        # check_sheet_close (main's CI took 1.8 s on 20-10 and 2.4 s on 21-10). A sheet that never closes still fails at 8 s
-        if shut and shut["ms"] > 2500: errs.append(f"{when}: the sheet takes {shut['ms']} ms to close")
+        # sheet.ts closes within a second; a software-rendered frame holds its timers back (SHEET_SHUT_MS)
+        if shut and shut["ms"] > SHEET_SHUT_MS: errs.append(f"{when}: the sheet takes {shut['ms']} ms to close")
     if not dim: errs.append(f"{when}: the backdrop does not {'darken' if way == 'in' else 'clear'} with the sheet")
     return errs
 
@@ -3258,7 +3274,7 @@ async def main():
             # painted twice as fine as the desktop one, or each stroke covers too much of it and reads as pixels
             grain = await page.evaluate("""(() => { const g = window.reus.paisaje ? reus.paisaje() : null;
               return g == null ? null : {g, s: Math.min(devicePixelRatio || 1, 1.25),
-                stacked: matchMedia('(max-width:700px), (max-aspect-ratio:4/5)').matches}; })()""")
+                stacked: matchMedia('(max-width:700px), (max-aspect-ratio:4/5), (orientation:landscape) and (max-height:500px)').matches}; })()""")
             if not grain: failures.append(f"{name}: reus.paisaje() is missing (the landscape's px per window px)")
             elif grain["stacked"] and grain["g"] < 1.5 * grain["s"]: failures.append(f"{name}: landscape painted at {grain['g']:.2f} px per window px, expected ≥ {1.5 * grain['s']:.2f} on a stacked hero")
             elif not grain["stacked"] and grain["g"] > grain["s"]: failures.append(f"{name}: landscape painted at {grain['g']:.2f} px per window px on a wide hero (cost), expected ≤ {grain['s']:.2f}")

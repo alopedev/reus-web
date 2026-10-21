@@ -87,6 +87,7 @@ dialog.sale.pas .sheet:not(.va){ animation:retira var(--sale-ms) var(--sale) for
 .est[aria-current="true"] .n::after{ content:""; position:absolute; inset:-.08em -.22em -.06em; border:3px solid #6E2A1C; border-radius:.2em; transform:rotate(-1.2deg);
   -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:160px; mask-size:160px; pointer-events:none; }
 
+/* an upright phone (UPRIGHT in phone.ts): one column. Held sideways it keeps three, which fit a low screen (Àlex 21-10) */
 @media (max-width:700px), (max-aspect-ratio:4/5){
   .sheet .pp{ padding:1.2rem 1.1rem 1.1rem; max-height:min(88vh, 42rem); }
   .strip{ columns:1; }
