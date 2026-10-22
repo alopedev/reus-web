@@ -2770,7 +2770,12 @@ async def check_sheet_close(browser):
     for motion in ("no-preference", "reduce"):
         page = await open_page(browser, viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, reduced_motion=motion)
         await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
-        await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1200)
+        # the landscape paused (P, for recording), as in check_paper_motion: painted in software it holds the page's
+        # thread for seconds a frame, and the close's timers with it (3.1 s on main's 21-10 run for a 0.2 s slide).
+        # With reduced motion it never runs, and P would start it
+        await page.goto(parity_url + "?grabar"); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1200)
+        if motion == "no-preference": await page.keyboard.press("p"); await page.wait_for_timeout(300)
+        if await page.evaluate("reus.playing()"): errs.append(f"({motion}) the landscape still runs while the sheet's close is timed")
         await page.add_style_tag(content=".top,.info{opacity:1!important;transition:none!important;transform:none!important}")
         for how in ("a tap outside", "Esc"):
             await page.click("#board button.big", timeout=CLICK_MS); await page.wait_for_timeout(900)
