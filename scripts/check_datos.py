@@ -308,7 +308,9 @@ def check_cobertura(d):
 
 
 def check_paridad(d, trains_path):
-    """Rule 9: direct Sants<->Reus trains match data/trains.json's r/b keys exactly."""
+    """Rule 9: direct Sants<->Reus trains match data/trains.json's r/b keys exactly, except a train only the Rodalies
+    feed gives (its `n` is a GTFS trip id, not a number): trains.json comes from AV_LD alone, and since 12-10 Rodalies
+    wins when the two feeds disagree (on 04-11-2026 AV_LD dropped the R15 15:33 to Reus that Rodalies keeps)."""
     if not trains_path.exists():
         return []  # nothing to compare against
     try:
@@ -323,8 +325,8 @@ def check_paridad(d, trains_path):
         return f"{m // 60:02d}:{m % 60:02d}"
 
     def derive(day, origin, dest):
-        """(salida, llegada) pairs for trains that stop at origin, then later at dest."""
-        pairs = collections.Counter()
+        """(salida, llegada) pairs for trains that stop at origin, then later at dest, and those only Rodalies gives."""
+        pairs, rodalies = collections.Counter(), set()
         for idx in dias.get(day, []):
             if not isinstance(idx, int) or not (0 <= idx < len(trenes)):
                 continue
@@ -334,7 +336,9 @@ def check_paridad(d, trains_path):
                 salida = s[pos[origin]][2]
                 llegada = s[pos[dest]][1]
                 pairs[(salida, llegada)] += 1
-        return pairs
+                if not str(trenes[idx].get("n", "")).isdigit():
+                    rodalies.add((salida, llegada))
+        return pairs, rodalies
 
     errs = []
     for day, entry in trains.items():
@@ -342,9 +346,10 @@ def check_paridad(d, trains_path):
             continue
         for key, origin, dest in (("r", SANTS, REUS), ("b", REUS, SANTS)):
             expected = collections.Counter((row[0], row[1]) for row in entry.get(key, []))
-            actual = derive(day, origin, dest)
+            actual, rodalies = derive(day, origin, dest)
             missing = sorted((expected - actual).elements())
-            extra = sorted((actual - expected).elements())
+            extra = sorted(pair for pair in (actual - expected).elements()
+                           if pair in expected or pair not in rodalies or actual[pair] > 1)
             diffs = [f"missing {hhmm(dep)}->{hhmm(arr)}" for dep, arr in missing] + \
                     [f"{'repeated' if (dep, arr) in expected else 'extra'} {hhmm(dep)}->{hhmm(arr)}" for dep, arr in extra]
             if diffs:
