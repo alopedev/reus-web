@@ -9,13 +9,14 @@ import { fileURLToPath } from 'node:url';
 const red = process.env.RED;
 
 // the offline worker (src/sw.js) is written with the names of this build's files: it keeps them on install, all but
-// the latin-ext fonts (30-10): nothing the site writes needs them, so the page never asks for them, and keeping them
-// cost 60 kB on a first visit. A notice with a rarer letter still gets them from the network
+// the full latin and latin-ext fonts (30-10): the site writes only the letters of the small Catalan files
+// (scripts/fuentes.py), so the page never asks for them, and keeping them cost 140 kB on a first visit. A notice
+// with a rarer letter still gets them from the network
 const offline = {
   name: 'capacasa-sin-conexion',
   apply: 'build',
   generateBundle(_, bundle) {
-    const files = Object.keys(bundle).filter(f => f !== 'index.html' && !f.includes('latin-ext')).map(f => '/' + f).sort();
+    const files = Object.keys(bundle).filter(f => f !== 'index.html' && !/-latin.*\.woff2$/.test(f)).map(f => '/' + f).sort();
     const version = createHash('sha256').update(files.join('\n')).digest('hex').slice(0, 12);
     const source = readFileSync(fileURLToPath(new URL('src/sw.js', import.meta.url)), 'utf8')
       .replace('self.__FILES__', JSON.stringify(files)).replace('self.__VERSION__', JSON.stringify(version));
