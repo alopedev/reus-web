@@ -56,7 +56,8 @@ window.reus = { hingeAt, dropped, ScrollTrigger, paisaje: () => world ? world.gr
 // without a connection the site still opens, with the timetable it was built with (src/sw.js); only the built site
 // has the worker, not `npm run dev`
 if(import.meta.env.PROD && 'serviceWorker' in navigator)
-  addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); }, {once: true});
+  // update(): a new build's worker installs on this visit, not on some later one (sw.js is revalidated: a 304 if none)
+  addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').then(r => r.update()).catch(() => {}); }, {once: true});
 
 // visits (P1-4): Vercel Web Analytics, no cookies, page views only. Vercel serves the script once Analytics is
 // enabled for the project; nowhere else is it there, so neither check.py nor `npm run dev` asks for it (src/visites.ts)

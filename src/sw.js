@@ -33,7 +33,7 @@ self.addEventListener('fetch', e => {
 // fails or is too slow
 async function page(req){
   const cache = await caches.open(SITE);
-  const net = fetch(req).then(res => { if(res.ok) cache.put('./', res.clone()); return res; });
+  const net = fetch(req).then(res => { if(res.ok) keep(cache, res.clone()).catch(() => {}); return res; });
   net.catch(() => {});   // a late failure after the saved page was given is nobody's business
   const late = new Promise(ok => setTimeout(ok, WAIT_MS));
   try {
@@ -50,4 +50,11 @@ async function page(req){
 // a build's scripts and styles never change under the same name
 async function saved(req){
   return (await caches.match(req)) || fetch(req);
+}
+
+// a page is kept only if it is this build's (30-10): a newer build's page, saved here, would open offline asking for
+// scripts or styles this worker never kept, and show an empty board. The newer worker keeps its own page when it installs
+async function keep(cache, res){
+  const html = await res.clone().text();
+  if([...html.matchAll(/\/assets\/[\w.-]+\.(?:js|css)/g)].every(m => FILES.includes(m[0]))) await cache.put('./', res);
 }
