@@ -36,12 +36,17 @@ export function read(trips: Feed, vehicles: Feed): Answer {
   return { llegit: new Date(isNaN(at) ? 0 : at).toISOString(), trens };
 }
 
-const WAIT = 5000;
+// Renfe now and then cuts a connection or does not answer (30-10: 5 asks in 80): one more try, both within the 5 s
+// a single one had
+const WAIT = 2500, TRIES = 2;
 async function feed(url: string): Promise<Feed | null> {
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(WAIT) });
-    return res.ok ? await res.json() as Feed : null;
-  } catch { return null; }
+  for(let i = 0; i < TRIES; i++){
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(WAIT) });
+      if(res.ok) return await res.json() as Feed;
+    } catch { /* asked again below */ }
+  }
+  return null;
 }
 
 export default {
@@ -54,7 +59,8 @@ export default {
     return new Response(JSON.stringify(read(trips, vehicles)), { headers: {
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'public, max-age=0',   // the browser always asks; the CDN answers from its copy
-      // Renfe rewrites its feeds every 20 s: however many visitors come, it is asked at most that often per region
-      'Vercel-CDN-Cache-Control': 's-maxage=20, stale-while-revalidate=20' } });
+      // Renfe rewrites its feeds every 20 s: however many visitors come, it is asked at most that often per region.
+      // If Renfe fails, the CDN gives the last answer for 2 more minutes instead of the 502 (the page trusts 3)
+      'Vercel-CDN-Cache-Control': 's-maxage=20, stale-while-revalidate=20, stale-if-error=120' } });
   },
 };

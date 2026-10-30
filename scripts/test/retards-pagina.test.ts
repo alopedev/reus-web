@@ -74,3 +74,13 @@ test('it asks again on its own every 30 s, without waiting for the board to be r
   t.now += t.timer!.ms; t.hidden = true; t.timer!.fn(); await new Promise(r => setTimeout(r, 0));
   assert.equal(t.asks, 2);
 });
+
+test('with the tab hidden the board\'s minute redraw does not ask either; back in sight, it asks at once', async () => {
+  const { t, follow } = setup();
+  t.next = answer(-20, TRENS); await follow();
+  t.hidden = true;
+  for(let i = 0; i < 10; i++){ t.now += MIN; await follow(); }
+  assert.equal(t.asks, 1);
+  t.hidden = false; await follow();
+  assert.equal(t.asks, 2);
+});
