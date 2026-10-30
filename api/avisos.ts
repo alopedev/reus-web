@@ -50,6 +50,7 @@ export default {
     return new Response(JSON.stringify(answer), { status: none ? 502 : 200, headers: {
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'public, max-age=0',   // the browser always asks; the CDN answers from its copy
-      'Vercel-CDN-Cache-Control': 's-maxage=120, stale-while-revalidate=60' } });
+      // if the Generalitat fails, the CDN gives the last answer for 10 more minutes instead of the 502 (the page trusts 30)
+      'Vercel-CDN-Cache-Control': 's-maxage=120, stale-while-revalidate=60, stale-if-error=600' } });
   },
 };
