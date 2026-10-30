@@ -2,7 +2,8 @@
 // test's own. `npm test`, no network
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { read } from '../../api/retards.ts';
+import retards, { read } from '../../api/retards.ts';
+import avisos from '../../api/avisos.ts';
 
 const NOW = Date.parse('2026-10-10T15:40:00Z'), S = (t: number) => String(Math.round(t / 1000));
 const header = (at = NOW - 20e3) => ({ gtfsRealtimeVersion: '2.0', timestamp: S(at) });
@@ -51,4 +52,47 @@ test('a cancelled train is cancelled, never on time; without its position its nu
   const cancel = (tripId: string) => ({ id: `TUCANCEL_${tripId}`, tripUpdate: { trip: { tripId, scheduleRelationship: 'CANCELED' } } });
   const [trips, vehicles] = feeds([cancel('5181S30503R15'), cancel('5181S16001R15')], [vehicle('5181S30503R15', 'R15-17505')]);
   assert.deepEqual(read(trips, vehicles).trens, { '17505': { estat: 'cancelat' } });
+});
+
+// the function as Vercel runs it, with Renfe answered by the test: `answers` says, per URL, how each ask goes
+async function invoke(fn: { fetch(): Promise<Response> }, answers: (url: string, n: number) => Response | Error){
+  const real = globalThis.fetch, asked = new Map<string, number>();
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = String(input), n = (asked.get(url) ?? 0) + 1;
+    asked.set(url, n);
+    const a = answers(url, n);
+    if(a instanceof Error) throw a;
+    return a;
+  }) as typeof fetch;
+  try { return { res: await fn.fetch(), asked }; } finally { globalThis.fetch = real; }
+}
+const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
+
+test('Renfe cutting a connection once is asked again: the page still gets its delays, not a 502', async () => {
+  const [trips, vehicles] = feeds([update('5181S30503R15', 1500)], [vehicle('5181S30503R15', 'R15-17505')]);
+  const { res, asked } = await invoke(retards, (url, n) => url.includes('vehicle') ? (n === 1 ? new TypeError('fetch failed') : json(vehicles)) : json(trips));
+  assert.equal(res.status, 200);
+  assert.equal(((await res.json()) as { trens: Record<string, unknown> }).trens['17505'] !== undefined, true);
+  assert.equal(asked.get('https://gtfsrt.renfe.com/vehicle_positions.json'), 2);
+});
+
+test('Renfe down: still a 502, after asking twice and no more', async () => {
+  const { res, asked } = await invoke(retards, () => new TypeError('fetch failed'));
+  assert.equal(res.status, 502);
+  assert.deepEqual([...asked.values()], [2, 2]);
+});
+
+// while Renfe or the Generalitat fail, the CDN goes on giving its last good answer for a while instead of the error;
+// the page already drops an answer older than it can trust (3 min the delays, 30 min the notices)
+const staleIfError = (res: Response) => Number(/stale-if-error=(\d+)/.exec(res.headers.get('Vercel-CDN-Cache-Control') ?? '')?.[1] ?? 0);
+
+test('the CDN keeps the last delays for 2 minutes when Renfe fails', async () => {
+  const [trips, vehicles] = feeds([], []);
+  const { res } = await invoke(retards, url => json(url.includes('vehicle') ? vehicles : trips));
+  assert.equal(staleIfError(res), 120);
+});
+
+test('the CDN keeps the last notices for 10 minutes when the Generalitat fails', async () => {
+  const { res } = await invoke(avisos, () => new Response('<rss><channel></channel></rss>'));
+  assert.equal(staleIfError(res), 600);
 });

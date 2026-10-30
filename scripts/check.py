@@ -3260,6 +3260,21 @@ async def check_own_fonts(browser):
     for family, weight in (("Young Serif", 400), ("Literata", 500), ("Literata", 700)):
         if not any(f == family and weight in weights(w) for f, w in faces): errs.append(f"{family} {weight} is not loaded (loaded: {faces})")
     await page.close()
+    # cut to what the site writes (30-10, scripts/fuentes.py): on a desktop and on a phone the two letters weigh at
+    # most 65 kB, the small Catalan files (60); the full latin ones (80) wait for a letter the site does not write
+    for vp in ({"viewport": {"width": 1440, "height": 900}}, {"viewport": {"width": 390, "height": 844}, "device_scale_factor": 3, "is_mobile": True, "has_touch": True}):
+        page = await open_page(browser, reduced_motion="reduce", **vp)
+        woff = []
+        async def size(r):
+            if r.url.endswith(".woff2"):
+                try: woff.append((r.url.rsplit("/", 1)[-1], len(await r.body())))
+                except Exception: pass
+        page.on("response", lambda r: asyncio.ensure_future(size(r)))
+        await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
+        await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1500)
+        kb = sum(n for _, n in woff) / 1000
+        if not woff or kb > 65: errs.append(f"{vp['viewport']['width']}px: the letters weigh {kb:.1f} kB: the full latin files came too ({woff})")
+        await page.close()
     return errs
 
 async def check_offline(browser):
