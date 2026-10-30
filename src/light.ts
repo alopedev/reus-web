@@ -20,6 +20,9 @@ const DUSK: Daylight = {name:'dusk', top:[.60,.44,.60], hor:[.96,.72,.56], sun:[
 const BLUE: Daylight = {name:'night', top:[.17,.24,.46], hor:[.46,.52,.72], sun:[.80,.80,.95], sunUV:[.8,.40], glow:0, hemi:[0x6a7fc0,0x2a2c40,.62], dir:[0x9fb4ee,.45,[-.5,.4,.5]],
   wallA:[.36,.35,.45], wallB:[.23,.23,.32], wood:[.20,.17,.21], seat:[.12,.12,.16]};
 
+// the hour in Madrid, built once (the sun is asked for on every redraw)
+const MADRID_HOUR = new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/Madrid', hour:'2-digit', hourCycle:'h23'});
+
 // sunrise and sunset in Barcelona (41.38° N, 2.17° E), in Madrid minutes: NOAA's «General Solar Position
 // Calculations» (gml.noaa.gov/grad/solcalc/solareqns.PDF), within a minute or two of the published tables. The
 // towns are at most ~7 minutes away from Barcelona's sun
@@ -31,7 +34,7 @@ export function sunTimes(iso: string): [rise: number, set: number] {
   const lat = 41.38*Math.PI/180, lon = 2.17, rad = Math.PI/180;
   const ha = Math.acos(Math.cos(90.833*rad)/(Math.cos(lat)*Math.cos(dec)) - Math.tan(lat)*Math.tan(dec))/rad;
   // Madrid's offset from UTC that day (summer time or not), read off the calendar rather than worked out
-  const h = +new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/Madrid', hour:'2-digit', hourCycle:'h23'}).format(noon);
+  const h = +MADRID_HOUR.format(noon);
   const tz = (h - 12)*60;
   return [720 - 4*(lon + ha) - eq + tz, 720 - 4*(lon - ha) - eq + tz];
 }
