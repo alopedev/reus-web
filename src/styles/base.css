@@ -29,6 +29,9 @@ html:has(dialog[open]){ overflow:hidden; scrollbar-gutter:stable; }
 #hero{ position:fixed; inset:0; z-index:0; }
 /* the wall darkens as it leans away from the camera: painted in the wall's shader when WebGL runs (the texts on
    it dim with --lavado, set only while it turns), or this flat veil when it does not */
+/* set on #hero, it reaches the stage alone: inherited, every frame of the turn would restyle the whole hero (30-10) */
+@property --lavado{ syntax:'*'; inherits:false; }
+.stage{ --lavado:inherit; }
 .pintada .stage{ filter:brightness(calc(1 - .45 * var(--lavado))); }
 .sombra{ position:absolute; inset:0; z-index:2; pointer-events:none; background:linear-gradient(#1d1712, #2D241C); opacity:0; }
 strong{ font-weight:700; }

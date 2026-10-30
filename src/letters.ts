@@ -1,5 +1,5 @@
 import { byId, find } from './dom';
-import { pose, type Pose } from './shelf';
+import { pose, view, type Pose } from './shelf';
 
 // The letters of the name (h1.brand) peel off the wall as paper cut-outs, fly in an arc and land forming the
 // first heading of the table (h2#qe). Every chip is drawn by a pure function of the scroll progress p = dropped()
@@ -132,7 +132,7 @@ export function measure(): void {
 // rotateX(wall) scale(s) around 50% fold -- the same transform pitch() gives #hero, worked out in closed form
 // instead of multiplying matrices (cheap, and this is the only place that needs it: see viaje-letras.md, #6)
 function projectWall(g: Glyph, ps: Pose): {x: number; y: number} {
-  const ox = innerWidth / 2, oy = ps.fold;
+  const ox = view.w / 2, oy = ps.fold;
   const lx = (g.x - ox) * ps.s, ly = (g.y - oy) * ps.s;
   const rad = ps.wall * Math.PI / 180;
   const ry = ly * Math.cos(rad), rz = ly * Math.sin(rad);
@@ -173,7 +173,7 @@ export function state(p: number): LettersState {
       else if(p >= end){ const q = projectTable(dstG, pose(p)); x = q.x; y = q.y; }
       else {
         const sp = projectWall(srcG, pose(start)), ep = projectTable(dstG, pose(end));
-        x = lerp(sp.x, ep.x, te); y = lerp(sp.y, ep.y, te) - arc * ARC * innerHeight;
+        x = lerp(sp.x, ep.x, te); y = lerp(sp.y, ep.y, te) - arc * ARC * view.h;
       }
       // asentamiento: a short overshoot right at the end of the flight, same language as land() in shelf.ts
       const settle = t > .82 ? Math.sin(Math.PI * (t - .82) / .18) : 0;
