@@ -86,7 +86,9 @@ Also saves screenshots to screenshots/ for a visual review.
 Needs: pip install playwright && playwright install chromium
 Usage: npm run build && npm run build:paridad && python3 scripts/check.py [paridad|letras|a11y|red|hero|mesa|pintado]   (or: npm run check)
        (paridad: only check 10, in a minute; letras: only check 11, on desktop and mobile, in a minute; a11y: only check 13; red: only check 14;
-        hero: only check 15; mesa: only check 16; compartir: only check 17, in a second; pintado: only the one-paint-per-frame part of check 6)
+        hero: only check 15; mesa: only check 16; compartir: only check 17, in a second; pintado: the cost of painting the wall
+        (one paint per frame while it turns, no forced restyles, nothing painted under the table, the whole wall only for a new
+        light or window); pared: the last three; dormida: the table resting under the hero)
 """
 import asyncio, functools, html.parser, http.server, io, json, os, pathlib, re, sys, threading
 import urllib.parse
@@ -960,6 +962,106 @@ async def check_table_at_load(browser):
         if y: errs.append(f"{name}: the page scrolled to {y} on its own (the check proves nothing)"); continue
         if draws > 2: errs.append(f"{name}: the hidden table is drawn {draws} times at load; painted at once it takes 1 or 2")
         if again > draws: errs.append(f"{name}: a resize that leaves the table its size repaints it ({again - draws} draws)")
+    return errs
+
+async def check_wall_unchanged(browser):
+    """The whole painted wall (the watercolour's costliest pass) is painted again only when it changes: a new light,
+    a new size, a window that moved. Choosing another trip, the arrows there and back, the minute's redraw or a resize
+    that changes nothing keep the light and the window as they were: repainting it there was half of the wait after
+    every tap and a stall every minute (rendimiento/animaciones.md, A2 and A6); a board that grows or shrinks moves the
+    window, and that is a new wall. Desktop at 10:00 on the frozen
+    timetable, where all of those keep the daylight; a train late in the evening still brings the night in."""
+    page = await hero_page(browser)
+    walls = "reus.parets()"
+    if await page.evaluate(walls) is None: await page.close(); return ["reus.parets() is missing (whole-wall paints)"]
+    win = "JSON.stringify(document.getElementById('win').getBoundingClientRect())"
+    errs, at, box = [], await page.evaluate(walls), await page.evaluate(win)
+    async def same(what):
+        # a choice can grow or shrink the board and move the window (then the wall is painted anew, rightly)
+        nonlocal at, box
+        await page.wait_for_timeout(600); n, b = await page.evaluate(walls), await page.evaluate(win)
+        if n != at and b == box: errs.append(f"{what} repaints the whole wall ({n - at}×) with the same light and window")
+        at, box = n, b
+    await page.evaluate("dispatchEvent(new Event('resize'))"); await same("a resize that changes nothing")
+    await page.click("#board .tt"); await same("choosing the other trip")
+    await page.click("#days .full[aria-pressed=false]"); await same("«demà»")
+    await page.click("#days .full[aria-pressed=false]"); await same("«avui»")
+    await page.click(".tk .swap"); await same("the arrows"); await page.click(".tk .swap"); await same("the arrows back")
+    await page.clock.run_for(60000); await same("the minute's redraw")
+    await page.focus("#t"); await page.keyboard.press("End"); await page.wait_for_timeout(600)
+    if await page.evaluate(walls) == at: errs.append("the last train of the evening does not bring the night's light in")
+    await page.close()
+    return errs
+
+async def check_turn_light(browser):
+    """While the wall turns towards the table, a scroll event restyles the page at most once inside its listeners
+    (ScrollTrigger reads the scroll; ours read nothing after writing), and no restyle goes through the whole hero:
+    the wash that dims the texts (--lavado) is the stage's alone. Forced restyles and the hero's 500 elements on every
+    frame were what a slow phone could not fit in a frame (rendimiento/animaciones.md, A3 and A4). Read from a trace."""
+    errs = []
+    for name, opts in {"1440x900": dict(viewport={"width": 1440, "height": 900}),
+                       "390x844": dict(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, device_scale_factor=3)}.items():
+        page = await open_page(browser, **opts)
+        await page.goto(page_url); await hero_settled(page); await page.wait_for_timeout(1500)
+        hero = await page.evaluate("document.querySelectorAll('#hero *').length")
+        await browser.start_tracing(page=page, categories=["devtools.timeline", "disabled-by-default-devtools.timeline"])
+        steps = 10
+        for i in range(1, steps + 1):
+            await page.evaluate(f"scrollTo({{top: reus.hingeAt(0) * {i / 25}, behavior: 'instant'}})")
+            await page.evaluate("new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
+        trace = json.loads(await browser.stop_tracing()); await page.close()
+        spans = [e for e in trace["traceEvents"] if e.get("ph") == "X" and e.get("dur") is not None]
+        scrolls = [e for e in spans if e["name"] == "EventDispatch" and e.get("args", {}).get("data", {}).get("type") == "scroll"]
+        styles = [e for e in spans if e["name"] == "UpdateLayoutTree"]
+        within = lambda u: any(d["pid"] == u["pid"] and d["tid"] == u["tid"] and d["ts"] <= u["ts"] <= d["ts"] + d["dur"] for d in scrolls)
+        forced = sum(1 for u in styles if within(u))
+        widest = max((u.get("args", {}).get("elementCount") or 0 for u in styles), default=0)
+        if not scrolls: errs.append(f"{name}: no scroll event while the wall turns (the check proves nothing)"); continue
+        if forced > len(scrolls): errs.append(f"{name}: {forced} restyles forced inside {len(scrolls)} scroll events while the wall turns")
+        if widest > hero / 2: errs.append(f"{name}: a restyle goes through {widest} elements while the wall turns (the hero has {hero})")
+    return errs
+
+async def check_table_scroll_quiet(browser):
+    """Reading the table, the wall is hidden under it and nothing about it changes: scrolling there paints nothing on
+    the hero's canvas. Each scroll event laid the wash again over the whole hidden wall (rendimiento/animaciones.md,
+    A5): a full-screen pass of the watercolour per event, for nobody."""
+    errs = []
+    for name, opts in {"1440x900": dict(viewport={"width": 1440, "height": 900}),
+                       "390x844": dict(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, device_scale_factor=3)}.items():
+        page = await open_page(browser, **opts)
+        await page.add_init_script(SCREEN_DRAWS)
+        await page.goto(page_url); await hero_settled(page)
+        if not await page.evaluate("!!document.getElementById('gl')"): await page.close(); continue
+        await page.evaluate("scrollTo({top: reus.hingeAt(0) + 40, behavior: 'instant'})"); await hinge_caught_up(page)
+        await page.wait_for_timeout(1000)
+        await page.evaluate("__pasadas = []")
+        for i in range(1, 11):
+            await page.evaluate(f"scrollTo({{top: reus.hingeAt(0) + 40 + {i * 30}, behavior: 'instant'}})")
+            await page.wait_for_timeout(120)
+        await page.wait_for_timeout(500)
+        n = await page.evaluate("__pasadas.length"); await page.close()
+        if n: errs.append(f"{name}: scrolling on the table paints the hidden wall {n} times")
+    return errs
+
+async def check_table_asleep(browser):
+    """Under the hero the table's live layers (the shadows going past, the shake, the coffee's steam) rest: nobody can
+    see them, and running they restyle, lay out and repaint the page on every frame (rendimiento/animaciones.md, A1).
+    At load the table's top edge only touches the screen's bottom: that is not in view. They wake as the wall turns
+    and rest again back on the hero."""
+    errs = []
+    for name, opts in {"1440x900": dict(viewport={"width": 1440, "height": 900}),
+                       "390x844": dict(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, device_scale_factor=3)}.items():
+        page = await open_page(browser, **opts)
+        await page.goto(page_url); await hero_settled(page); await page.wait_for_timeout(1000)
+        asleep = "document.getElementById('escena').classList.contains('dormida')"
+        if not await page.evaluate(asleep): errs.append(f"{name}: the table's live layers run under the hero at load")
+        await page.evaluate("scrollTo({top: reus.hingeAt(0) * .5, behavior: 'instant'})"); await hinge_caught_up(page)
+        try: await page.wait_for_function(f"!{asleep}", timeout=5000)
+        except Exception: errs.append(f"{name}: the table's live layers stay asleep while the wall turns")
+        await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await hinge_caught_up(page)
+        try: await page.wait_for_function(asleep, timeout=5000)
+        except Exception: errs.append(f"{name}: back on the hero, the table's live layers keep running")
+        await page.close()
     return errs
 
 async def check_still_window(browser):
@@ -3267,9 +3369,18 @@ async def main():
         if sys.argv[1:] == ["hero"]:
             failures += await check_hero(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · hero"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["pared"]:
+            failures += await check_wall_unchanged(browser)
+            failures += await check_turn_light(browser)
+            failures += await check_table_scroll_quiet(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · pared"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["dormida"]:
+            failures += await check_table_asleep(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · dormida"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["mesa"]:
             failures += await check_things_clear(browser)
             failures += await check_table_at_load(browser)
+            failures += await check_table_asleep(browser)
             failures += await check_table_follows(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · mesa"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["fuentes"]:
@@ -3279,6 +3390,9 @@ async def main():
             failures += await check_offline(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · sinred"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["pintado"]:
+            failures += await check_wall_unchanged(browser)
+            failures += await check_turn_light(browser)
+            failures += await check_table_scroll_quiet(browser)
             for name, (w, h) in VIEWPORTS.items():
                 page = await open_page(browser, viewport={"width": w, "height": h})
                 await page.add_init_script(SCREEN_DRAWS); await page.add_init_script(SHADER_LINKS)
@@ -3364,6 +3478,10 @@ async def main():
         failures += [f"hero: {e}" for e in await check_hero(browser)]
         failures += [f"iman: {e}" for e in await check_magnet(browser)]
         failures += [f"mesa: {e}" for e in await check_table_at_load(browser)]
+        failures += [f"mesa: {e}" for e in await check_table_asleep(browser)]
+        failures += [f"pintado: {e}" for e in await check_wall_unchanged(browser)]
+        failures += [f"pintado: {e}" for e in await check_turn_light(browser)]
+        failures += [f"pintado: {e}" for e in await check_table_scroll_quiet(browser)]
         failures += [f"mesa: {e}" for e in await check_table_follows(browser)]
         failures += [f"mesa: {e}" for e in await check_things_clear(browser)]
         failures += [f"reduced: {e}" for e in await check_still_window(browser)]

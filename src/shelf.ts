@@ -27,13 +27,14 @@ export function setupShelf(w: World | null): void {
     if(!ctx.conditions?.motion) return;
     const {pinned} = ctx.conditions, shelf = byId('repisa');
     // the hinge reads the scroll directly: it must match the table's real position on every frame
-    const onScroll = () => { pitch(); magnet.scrolled(); };
+    // the magnet reads the scroll first: read after pitch() wrote the wall's styles, it would force a restyle
+    const onScroll = () => { magnet.scrolled(); pitch(); };
     // the letters' rest positions scale with the root: re-measure on resize, from the same listener as pitch()
-    const onResize = () => { restTop = shelf.offsetTop; letters.measure(); pitch(); };
+    const onResize = () => { restTop = shelf.offsetTop; letters.measure(); pitch(false, true); };
     restTop = shelf.offsetTop;
     const magnet = createMagnet(pitch);
     addEventListener('scroll', onScroll, {passive:true}); addEventListener('resize', onResize);
-    document.fonts ? document.fonts.ready.then(() => { letters.measure(); pitch(); }) : letters.measure();
+    document.fonts ? document.fonts.ready.then(() => { letters.measure(); pitch(false, true); }) : letters.measure();
     pitch();
     // each paper with the tilt it rests at (the same as in the stylesheet)
     const papers = ([['#folleto', -2.5], ['#cuaderno', 1], ['#reverso', -1.2]] as const).map(([s, r]): [HTMLElement, number] => [find(s), r]);
@@ -150,6 +151,10 @@ const PITCH_WALL = 34, PITCH_TABLE = 24;
 // Read on resize only (a layout read); 0 until the shelf is set up, and then innerHeight stands in
 let restTop = 0;
 const tableRest = () => restTop || innerHeight;
+// the screen's size, read on resize: read on every scroll event after pitch() writes the wall's styles, a phone
+// restyles the page each time (30-10). Its listener comes first, before any of setupShelf's
+export const view = {w: innerWidth, h: innerHeight};
+addEventListener('resize', () => { view.w = innerWidth; view.h = innerHeight; });
 export const dropped = (): number => clamp01(scrollY / tableRest());
 export const hingeAt = (p: number): number => tableRest() * (1 - p);
 
@@ -157,7 +162,7 @@ export interface Pose { p: number; vh: number; P: number; fold: number; wall: nu
 // the wall and table's angles, hinge and scale for a given progress: the one place this geometry is computed,
 // shared by pitch() (which paints it) and letters.ts (which projects the flying letters through the same math)
 export function pose(p: number): Pose {
-  const vh = innerHeight, P = 2 * vh;
+  const vh = view.h, P = 2 * vh;
   const fold = hingeAt(p);
   const wall = PITCH_WALL * inOut(clamp01(p / .85));
   const bump = p > .9 ? 1.4 * Math.sin(Math.PI * (p - .9) / .1) : 0;
@@ -169,9 +174,14 @@ export function pose(p: number): Pose {
   const shade = Math.pow(wall / PITCH_WALL, 1.3);
   return {p, vh, P, fold, wall, table, s, shade};
 }
-function pitch(reset = false){
+// the progress last laid: at either end nothing changes from one scroll event to the next (the wall at rest, or
+// hidden under the table), and laying it again would repaint the wash over the whole wall for nothing (30-10)
+let laid = -1;
+function pitch(reset = false, again = false){
   const hero = byId('hero'), shelf = byId('repisa');
   const p = reset ? 0 : dropped();
+  if(!reset && !again && p === laid && (p === 0 || p === 1)) return;
+  laid = reset ? -1 : p;
   const {P, fold, wall, table, s, shade} = pose(p);
   hero.style.transformOrigin = `50% ${fold.toFixed(1)}px`;
   hero.style.transform = p > 0 && p < 1 ? `perspective(${P}px) rotateX(${wall.toFixed(3)}deg) scale(${s.toFixed(4)})` : '';
@@ -180,7 +190,8 @@ function pitch(reset = false){
   shelf.style.transform = p > 0 && table > .001 ? `perspective(${P}px) rotateX(${table.toFixed(3)}deg)` : '';
   // the wall darkens as it turns away from the window's light: a pigment wash painted in the wall's own
   // shader, climbing from the hinge (in the wall's own coordinates the hinge sits at uv.y = p), and the
-  // texts on it dim with it (--lavado). With no WebGL, `world` is null and the flat #sombra veil is the fallback
+  // texts on it dim with it (--lavado, read only by the stage: base.css). With no WebGL, `world` is null and the flat
+  // #sombra veil is the fallback
   if(shade > 0) hero.style.setProperty('--lavado', shade.toFixed(3)); else hero.style.removeProperty('--lavado');
   if(world) world.setWash(p, shade);
   else byId('sombra').style.opacity = (.6 * shade).toFixed(3);

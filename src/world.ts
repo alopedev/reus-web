@@ -14,6 +14,7 @@ export interface World {
   grain(): number;                                         // px of the landscape per px of the window (check.py)
   snap(r: DOMRect): HTMLCanvasElement | null;              // a copy of the painting in that box of the viewport (flaps.ts)
   painted(): number;                                       // share of the canvas the last watercolour pass painted (check.py)
+  walls(): number;                                         // how many times the whole wall has been painted (check.py)
 }
 // something scattered on the landscape: position, size, and turn around the vertical axis
 type Placement = [x: number, y: number, z: number, size: [number, number, number], turn?: number];
@@ -130,11 +131,11 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
   const washMat = new ShaderMaterial({ uniforms:washU, vertexShader:post.vertexShader, fragmentShader:'#define WASH_PASS\n' + watercolorFrag });
   const washScene = new Scene(); washScene.add(new Mesh(new PlaneGeometry(2,2), washMat));
   // wallKept/wetKept: the wall is painted in kept/wet; dryFresh/wetFresh: their window holds the latest landscape
-  let wallKept = false, wetKept = false, dryFresh = false, wetFresh = false, share = 1;
+  let wallKept = false, wetKept = false, dryFresh = false, wetFresh = false, share = 1, walls = 0;
   // a phone's hero (phone.ts; held sideways too) has a small window: its landscape is painted twice as fine, since
   // the brush strokes are sized in the target's pixels and would read as pixels there
   const STACKED = matchMedia(PHONE);
-  let grain = 0;
+  let grain = 0, wall = '';
   function resize(){
     const cw = innerWidth, ch = innerHeight;
     let s = Math.min(devicePixelRatio||1, 1.25);
@@ -142,7 +143,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     const W = Math.max(2, Math.round(cw*s)), H = Math.max(2, Math.round(ch*s));
     renderer.setPixelRatio(1); renderer.setSize(W, H, false);
     U.sres.value.set(W, H); U.aspect.value = W/H;
-    kept.setSize(W, H); wet.setSize(W, H); copy.uniforms.size.value.set(W, H); wallKept = wetKept = false;
+    kept.setSize(W, H); wet.setSize(W, H); copy.uniforms.size.value.set(W, H);
     // the wall's boxes at rest: a new size can come while the wall is turned away (iOS Safari's toolbar shrinks as
     // the page scrolls), and its tilt (shelf.ts) would put the window and the board elsewhere on the screen
     const tilt = hero.style.transform; hero.style.transform = '';
@@ -160,14 +161,21 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     grain = rw / Math.max(1, r.width);
     rt.setSize(rw, rh); U.res.value.set(rw, rh);
     const wa = r.width/Math.max(1,r.height); U.waspect.value = wa;
+    // the wall is painted again only if it changed: a resize that leaves the screen, the window and the board as they
+    // were (the arrows' own, a toolbar's, a ResizeObserver's) would cost a whole watercolour pass for nothing (30-10)
+    const was = wall; wall = JSON.stringify([W, H, U.win.value.toArray(), U.wrad.value, U.brd.value.toArray(), U.seats.value, rw, rh]);
+    if(wall !== was) wallKept = wetKept = false;
     camera.aspect = wa; camera.fov = wa < 1.3 ? 50 : 40;
     const hor = .42; U.hor.value = hor;
     const vfov = camera.fov*Math.PI/180;
     camera.rotation.set(Math.atan(Math.tan(vfov/2)*(1-2*hor)), 0, 0);
     camera.updateProjectionMatrix();
   }
+  let lit = '';
   function setTime(min: number){
     const p = daylight(min);
+    // the same light as the one painted (all day long but in the 40-min blends): nothing to paint again (30-10)
+    const key = JSON.stringify(p); if(key === lit) return p.name; lit = key;
     U.skyTop.value.set(...p.top); U.skyHor.value.set(...p.hor); U.sunCol.value.set(...p.sun); U.sunPos.value.set(...p.sunUV); U.sunA.value = p.glow;
     U.wallA.value.set(...p.wallA); U.wallB.value.set(...p.wallB); U.wood.value.set(...p.wood); U.seat.value.set(...p.seat);
     wallKept = wetKept = false;
@@ -200,7 +208,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
   // fully washed), and the wash is laid between the two (WASH_PASS); at rest `kept` is copied as it is
   function paint(){
     if(U.reveal.value < 1){
-      wallKept = wetKept = false; share = 1;
+      wallKept = wetKept = false; share = 1; walls++;
       renderer.setRenderTarget(null); renderer.render(postScene, postCam); return;
     }
     const W = kept.width, H = kept.height, w = U.win.value, m = .006;
@@ -210,7 +218,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     // into a target: the whole wall the first time, then the window's box; returns the share of the screen painted
     const into = (target: WebGLRenderTarget, whole: boolean) => {
       target.scissorTest = !whole; target.scissor.set(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
-      renderer.setRenderTarget(target); renderer.render(postScene, postCam); return whole ? 1 : box;
+      renderer.setRenderTarget(target); renderer.render(postScene, postCam); if(whole) walls++; return whole ? 1 : box;
     };
     const shade = U.shade.value; share = 0;
     U.shade.value = 0;
@@ -248,5 +256,5 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     ctx.drawImage(canvas, r.left*k, r.top*k, r.width*k, r.height*k, 0, 0, out.width, out.height);
     return out;
   }
-  return {frame, setTime, resize, setWash, setWeather, grain: () => grain, snap, painted: () => share};
+  return {frame, setTime, resize, setWash, setWeather, grain: () => grain, snap, painted: () => share, walls: () => walls};
 }
