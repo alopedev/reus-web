@@ -60,8 +60,10 @@ export function stopName(id: string): string {
 }
 
 // times are minutes after midnight, always in Madrid
+// built once: a formatter is costly to build, and the time is asked for on every redraw and every frame of the turn
+const MADRID = new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 export function madridNow(): {date: string, min: number} {
-  const p = new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+  const p = MADRID.formatToParts(new Date());
   const g = (t: Intl.DateTimeFormatPartTypes) => p.find(x=>x.type===t)!.value;
   return {date:`${g('year')}-${g('month')}-${g('day')}`, min:(+g('hour'))*60+(+g('minute'))};
 }

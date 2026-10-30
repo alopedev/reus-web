@@ -16,10 +16,12 @@ export function setupShelf(w: World | null): void {
   // still: the wall never turns, but once the table covers the fixed hero its controls leave the keyboard's reach,
   // as pitch() hides it with motion (p >= 1)
   gsap.matchMedia().add('(prefers-reduced-motion: reduce)', () => {
+    // nothing follows the scroll here: ScrollTrigger off, or it keeps asking for a frame 60 times a second
+    ScrollTrigger.disable();
     const shelf = byId('repisa'), hero = byId('hero');
     const cover = () => { restTop = shelf.offsetTop; hero.style.visibility = dropped() >= 1 ? 'hidden' : ''; };
     addEventListener('scroll', cover, {passive:true}); addEventListener('resize', cover); cover();
-    return () => { removeEventListener('scroll', cover); removeEventListener('resize', cover); hero.style.visibility = ''; };
+    return () => { removeEventListener('scroll', cover); removeEventListener('resize', cover); hero.style.visibility = ''; ScrollTrigger.enable(); };
   });
   gsap.matchMedia().add({motion:'(prefers-reduced-motion: no-preference)', wide:'(min-width:701px)', pinned:PINNED}, ctx => {
     if(!ctx.conditions?.motion) return;
