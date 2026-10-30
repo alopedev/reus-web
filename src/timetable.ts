@@ -227,6 +227,8 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   });
   // on the minute, like the clock: the countdown, «ara» and the clock's hands move together (away from now too)
   const tick = () => { render(); setTimeout(tick, Math.max(1000, 60050 - Date.now() % 60000)); };
+  // back in sight after a while: the board and the live sources at once, not at the next minute
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) render(); });
   setTimeout(tick, Math.max(1000, 60050 - Date.now() % 60000));
   // Renfe's licence asks for its exact words, in Spanish (data.renfe.com/legal); the rest is ours. The live delays
   // (Renfe's real-time feed) and the weather (Open-Meteo) are CC BY 4.0

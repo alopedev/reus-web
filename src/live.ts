@@ -1,8 +1,9 @@
 // what the page keeps asking a source for while it is open (20-10): the lines' notices, the live delays and the
 // weather at home. One way of asking for all three: at most every `fresh` ms, and again on its own when that time
 // comes (the board is redrawn once a minute, and the delays are worth asking every 30 s); not while the tab is
-// hidden (its next redraw asks); a failed ask keeps the last answer while it is still `usable`. A source may follow a
-// key (the weather, a town): another key forgets what was known, and an answer for a key left behind is dropped.
+// hidden, not even on the minute redraw (30-10), and again once it is back in sight; a failed ask keeps the last
+// answer while it is still `usable`. A source may follow a key (the weather, a town): another key forgets what was
+// known, and an answer for a key left behind is dropped.
 // The tests (scripts/test/) hand it their own ask, clock and timer
 
 export type Ask<K> = (key: K) => Promise<unknown>;
@@ -48,7 +49,7 @@ export function createLive<A, K = string>(onChange: () => void, o: LiveOptions<A
   }
   function follow(k: K){
     if(k !== key){ key = k; known = null; answered = false; tell(); void update(); }
-    else if(!pending && clock() - asked > fresh) void update();
+    else if(!pending && !hidden() && clock() - asked > fresh) void update();   // hidden: the redraw back in sight asks
   }
   return { follow, answer, answered: () => answered };
 }
