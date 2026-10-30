@@ -33,9 +33,9 @@ test('the offline worker keeps every script of the build, so the page opens with
   for(const f of b.js.keys()) assert.ok(b.sw.includes(`/assets/${f}`), f);
 });
 
-test('the offline worker keeps the fonts the page uses (latin), not the latin-ext it never asks for', () => {
+test('the offline worker keeps the fonts the page uses (the small Catalan files), not the full latin ones it never asks for', () => {
   const fonts = [...b.sw.matchAll(/\/assets\/([\w-]+)\.woff2/g)].map(m => m[1]);
-  assert.ok(fonts.some(f => f.startsWith('literata-latin-wght')), fonts.join(' '));
-  assert.ok(fonts.some(f => f.startsWith('young-serif-latin-400')), fonts.join(' '));
-  assert.deepEqual(fonts.filter(f => f.includes('latin-ext')), []);
+  assert.ok(fonts.some(f => f.startsWith('literata-catala-wght')), fonts.join(' '));
+  assert.ok(fonts.some(f => f.startsWith('young-serif-catala')), fonts.join(' '));
+  assert.deepEqual(fonts.filter(f => f.includes('-latin')), []);
 });
