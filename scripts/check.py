@@ -390,6 +390,42 @@ async def check_one_paint(page):
     if not frames: return ["no watercolour painted while the wall turns away"]
     return [f"the watercolour is painted more than once in {twice} of {len(frames)} frames while the wall turns away"] if twice else []
 
+# every shader program linked on the landscape's canvas (#gl), and when, against its first draw
+SHADER_LINKS = """window.__enlaces = []; window.__primerDibuix = null;
+for (const P of [WebGL2RenderingContext.prototype, WebGLRenderingContext.prototype]) {
+  const link = P.linkProgram;
+  P.linkProgram = function(...a) { if (this.canvas.id === 'gl') __enlaces.push(performance.now()); return link.apply(this, a); };
+  for (const fn of ['drawElements', 'drawArrays']) { const draw = P[fn];
+    P[fn] = function(...a) { if (this.canvas.id === 'gl' && __primerDibuix === null) __primerDibuix = performance.now(); return draw.apply(this, a); }; }
+}"""
+
+async def check_shaders_ready(page):
+    """Every shader the landscape's canvas will need is ready before it draws its first frame: none is compiled in
+    the middle of the board's flaps (the copy of the kept wall, when the paint-in ends) or of the first turn to the
+    table (the wash). Compiling the watercolour shader stops the page for over a second on a modest phone
+    (rendimiento/movil.md, 30-10). Needs SHADER_LINKS as an init script; the landscape must be moving."""
+    if not await page.evaluate("!!document.getElementById('gl')"): return []
+    await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await hinge_caught_up(page)
+    for i in (8, 15, 22, 30):
+        await page.evaluate(f"scrollTo({{top: reus.hingeAt(0) * {i / 30}, behavior: 'instant'}})"); await hinge_caught_up(page)
+    await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await hinge_caught_up(page)
+    late = await page.evaluate("__enlaces.filter(t => __primerDibuix !== null && t > __primerDibuix).length")
+    return [f"{late} shader program(s) compiled after the landscape's first frame (a stall mid-animation)"] if late else []
+
+async def check_still_idle(browser):
+    """With reduced motion nothing moves, so a page left alone asks for no animation frames: each one wakes the
+    phone's main thread for nothing (ScrollTrigger asked for 64 a second, rendimiento/movil.md, 30-10)."""
+    errs = []
+    for name, (w, h) in VIEWPORTS.items():
+        page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce")
+        await page.goto(page_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(4000)
+        n = await page.evaluate("""new Promise(done => { let n = 0; const raf = window.requestAnimationFrame;
+          window.requestAnimationFrame = cb => { n++; return raf.call(window, cb); };
+          setTimeout(() => { window.requestAnimationFrame = raf; done(n); }, 3000); })""")
+        await page.close()
+        if n > 3: errs.append(f"{name}: {n} animation frames asked in 3 s with reduced motion and nobody touching the page")
+    return errs
+
 # --- Fase 3 · el viaje de letras (h1.brand -> h2#qe) --------------------------------------------------------
 # The pairing for the site's name: chip i is the i-th letter of NAME (source order is preserved on the wall side);
 # QE_TARGET[i] is which character of "Què és" it lands on (index 3 is the space, where the three chips with no
@@ -3359,10 +3395,12 @@ async def main():
             failures += await check_table_scroll_quiet(browser)
             for name, (w, h) in VIEWPORTS.items():
                 page = await open_page(browser, viewport={"width": w, "height": h})
-                await page.add_init_script(SCREEN_DRAWS)
+                await page.add_init_script(SCREEN_DRAWS); await page.add_init_script(SHADER_LINKS)
                 await page.goto(page_url); await hero_settled(page)
                 failures += [f"{name}: {e}" for e in await check_one_paint(page)]
+                failures += [f"{name}: {e}" for e in await check_shaders_ready(page)]
                 await page.close()
+            failures += await check_still_idle(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · pintado"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["iman"]:
             failures += await check_magnet(browser)
@@ -3388,7 +3426,7 @@ async def main():
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · paridad"); sys.exit(1 if failures else 0)
         for name, (w, h) in VIEWPORTS.items():
             page = await open_page(browser, viewport={"width": w, "height": h})
-            await page.add_init_script(SCREEN_DRAWS)
+            await page.add_init_script(SCREEN_DRAWS); await page.add_init_script(SHADER_LINKS)
             errors = []
             page.on("pageerror", lambda e: errors.append(str(e)))
             await page.goto(page_url)
@@ -3422,11 +3460,13 @@ async def main():
             failures += [f"{name}: {e}" for e in await check_overlap(page)]
             failures += [f"{name}: {e}" for e in await check_fall(page)]
             failures += [f"{name}: {e}" for e in await check_one_paint(page)]
+            failures += [f"{name}: {e}" for e in await check_shaders_ready(page)]
             failures += [f"{name}: {e}" for e in await check_wash(page, name)]
             failures += [f"{name}: {e}" for e in await check_backstage(page, name)]
             failures += [f"{name}: {e}" for e in await check_letters(page, name)]
             await page.close()
         failures += await check_drop_width(browser)
+        failures += await check_still_idle(browser)
         failures += await check_sizes(browser)
         failures += await check_landscape(browser)
         failures += [f"compartir: {e}" for e in check_share()]

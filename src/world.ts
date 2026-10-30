@@ -237,6 +237,12 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     if(!washRaf) washRaf = requestAnimationFrame(() => { washRaf = 0; if(washed) return; paint(); washed = true; });
   }
   resize(); addEventListener('resize', resize);
+  // every program the canvas will use is linked now, before the first frame: the landscape and the watercolour,
+  // then the copy of the kept wall and the wash. Left to their first use, the copy compiled in the middle of the
+  // board's flaps and the wash on the first turn to the table, a stop of over a second on a modest phone
+  // (rendimiento/movil.md, 30-10). The browser links them on its own thread; only a first use waits for one
+  renderer.compile(scene, camera);
+  for(const s of [postScene, copyScene, washScene]) renderer.compile(s, postCam);
   // 0 fair, 1 overcast, 2 rain (drops on the glass), 3 fog: the shader's wx
   function setWeather(w: Weather){ U.wx.value = ['clear', 'cloudy', 'rain', 'fog'].indexOf(w); }
   // the painting under a box of the viewport, copied at the device's pixels: the post pass is drawn again first,
