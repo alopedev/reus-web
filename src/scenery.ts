@@ -10,8 +10,10 @@ export interface Scenery { repaint(): void; kick(): void; still(): void; isPlayi
 // or the tab is hidden. R repaints and P pauses, for recording only: with ?grabar in the URL (one-key shortcuts
 // would fire by accident for the public, WCAG 2.1.4)
 // onIn: the hero has come in (its texts appear); the name's board turns its flaps then (flaps.ts)
+// PAINT: the watercolour paints itself in this many seconds, and the texts come in at three quarters of it (3 s since
+// 30-10, opción B: with 4.6 s the texts waited 3.45 s, more than half of a first visit on a phone with 4G)
 export function createScenery(world: World | null, onIn: () => void = () => {}): Scenery {
-  const PAINT = 4.6, SPEED = 22;
+  const PAINT = 3, SPEED = 22;
   let t0 = performance.now(), lastT = t0, rafId = 0, acc = 0, v = 0, playing = !reduce;
   const stage = byId('stage');
   function show(){ if(stage.classList.contains('in')) return; stage.classList.add('in'); onIn(); }
