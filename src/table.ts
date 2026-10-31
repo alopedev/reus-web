@@ -115,9 +115,11 @@ export function createTable(): Table {
   // At load it counts as in view (its top edge touches the screen's bottom) while the hero still covers it all:
   // nobody can see a paint-in then, so it is painted at once and leaves the GPU to the landscape
   new IntersectionObserver(([e]) => {
-    esc.classList.toggle('dormida', !e.isIntersecting);
     if(e.isIntersecting && !started){ started = true; paint(!reduce && dropped() > 0); }
   }).observe(esc);
+  // its live layers (the shadows going past, the shake, the coffee's steam) rest while the hero covers it: running,
+  // they restyle, lay out and repaint the page on every frame (30-10). The edge touching the screen is not in view
+  new IntersectionObserver(([e]) => esc.classList.toggle('dormida', !e.isIntersecting), {rootMargin: '0px 0px -1px 0px'}).observe(esc);
   let rs = 0;
   // a new size: repaint once it stops changing; a paint-in still under way carries on at the new size. A resize
   // that leaves the table as it was (iOS Safari's toolbar, which shrinks as the page scrolls into the table)
