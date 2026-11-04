@@ -77,7 +77,7 @@ feed; si se omiten, se descargan de ssl.renfe.com (para que corra en GitHub Acti
 --desde fija el primer dia (por defecto, hoy en Europe/Madrid) para poder repetir
 pruebas con un resultado estable.
 """
-import argparse, collections, csv, datetime as dt, gzip, io, json, pathlib, sys
+import argparse, collections, csv, datetime as dt, gzip, io, json, pathlib, re, sys
 import urllib.request, zipfile
 from zoneinfo import ZoneInfo
 
@@ -372,6 +372,20 @@ def fom_is_piece(f_stops, a_stops):
     return a_ids[start:start + len(f_ids)] == f_ids
 
 
+def rodalies_numbers(fom_numero):
+    """{numero de av: numero de Rodalies} de los trenes que los dos feeds numeran distinto, desde los trip_id de fom
+    absorbidos por un tren de av (trip_id -> numero de av). El numero de Rodalies es el de en medio del trip_id
+    («5107X30519R15» -> 30519): el tiempo real de Renfe da un tren cancelado solo por ese trip_id, sin posicion ni
+    numero de tren, y la web lo cruza con `f` (src/retards.ts). Un tren con dos numeros de Rodalies no lleva ninguno:
+    mejor no saber de una cancelacion que tachar otro tren."""
+    nums = collections.defaultdict(set)
+    for ftid, numero in fom_numero.items():
+        m = re.match(r"^\d{4}[A-Z](\d+)[A-Z]", ftid.strip())
+        if m:
+            nums[numero].add(m.group(1))
+    return {n: f.pop() for n, f in nums.items() if len(f) == 1 and n not in f}
+
+
 # ---------- filtro Catalunya + comarca ----------
 
 def filter_catalunya(stops, stop_names, dropped):
@@ -577,7 +591,7 @@ def main():
         if sig:
             fom_bcn_index[t["date"]].setdefault(sig, t["trip_id"])
 
-    fom_numero = {}  # trip_id -> numero de tren prestado por av (solo informativo)
+    fom_numero = {}  # trip_id -> numero de tren prestado por av (de ahi sale `f`, rodalies_numbers)
     # trip_id de fom que un tren de av ya cubre (mismo tren fisico): no se emite por
     # separado, el tren completo se toma de av (ver bloque siguiente).
     absorbed_fom_trip_ids = set()
@@ -710,6 +724,11 @@ def main():
         dias[date.isoformat()].add(idx)
 
     trenes, dias = one_per_train(trenes, dias)
+    # el numero de Rodalies de los trenes que los dos feeds numeran distinto: por el se sabe de un cancelado
+    numeros = rodalies_numbers(fom_numero)
+    for t in trenes:
+        if t["n"] in numeros:
+            t["f"] = numeros[t["n"]]
 
     if not trenes:
         raise SystemExit("No se ha generado ningun tren: revisa los feeds/rango de fechas. data/red.json no se ha tocado.")

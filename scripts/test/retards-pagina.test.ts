@@ -84,3 +84,31 @@ test('with the tab hidden the board\'s minute redraw does not ask either; back i
   t.hidden = false; await follow();
   assert.equal(t.asks, 2);
 });
+
+// a cancelled train Renfe gives no position for comes by its number in the Rodalies feed (api/retards.ts)
+const cancelled = (sec: number, cancelats: string[]) => ({ ...answer(sec, {}), cancelats });
+
+test('a train cancelled without a position is cancelled, whichever way red.json writes its number', async () => {
+  const { t, retards, follow } = setup();
+  t.next = cancelled(-20, ['15918', '15702']); await follow();
+  assert.deepEqual(retards.train('5191M15918R11'), { estat: 'cancelat' });   // an R11 by its whole GTFS id
+  assert.deepEqual(retards.train('15702'), { estat: 'cancelat' });           // the same number in both feeds
+  assert.deepEqual(retards.train('15035'), { estat: 'sense' });
+});
+
+test('an answer from before the cancellations (the CDN keeps one a while) still counts', async () => {
+  const { t, retards, follow } = setup();
+  t.next = answer(-20, TRENS); await follow();
+  assert.deepEqual(retards.train('17505'), TRENS['17505']);
+});
+
+test('when the two feeds number a train differently, a cancellation goes to the right one', async () => {
+  // 04-11: Sants 19:03 to Reus is the 15039 in AV_LD (red.json's `n`) and the 30519 in Rodalies, whose 15039 is the
+  // 20:03 (AV_LD's 15019). red.json keeps Rodalies' number as `f` where it differs
+  const trenes = [{ n: '15039', f: '30519' }, { n: '15019', f: '15039' }, { n: '15702' }];
+  const t = { next: cancelled(-20, ['15039']) as unknown };
+  const retards = createRetards(() => {}, { ask: async () => t.next, clock: () => T0, wait: () => () => {}, hidden: () => false, trenes });
+  retards.follow(); await new Promise(r => setTimeout(r, 0));
+  assert.deepEqual(retards.train('15019'), { estat: 'cancelat' });
+  assert.deepEqual(retards.train('15039'), { estat: 'sense' });
+});

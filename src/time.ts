@@ -5,7 +5,7 @@ import red from '../data/red.json';
 export interface Network {
   fuente: string; actualizado: string;
   estaciones: Record<string, { nombre: string; comarca?: string; lineas?: string[]; barcelona?: boolean; ll?: [lat: number, lon: number] }>;
-  trenes: { n: string; p: string; s: [string, number, number][] }[];
+  trenes: { n: string; f?: string; p: string; s: [string, number, number][] }[];   // f: its number in the Rodalies feed, where it differs
   dias: Record<string, number[]>;
 }
 // exported so towns.ts can build the chooser's groups from the same parsed network, without reading red.json twice

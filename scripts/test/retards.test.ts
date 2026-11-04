@@ -48,10 +48,22 @@ test('read at the time of the older feed, so the page can tell an old answer', (
   assert.equal(read(trips, vehicles).llegit, new Date(NOW - 90e3).toISOString());
 });
 
-test('a cancelled train is cancelled, never on time; without its position its number is not known, so nothing', () => {
-  const cancel = (tripId: string) => ({ id: `TUCANCEL_${tripId}`, tripUpdate: { trip: { tripId, scheduleRelationship: 'CANCELED' } } });
-  const [trips, vehicles] = feeds([cancel('5181S30503R15'), cancel('5181S16001R15')], [vehicle('5181S30503R15', 'R15-17505')]);
-  assert.deepEqual(read(trips, vehicles).trens, { '17505': { estat: 'cancelat' } });
+const cancel = (tripId: string) => ({ id: `TUCANCEL_${tripId}`, tripUpdate: { trip: { tripId, scheduleRelationship: 'CANCELED' } } });
+
+test('a cancelled train is cancelled, never on time: with its position, under its train number', () => {
+  const [trips, vehicles] = feeds([cancel('5181S30503R15')], [vehicle('5181S30503R15', 'R15-17505')]);
+  assert.deepEqual(read(trips, vehicles, 'S').trens, { '17505': { estat: 'cancelat' } });
+  assert.deepEqual(read(trips, vehicles, 'S').cancelats, []);
+});
+
+// a cancelled train does not run, so Renfe gives no position for it (02-11: 11 cancelled, none with a position). Its
+// tripId is the Rodalies feed's trip_id, whose middle number is Rodalies' own: the page knows which train that is
+test('a cancelled train without a position: by its Rodalies number, only the regionals and only today\'s', () => {
+  const [trips, vehicles] = feeds([cancel('5181S16001R15'), cancel('5181S25468R11'), cancel('5105L25468R2N'),
+    cancel('5182D15918R11'), cancel('SPECIAL_40_94297C1')], []);
+  const a = read(trips, vehicles, 'S');   // Saturday's trips are «S»: tomorrow's (D) are not today's trains
+  assert.deepEqual(a.cancelats, ['16001', '25468']);
+  assert.deepEqual(a.trens, {});
 });
 
 // the function as Vercel runs it, with Renfe answered by the test: `answers` says, per URL, how each ask goes
