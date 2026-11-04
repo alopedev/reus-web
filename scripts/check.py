@@ -1207,6 +1207,69 @@ OUTSIDE_LANDMARKS = """(() => {
   return out.slice(0, 4);
 })()"""
 
+# the zone that answers a finger round a control's centre, in each direction (a ::before counts as the control)
+HIT = """(sel) => [...document.querySelectorAll(sel)].filter(e => e.getBoundingClientRect().width).map(e => {
+  const r = e.getBoundingClientRect(), cx = r.x + r.width / 2, cy = r.y + r.height / 2;
+  const reach = (dx, dy) => { let d = 0; for(; d < 60; d++){ const el = document.elementFromPoint(cx + dx * d, cy + dy * d); if(!el || !(el === e || e.contains(el))) break; } return d; };
+  return {w: reach(-1, 0) + reach(1, 0) - 1, h: reach(0, -1) + reach(0, 1) - 1}; })"""
+
+async def check_reach(browser):
+    """What a finger, a key or a screen reader can reach (UX review 02-11, points 3 and 4; Àlex 04-11). The ticket's
+    ends and arrows and the ruler answer a finger over 44 px (Apple's 44 pt; they were 23-26 px tall on a phone); the
+    table's papers are in the accessibility tree from the start, not only once they have fallen, and the keyboard's
+    Tab from the ruler reaches the signature and brings its paper into sight."""
+    errs = []
+    for w, h in ((390, 844), (320, 568), (1440, 900)):
+        page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce", has_touch=w < 700)
+        await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
+        await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(2500)
+        for sel, need in ((".tk .end.bcn", "wh"), (".tk .swap", "wh"), (".tk .end.town", "wh"), ("#t", "h")):
+            for z in await page.evaluate(HIT, sel):
+                if ("w" in need and z["w"] < 44) or z["h"] < 44: errs.append(f"{w}x{h}: '{sel}' answers a finger over {z['w']} x {z['h']} px, expected 44 x 44")
+        await page.close()
+    for w, h in ((1440, 900), (390, 844)):
+        page = await open_page(browser, viewport={"width": w, "height": h}, has_touch=w < 700)
+        await page.clock.install(time="2026-09-28T08:00:00Z")
+        await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1500)
+        tree = await page.locator("#repisa").aria_snapshot()
+        for words in ("Com llegir-la", "Com s’ha fet", "Privacitat", "Origen de los datos"):
+            if words not in tree: errs.append(f"{w}x{h}: at the top, a screen reader does not find «{words}» on the table")
+        await page.focus("#t"); await page.keyboard.press("Tab")
+        got = await page.evaluate("document.activeElement.closest('#repisa') ? document.activeElement.textContent.trim().slice(0, 12) : document.activeElement.tagName")
+        if not got.startswith("alope.dev"): errs.append(f"{w}x{h}: Tab from the ruler goes to «{got}», not to the signature on the table"); await page.close(); continue
+        try: await page.wait_for_function("""(() => { const a = document.activeElement, r = a.getBoundingClientRect(), c = document.getElementById('cuaderno');
+            return getComputedStyle(c).opacity === '1' && r.top >= 0 && r.bottom <= innerHeight
+              && a.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)); })()""", timeout=20000)
+        except Exception: errs.append(f"{w}x{h}: the signature has the focus but its paper is not in sight")
+        await page.close()
+    return errs
+
+async def check_remember(browser):
+    """The trip comes back (UX review 02-11, point 2; Àlex 04-11): the town, the Barcelona station and the direction
+    chosen are the ones the ticket shows on the next visit in the same browser; a new browser starts from Reus."""
+    errs = []
+    ctx = await browser.new_context(viewport={"width": 390, "height": 844}, reduced_motion="reduce", has_touch=True)
+    page = await ctx.new_page(); page.set_default_timeout(120000)
+    await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
+    await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(2000)
+    errs += await choose_town(page, "R11", "79300")   # Girona
+    await page.wait_for_timeout(800)
+    await page.click(".tk .swap"); await page.wait_for_timeout(800)
+    TICKET = "(() => [...document.querySelectorAll('.tk .end')].map(b => b.textContent.trim()).join(' → '))()"
+    before = await page.evaluate(TICKET)
+    await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(2000)
+    after = await page.evaluate(TICKET)
+    if before != "Girona → Sants": errs.append(f"choosing Girona and turning the arrows gives «{before}», expected «Girona → Sants»")
+    if after != before: errs.append(f"the next visit shows «{after}», not the trip chosen («{before}»)")
+    await ctx.close()
+    page = await open_page(browser, viewport={"width": 390, "height": 844}, reduced_motion="reduce")
+    await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
+    await page.goto(parity_url); await page.wait_for_timeout(1500)
+    fresh = await page.evaluate("(() => [...document.querySelectorAll('.tk .end')].map(b => b.textContent.trim()).join(' → '))()")
+    if fresh != "Sants → Reus": errs.append(f"a new browser starts at «{fresh}», expected «Sants → Reus»")
+    await page.close()
+    return errs
+
 async def check_a11y(browser):
     """13. Screen readers hear the train, not the clock; one-key shortcuts stay off for the public; the labels read right."""
     errs = []
@@ -1294,7 +1357,7 @@ async def check_firma(browser):
         d = await page.evaluate("""(() => { const d = document.getElementById('privacitat'); return d && {open: d.open, text: d.textContent.replace(/\\s+/g, ' ')}; })()""")
         if not d or not d["open"]: errs.append(f"{name}: «Privacitat» does not open the #privacitat sheet")
         else:
-            for words in ("Sense cookies", "Vercel", "Open-Meteo"):
+            for words in ("Sense cookies", "Vercel", "Open-Meteo", "navegador"):
                 if words not in d["text"]: errs.append(f"{name}: the privacy sheet does not mention {words}")
             await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
             back = await page.evaluate("[!document.getElementById('privacitat').open, document.activeElement?.matches('#cuaderno .guarda button.priv')]")
@@ -3084,6 +3147,11 @@ async def check_paper_motion(browser):
                 if c["open"]: errs.append(f"{where}, #{sheet} by {how}: it does not close"); continue
                 errs += paper_moves(await page.evaluate("window.__rec"), f"{where}, #{sheet} by {how}", "out", motion, c)
                 await page.wait_for_timeout(300)
+            # privacy gives the focus back to its button on the table, and the keyboard's focus there brings the table
+            # into sight (check_reach): it was opened from the hero only here, so back up to the hero
+            await page.evaluate("scrollTo({top: 0, behavior: 'instant'})")
+            await page.wait_for_function("getComputedStyle(document.getElementById('hero')).visibility !== 'hidden' && window.reus.dropped() === 0", timeout=20000)
+            await page.wait_for_timeout(500)
             # the arrows cross the two ends over to their new places, one over and one under
             for turn in range(2):
                 await page.evaluate(REC)
@@ -3418,6 +3486,9 @@ async def main():
             failures += await check_sheet_holds_page(browser)
             failures += await check_sheet_close(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · fulls"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["abast"]:
+            failures += await check_reach(browser) + await check_remember(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · abast"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["a11y"]:
             failures += await check_a11y(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · a11y"); sys.exit(1 if failures else 0)
@@ -3471,6 +3542,7 @@ async def main():
         failures += await check_landscape(browser)
         failures += [f"compartir: {e}" for e in check_share()]
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
+        failures += [f"abast: {e}" for e in await check_reach(browser) + await check_remember(browser)]
         failures += [f"sinred: {e}" for e in await check_offline(browser)]
         failures += [f"fuentes: {e}" for e in await check_own_fonts(browser)]
         failures += [f"red: {e}" for e in await check_red(browser)]
