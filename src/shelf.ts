@@ -38,6 +38,15 @@ export function setupShelf(w: World | null): void {
     pitch();
     // each paper with the tilt it rests at (the same as in the stylesheet)
     const papers = ([['#folleto', -2.5], ['#cuaderno', 1], ['#reverso', -1.2]] as const).map(([s, r]): [HTMLElement, number] => [find(s), r]);
+    // the keyboard reaches a paper before it has fallen (Tab from the ruler): the page goes down until it has, and
+    // stacked, until the notebook's cover has opened (its trigger ends with the paper at a fifth of the screen)
+    const reach = (e: FocusEvent) => {
+      // only the keyboard's focus: a mouse that closes «Privacitat» gives it back to its button where the page already is
+      const to = e.target as Element, paper = to.closest<HTMLElement>('#folleto, #cuaderno, #reverso'); if(!paper || !to.matches(':focus-visible')) return;
+      const fallen = pinned ? shelf.offsetTop + shelf.offsetHeight - innerHeight : pageTop(paper) - innerHeight * .2;
+      if(scrollY < fallen) scrollTo({top: fallen, behavior: 'instant'});
+    };
+    shelf.addEventListener('focusin', reach);
     const leaf = find('.cuaderno .izq');
     if(pinned){
       // layout offsets, not the trigger's box: the shelf is tilted by pitch() while it is measured
@@ -54,7 +63,7 @@ export function setupShelf(w: World | null): void {
       gsap.timeline({scrollTrigger:between(papers[1][0], .55, .2)}).add(side ? openLeaf(leaf, 'Y', 1) : openLeaf(leaf, 'X', -1));
     }
     return () => {
-      magnet.kill();
+      magnet.kill(); shelf.removeEventListener('focusin', reach);
       removeEventListener('scroll', onScroll); removeEventListener('resize', onResize); pitch(true);
       letters.reset();
       [...papers.map(([el]) => el), leaf].forEach(rest);
@@ -106,7 +115,7 @@ const inOut = (t: number) => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 // where an element sits on the page, ignoring any transform on the way
 const pageTop = (el: HTMLElement) => { let y = 0; for(let n: HTMLElement | null = el; n; n = n.offsetParent as HTMLElement | null) y += n.offsetTop; return y; };
-const rest = (el: HTMLElement) => ['transform', 'opacity', 'visibility', '--alto'].forEach(p => el.style.removeProperty(p));
+const rest = (el: HTMLElement) => ['transform', 'opacity', 'pointer-events', '--alto'].forEach(p => el.style.removeProperty(p));
 
 // a paper falls with weight: it speeds up and flutters on the way down, its shadow says how high it still is (--alto),
 // then it settles with a small overshoot. Drawn straight onto the element so the scrub can run it both ways.
@@ -118,7 +127,9 @@ function land(el: HTMLElement, rot: number, drop: number){
     const r = rot + 9 * h + 3 * Math.sin(k.u * Math.PI * 2) * h - 1.4 * settle;
     el.style.transform = `translateY(${(-drop * h).toFixed(3)}rem) rotate(${r.toFixed(2)}deg) scale(${(1 + .1 * h - .012 * settle).toFixed(4)})`;
     el.style.opacity = Math.min(1, k.u * 5).toFixed(3);
-    el.style.visibility = k.u > 0 ? '' : 'hidden';
+    // not yet fallen: unseen and out of a finger's way, but still there for a screen reader and the keyboard (UX
+    // review 02-11, point 4: hidden, the signature, «Privacitat» and Renfe's credit were out of their reach)
+    el.style.pointerEvents = k.u > 0 ? '' : 'none';
     el.style.setProperty('--alto', h.toFixed(3));
   };
   draw();

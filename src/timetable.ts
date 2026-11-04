@@ -21,9 +21,12 @@ import { stamp, heard, setupNotice, type Notice } from './notice';
 import { dateSpan } from './ca';
 import { esc } from './html';
 import { PHONE } from './phone';
+import { recall, keep, browserStore } from './remember';
 
 // the hero's timetable: the next train, the ticket for the direction, the ruler of the day
 export function setupTimetable({ world, table, scenery, weather, avisos, retards }: { world: World | null, table: Table, scenery: Scenery, weather: ReturnType<typeof createWeather>, avisos: Avisos, retards: Retards }): { render(): void } {
+  // the trip last chosen in this browser, before anything is drawn (remember.ts)
+  Object.assign(state, recall(browserStore()));
   const tIn = byId<HTMLInputElement>('t'), nowBtn = byId<HTMLButtonElement>('nowBtn');
   const R0 = 300, R1 = 1439, pos = (m: number) => ((Math.min(R1,Math.max(R0,m))-R0)/(R1-R0)*100).toFixed(2)+'%';
   byId('hours').innerHTML = [6,9,12,15,18,21].map(x=>`<span style="left:${pos(x*60)}">${x} h</span>`).join('');
@@ -158,7 +161,8 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   });
   // every control turns into one choice (choose.ts), which says what the view becomes
   const apply = (c: Choice) => Object.assign(state, choose(state, c, madridNow()));
-  function pick(c: Choice){ apply(c); render(); }
+  // the town, the station and the direction come back on the next visit (remember.ts)
+  function pick(c: Choice){ apply(c); if(c.kind === 'town' || c.kind === 'station' || c.kind === 'swap') keep(browserStore(), state); render(); }
   nowBtn.addEventListener('click', ()=>{ pick({ kind: 'now' }); tIn.focus({preventScroll:true}); });
   // the chosen trip becomes the big one: the focus moves to the ruler, which now stands on it
   // on a phone, any trip opens the sheet with its detail, after becoming the train shown
