@@ -1,7 +1,7 @@
 import './styles/detail.css';
 import { byId } from './dom';
 import { closeSheet, closesSoftly } from './sheet';
-import { whatsappUrl } from './home';
+import { actions } from './talons';
 import { news, type LineNews } from './notice';
 import { wagonSvg } from './journey';
 import type { Where } from './shown';
@@ -12,7 +12,7 @@ import { esc } from './html';
 // the way to buy it, the message for home and what is known of its line's notices
 export interface Trip {
   line: string; from: string; to: string; dep: string; arr: string;
-  when: string; length: string; stops: number | null; buy: string; ave: string; home: string; news: LineNews;
+  when: string; length: string; stops: number | null; buy: string; remind: string; ave: string; home: string; news: LineNews;
   where: Where | null;               // while the train is on its way: where the timetable puts it
   live: string;                      // its live delay in a sentence (Renfe's feed); '' when on time or not known
 }
@@ -50,8 +50,7 @@ export function setupDetail(): Detail {
       <p class="datos"><span>${esc(t.when)}</span> <span>${t.length} de viatge${stops ? ' · ' + stops : ''}</span></p>
       ${t.ave ? `<p class="ave">${esc(t.ave)}</p>` : ''}
       ${said}
-      <div class="botones">${t.buy ? `<a class="comprar" href="${esc(t.buy)}" target="_blank" rel="noopener">Compra a Renfe ↗<span class="sr"> (s’obre en una altra pestanya)</span></a>` : ''}
-      <a class="avisa" href="${esc(whatsappUrl(t.home))}" target="_blank" rel="noopener">Avisar a casa<span class="sr"> per WhatsApp</span></a></div></div>`;
+      <div class="botones">${actions(t)}</div></div>`;
     dialog.showModal();
     dialog.querySelector<HTMLElement>('.pliego')?.focus();   // the sheet itself: no ring on a control the finger did not choose
   }

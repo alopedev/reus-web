@@ -112,3 +112,20 @@ test('when the two feeds number a train differently, a cancellation goes to the 
   assert.deepEqual(retards.train('15019'), { estat: 'cancelat' });
   assert.deepEqual(retards.train('15039'), { estat: 'sense' });
 });
+
+// the AVE (04-11): the function answers it apart, from Renfe's long-distance feed; null when that feed failed
+test('an AVE by its number, from the AVE part of the answer', async () => {
+  const { t, retards, follow } = setup();
+  t.next = { ...answer(-20, TRENS), ave: { '03073': { estat: 'circula', retard: 12, parada: '04104' } } }; await follow();
+  assert.deepEqual(retards.train('03073'), { estat: 'circula', retard: 12, parada: '04104' });
+  assert.deepEqual(retards.train('03062'), { estat: 'sense' });
+});
+
+test('the long-distance feed failed, or an answer from before the AVE was read: the AVE unknown, never on time', async () => {
+  for(const ave of [null, undefined]){
+    const { t, retards, follow } = setup();
+    t.next = { ...answer(-20, TRENS), ave }; await follow();
+    assert.deepEqual(retards.train('03073'), { estat: 'error' }, String(ave));
+    assert.deepEqual(retards.train('17505'), TRENS['17505']);
+  }
+});

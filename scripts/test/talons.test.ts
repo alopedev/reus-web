@@ -16,7 +16,7 @@ const hrefs = (html: string) => [...html.matchAll(/href="([^"]*)"/g)].map(m => m
 const words = (html: string) => html.replace(/<span class="sr">.*?<\/span>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
 test('one stub buys the highlighted train at Renfe, in a new tab', () => {
-  const s = at('2026-10-01', '10:00', HOME), html = talons(s);
+  const s = at('2026-10-01', '10:00', HOME), html = talons(s, false);
   assert.deepEqual(hrefs(html), [train(s).buy]);
   assert.equal(words(html), 'Compra');
   assert.match(html, /target="_blank"/);
@@ -26,5 +26,36 @@ test('one stub buys the highlighted train at Renfe, in a new tab', () => {
 test('a departed train shown has no stub to buy', () => {
   const gone = at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 543 });
   assert.equal(train(gone).buy, '');
-  assert.equal(talons(gone), '');
+  assert.equal(talons(gone, false), '');
+});
+
+// «Recorda» (04-11, Àlex: option A): on a desktop, a second stub by «Compra» puts the train in the visitor's calendar
+// with an alarm 15 min before (src/calendar.ts); on a phone the header has room for one, so it lives in the sheet
+test('on a desktop a second stub, «Recorda», saves the train to the calendar; on a phone only «Compra»', () => {
+  const s = train(at('2026-10-01', '09:30', HOME)), html = talons(s, false);
+  assert.equal(words(html), 'Compra Recorda');
+  assert.deepEqual(hrefs(html), [s.buy, s.remind]);
+  assert.match(html, /class="talo recorda" href="[^"]*" download/);   // a file to open, the page stays
+  assert.equal(words(talons(s, true)), 'Compra');
+});
+
+test('a train leaving in under 15 min can be bought but not reminded', () => {
+  const s = at('2026-10-01', '10:00', HOME);
+  assert.equal(words(talons(s, false)), 'Compra');
+});
+
+// the train's sheet on a phone (src/detail.ts) has the same ways out as buttons: «Compra a Renfe», «Avisar a casa»
+// and, last, «Recorda-m’ho» (the mockup's order)
+import { actions } from '../../src/talons.ts';
+
+test('the sheet\'s buttons: buy, tell home and remind (opened by the phone\'s calendar, not downloaded)', () => {
+  const s = train(at('2026-10-01', '09:30', HOME)), html = actions(s.trip);
+  assert.equal(words(html), 'Compra a Renfe ↗ Avisar a casa Recorda-m’ho');
+  assert.equal(hrefs(html)[2], s.remind);
+  assert.doesNotMatch(html, /class="recorda"[^>]*download/);
+});
+
+test('in the sheet too, no «Recorda-m’ho» for a train leaving in under 15 min, and no «Compra» for one gone', () => {
+  assert.equal(words(actions(train(at('2026-10-01', '10:00', HOME)).trip)), 'Compra a Renfe ↗ Avisar a casa');
+  assert.equal(words(actions(train(at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 543 })).trip)), 'Avisar a casa');
 });

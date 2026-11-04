@@ -1111,7 +1111,7 @@ async def check_landscape(browser):
         if not g["phone"]: errs.append(f"{name}: the board's rows are not the phone's (no button for the big train)")
         else:
             await page.tap("#board button.big"); await page.wait_for_timeout(800)
-            for sel in ["#detalle .comprar", "#detalle .avisa"]:
+            for sel in ["#detalle .comprar", "#detalle .avisa"]:   # «Recorda-m’ho» too, far enough away: check_talons
                 loc = page.locator(sel)
                 try: await loc.scroll_into_view_if_needed(timeout=3000)
                 except Exception: pass
@@ -1149,11 +1149,14 @@ def _on_time_answer():
     nothing, so no other check meets the live delay. (No answer at all would read «sense dades en directe encara».)
     Read far in the future, so it is fresh at whatever time a check fixes the clock to."""
     import json, re
-    numbers = set()
+    numbers, aves = set(), set()
     for f in ("data/red.json", "scripts/baseline/red.json"):
         for t in json.loads((root / f).read_text())["trenes"]:
             m = re.match(r"^\d{4}[A-Z](\d+)[A-Z]", t["n"]); numbers.add(m.group(1) if m else t["n"])
-    return json.dumps({"llegit": "2100-01-01T00:00:00Z", "trens": {n: {"estat": "circula", "retard": 0, "parada": ""} for n in numbers}})
+            if t.get("p") == "AVE": aves.add(t["n"])
+    # the AVE comes apart, from Renfe's long-distance feed (04-11)
+    on = lambda ns: {n: {"estat": "circula", "retard": 0, "parada": ""} for n in ns}
+    return json.dumps({"llegit": "2100-01-01T00:00:00Z", "trens": on(numbers), "ave": on(aves)})
 ON_TIME = None
 async def on_time(route):
     global ON_TIME
@@ -2152,6 +2155,43 @@ async def check_talons(browser):
         else:
             r = await page.evaluate("(() => ({tk: document.querySelector('.tk').getBoundingClientRect().right, vw: innerWidth}))()")
             if r["tk"] > r["vw"]: errs.append(f"{w}x{h}, L'Hospitalet de l'Infant: the ticket leaves the screen (to {r['tk']:.0f} of {r['vw']})")
+        await page.close()
+    # «Recorda» (04-11, Àlex: option A): with a train far enough away (the day's last, picked on the ruler), a desktop
+    # has a second stub by «Compra» that downloads the train's calendar file; a phone keeps «Compra» alone in its
+    # header and has «Recorda-m’ho» in the train's sheet, opened by the phone's calendar (no download)
+    for w, h in ((1440, 900), (1280, 800), (1920, 1080), (390, 844), (320, 568), (844, 390)):
+        page = await hero_page(browser, w, h)
+        await page.focus("#t"); await page.keyboard.press("End"); await page.wait_for_timeout(500)
+        t = await page.evaluate(TALONS); phone = w < 600 or h < 500
+        texts = [x["text"] for x in t["stubs"]]
+        if not phone:
+            if texts != ["Compra", "Recorda"]: errs.append(f"{w}x{h}, the day's last train: the stubs read {texts}, expected «Compra» and «Recorda»")
+            else:
+                r = t["stubs"][1]
+                q = await page.evaluate("(a => ({path: new URL(a.href).pathname, download: a.hasAttribute('download')}))(document.querySelector('.talo.recorda'))")
+                if q["path"] != "/api/calendari" or not q["download"]: errs.append(f"{w}x{h}: «Recorda» does not download the train's calendar file ({q})")
+                if "drop-shadow" not in r["shadow"]: errs.append(f"{w}x{h}: «Recorda» is not raised")
+                if r["wrap"] > 3.2 * t["rem"] + 2: errs.append(f"{w}x{h}: «Recorda» breaks in two lines")
+                if r["r"] > t["vw"]: errs.append(f"{w}x{h}: «Recorda» leaves the screen")
+                for name, o in [("the window", t["win"])] + [("a row of the board", y) for y in t["rows"]] + [("the ruler", t["track"])]:
+                    if o and overlap(r, o): errs.append(f"{w}x{h}: «Recorda» covers {name}")
+                # pressed, it is punched like «Compra» (the mockup's promise: you see it happened), and the page stays
+                await page.click(".talo.recorda"); await page.wait_for_timeout(400)
+                if not await page.evaluate("!!document.querySelector('#talons .recorda.picat')"):
+                    errs.append(f"{w}x{h}: «Recorda» pressed is not punched, or the page went away")
+        else:
+            if texts != ["Compra"]: errs.append(f"{w}x{h}, the day's last train: the phone's header reads {texts}, expected «Compra» alone")
+            await page.click("#board button.big"); await page.wait_for_timeout(800)
+            loc = page.locator("#detalle .recorda")
+            try: await loc.scroll_into_view_if_needed(timeout=3000)
+            except Exception: pass
+            b = await loc.bounding_box()
+            q = await page.evaluate("(a => a && {path: new URL(a.href).pathname, download: a.hasAttribute('download')})(document.querySelector('#detalle .recorda'))")
+            if not b or not q: errs.append(f"{w}x{h}: the train's sheet has no «Recorda-m’ho»")
+            else:
+                if q["path"] != "/api/calendari" or q["download"]: errs.append(f"{w}x{h}: «Recorda-m’ho» is not the calendar file the phone opens ({q})")
+                if b["height"] < 44: errs.append(f"{w}x{h}: «Recorda-m’ho» is {b['height']:.0f} px tall, under a finger")
+                if b["y"] < 0 or b["y"] + b["height"] > h: errs.append(f"{w}x{h}: «Recorda-m’ho» cannot be reached in the train's sheet")
         await page.close()
     # late in the evening «ara» and the station clock stand at the ruler's right end, early in the morning at its left
     # end: «Compra» keeps clear of them

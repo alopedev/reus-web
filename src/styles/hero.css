@@ -179,7 +179,7 @@
 .talons{ position:absolute; left:0; bottom:100%; display:flex; gap:.7rem; align-items:flex-start; margin-bottom:.7rem; }
 .talo{ display:inline-block; text-decoration:none; color:#2D241C; filter:drop-shadow(.22rem .22rem 0 rgba(14,9,6,.9));
   transform:rotate(-1.5deg); transition:filter .12s, transform .12s; }
-.talo.avisa{ transform:rotate(1deg); }
+.talo.recorda{ transform:rotate(1deg); }
 .talo .in{ display:inline-flex; align-items:center; gap:.4rem; min-height:max(2.75rem, 44px); box-sizing:border-box; padding:.3rem .75rem .3rem .65rem;
   background:#EFE6D2 var(--grain); font:700 .95rem var(--texto); white-space:nowrap;
   -webkit-mask:radial-gradient(circle at 0 50%, transparent .3rem, #000 .32rem) left/51% 100% no-repeat, radial-gradient(circle at 100% 50%, transparent .3rem, #000 .32rem) right/51% 100% no-repeat;
@@ -188,7 +188,7 @@
 .talo svg{ height:1.05rem; width:auto; }
 .talo:hover{ filter:drop-shadow(.3rem .3rem 0 rgba(14,9,6,.9)); }
 .talo:active{ filter:none; transform:translate(.15rem,.15rem) rotate(-1.5deg); }
-.talo.avisa:active{ transform:translate(.15rem,.15rem) rotate(1deg); }
+.talo.recorda:active{ transform:translate(.15rem,.15rem) rotate(1deg); }
 .talo:focus-visible{ outline:2px solid var(--paper); outline-offset:4px; border-radius:2px; }
 /* «Compra» punched when pressed (option B, Àlex 20-10; timetable.ts): a hole on its dotted line, where the wall's
    shade shows through, and its chad (.xapa) falling to the floor; with reduced motion only the hole */
