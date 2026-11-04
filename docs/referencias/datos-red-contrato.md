@@ -28,6 +28,7 @@ Formato que produce `scripts/extract_red.py` y que comprueba `scripts/check_dato
 
 - `estaciones`: solo las que aparecen en algún tren. Cada pueblo lleva `comarca` (para el grupo AVE: Baix Camp y Tarragonès) y `lineas`; las de Barcelona llevan `"barcelona": true`. Camp de Tarragona lleva `"lineas": ["AVE"]`. Desde el 08-10, cada pueblo lleva además `ll`, `[latitud, longitud]` de su estación en el GTFS con 3 decimales (unos 100 m), para pedir el tiempo de casa (Open-Meteo); es opcional: un pueblo sin `ll` se ve sin tiempo.
 - `trenes`: cada tren una vez, aunque circule muchos días. `n` número de tren, `p` producto o línea (`R11`…`R17`, `AVE`, `AVLO`), `s` paradas en orden: `[stop_id, llegada, salida]` en minutos desde medianoche (pueden pasar de 1440 si cruza la medianoche).
+- `f` (opcional, desde el 04-11): el número del tren en el feed de Rodalies, solo cuando no es `n`. Los dos feeds numeran distinto algunos trenes (el de Sants a las 19:03 hacia Reus es el 15039 en AV_LD y el 30519 en Rodalies), y el tiempo real de Renfe da un tren cancelado solo con el `trip_id` de Rodalies, sin posición ni número de tren: la web lo cruza con `f` (`src/retards.ts`).
 - `dias`: fecha ISO → índices de `trenes` que circulan ese día.
 - Tamaño: ≤ 150 KB con gzip.
 

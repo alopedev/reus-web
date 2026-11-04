@@ -7,7 +7,8 @@ const TRIPS = 'https://gtfsrt.renfe.com/trip_updates.json', VEHICLES = 'https://
 
 // retard: minutes late (below zero, early); parada: the next stop's stop_id; andana: the platform, when Renfe gives it
 export type Train = { estat: 'circula', retard: number, parada: string, andana?: string } | { estat: 'cancelat' };
-export interface Answer { llegit: string, trens: Record<string, Train> }
+// cancelats: the cancelled regionals Renfe gives no position for, by their number in the Rodalies feed (see read)
+export interface Answer { llegit: string, trens: Record<string, Train>, cancelats: string[] }
 
 interface Feed { header?: { timestamp?: string }, entity?: Entity[] }
 interface Entity {
@@ -15,25 +16,38 @@ interface Entity {
   tripUpdate?: { trip?: { tripId?: string, scheduleRelationship?: string }, stopTimeUpdate?: { stopId?: string }[], delay?: number },
 }
 
+// the trips of a weekday in the Rodalies feed: «5181S…» is a Saturday's (L M X J V S D, Monday first)
+const LETTER = 'DLMXJVS';
+const MADRID_DAY = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Madrid', weekday: 'short' });
+const todayLetter = (): string => LETTER[['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(MADRID_DAY.format(new Date()))];
+
 // the update carries a tripId that is not always the train number (5181S30503R15 is the 17505); the position carries
-// both, its label being «R15-17505»
-export function read(trips: Feed, vehicles: Feed): Answer {
+// both, its label being «R15-17505». A cancelled train does not run, so it has no position (02-11: 11 cancelled,
+// none with one): its tripId is the Rodalies feed's trip_id, whose middle number is that feed's own (not always the
+// train number either), and the page, which has both in red.json, finds the train. Only today's: `day` is the letter
+// of today's weekday in Madrid
+export function read(trips: Feed, vehicles: Feed, day: string = todayLetter()): Answer {
   const number = new Map<string, { n: string, andana?: string }>();
   for(const e of vehicles.entity ?? []){
     const id = e.vehicle?.trip?.tripId, m = e.vehicle?.vehicle?.label?.match(/^(R\d+)-(\d+)(?:-PLATF\.\((\w+)\))?/);
     if(id && m && LINES.includes(m[1])) number.set(id, { n: m[2], ...(m[3] ? { andana: m[3] } : {}) });
   }
-  const trens: Record<string, Train> = {};
+  const trens: Record<string, Train> = {}, cancelats: string[] = [];
   for(const e of trips.entity ?? []){
-    const u = e.tripUpdate, v = number.get(u?.trip?.tripId ?? '');
+    const u = e.tripUpdate, id = u?.trip?.tripId ?? '', v = number.get(id);
+    const cancelled = u?.trip?.scheduleRelationship === 'CANCELED';
+    if(u && !v && cancelled){
+      const m = id.match(/^\d{4}([A-Z])(\d+)(R\d+)$/);
+      if(m && m[1] === day && LINES.includes(m[3])) cancelats.push(m[2]);
+    }
     if(!u || !v) continue;
-    if(u.trip?.scheduleRelationship === 'CANCELED'){ trens[v.n] = { estat: 'cancelat' }; continue; }
+    if(cancelled){ trens[v.n] = { estat: 'cancelat' }; continue; }
     trens[v.n] = { estat: 'circula', retard: Math.round((u.delay ?? 0) / 60), parada: u.stopTimeUpdate?.[0]?.stopId ?? '',
       ...(v.andana ? { andana: v.andana } : {}) };
   }
   // the feeds say when Renfe wrote them: the answer is as old as the older one
   const at = Math.min(...[trips, vehicles].map(f => Number(f.header?.timestamp) * 1000));
-  return { llegit: new Date(isNaN(at) ? 0 : at).toISOString(), trens };
+  return { llegit: new Date(isNaN(at) ? 0 : at).toISOString(), trens, cancelats };
 }
 
 // Renfe now and then cuts a connection or does not answer (30-10: 5 asks in 80): one more try, both within the 5 s
