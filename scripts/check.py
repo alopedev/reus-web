@@ -3173,6 +3173,10 @@ async def check_paper_motion(browser):
                 for sel in steps:
                     if not await tap_at(page, sel): errs.append(f"{where}, picking from .end.{end}: no {sel} to press"); break
                     await page.wait_for_timeout(800)
+                # the stamp comes once the sheet has gone: on a slow runner, painted in software, it can take longer
+                # than the steps' own waits (seen in the CI on 04-11), so wait for the chooser to be closed first
+                try: await page.wait_for_function("!document.getElementById('selp').open", timeout=5000)
+                except Exception: pass
                 await page.wait_for_timeout(600)
                 rec = await page.evaluate("window.__rec")
                 st = [r for r in rec if f"end {end}" in r["el"] and not r["pseudo"]]
