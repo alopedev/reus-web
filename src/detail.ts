@@ -3,7 +3,7 @@ import { byId } from './dom';
 import { closeSheet, closesSoftly } from './sheet';
 import { whatsappUrl } from './home';
 import { news, type LineNews } from './notice';
-import { wagonSvg } from './journey';
+import { wagonSvg, busSheet, type TripBus } from './journey';
 import type { Where } from './shown';
 import { lineStyle } from './towns';
 import { esc } from './html';
@@ -15,6 +15,7 @@ export interface Trip {
   when: string; length: string; stops: number | null; buy: string; ave: string; home: string; news: LineNews;
   where: Where | null;               // while the train is on its way: where the timetable puts it
   live: string;                      // its live delay in a sentence (Renfe's feed); '' when on time or not known
+  bus: TripBus | null;               // the part of its trip by bus (works on the line), drawn and said
 }
 export interface Detail { open(t: Trip): void; refresh(t: Trip): void }
 
@@ -46,6 +47,7 @@ export function setupDetail(): Detail {
       <h3 id="detalleH"><span class="pill" style="${lineStyle(t.line)}">${esc(t.line)}</span> ${esc(t.from)} → ${esc(t.to)}</h3>
       <p class="horas">${t.dep} <span class="flecha">→</span> ${t.arr}</p>
       ${retard(t)}
+      ${t.bus ? busSheet(t.bus) : ''}
       ${journeyLine(t)}
       <p class="datos"><span>${esc(t.when)}</span> <span>${t.length} de viatge${stops ? ' · ' + stops : ''}</span></p>
       ${t.ave ? `<p class="ave">${esc(t.ave)}</p>` : ''}

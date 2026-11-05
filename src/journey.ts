@@ -1,4 +1,5 @@
-import { NET, hhmm, stopName } from './time';
+import { NET, hhmm, stopName, type Bus } from './time';
+import { esc } from './html';
 
 // the big train's route, only on a desktop (Àlex 08-10, option A of three): in the gap between the departure and its
 // arrival, a line from departure to arrival with a dot at every stop, placed by the time the train reaches it, and
@@ -8,14 +9,55 @@ import { NET, hhmm, stopName } from './time';
 // While the train is on its way, a paper wagon stands on the line where the timetable puts it (`now`, the share of
 // the trip already gone; Àlex 10-10, option A, and only on its way). For the eye only: the screen reader already
 // hears the train in #aviso
-export function journey(stops: [stop: string, arr: number][] | null, dep: number, arr: number, now: number | null = null): string {
+export function journey(stops: [stop: string, arr: number][] | null, dep: number, arr: number, now: number | null = null, bus: Bus | null = null): string {
   if(!stops || !stops.length || arr <= dep) return '';
   const at = (m: number) => ((m - dep) / (arr - dep) * 100).toFixed(2) + '%';
+  if(bus) return byBus(bus, dep, arr);
   const wagon = now == null ? '' : `<span class="vago" style="left:${(now * 100).toFixed(2)}%">${WAGON}</span>`;
   return `<span class="rec" aria-hidden="true"><b style="left:0"></b><b style="left:100%"></b><span class="tram"></span>${stops.map(([id, m]) =>
     `<i style="left:${at(m)}" data-n="${NET.estaciones[id]?.nombre ?? id} ${hhmm(m)}"></i><span class="s" data-at="${at(m)}">${stopName(id)}</span>`).join('')}`
     + `<span class="s pleg" hidden></span>${wagon}</span>`;
 }
+
+// a trip that runs part of its way by bus (works on the line; option A, Àlex 05-11): the line goes dashed where it is
+// the bus, with a paper bus over it and «en autobús» under it, and solid where it is the train, with «en tren»; at the
+// change, the stop's name above and «canvi al tren, 14:14» below (the time the other one leaves). The stops on the
+// way are not drawn: the line tells the bus from the train. No wagon on it. fitJourney keeps the words apart
+function byBus(bus: Bus, dep: number, arr: number): string {
+  const p = (bus.arrives - dep) / (arr - dep) * 100, pc = (x: number) => x.toFixed(2) + '%';
+  const [b0, b1] = bus.first ? [0, p] : [p, 100], [t0, t1] = bus.first ? [p, 100] : [0, p];
+  const word = (k: number, side: 'up' | 'down', x: number, text: string, anchor = .5) =>
+    `<span class="c ${side}" data-at="${pc(x)}" data-x="${anchor}" data-k="${k}" style="left:${pc(x)}">${text}</span>`;
+  const change = word(2, 'down', p, `canvi ${bus.first ? 'al tren' : 'a l’autobús'}, ${hhmm(bus.leaves)}`, bus.first ? .1 : .9);
+  const busWords = `<span class="autocar" data-at="${pc((b0 + b1) / 2)}" data-k="3" style="left:${pc((b0 + b1) / 2)}">${COACH}</span>`
+    + word(3, 'down', (b0 + b1) / 2, 'en autobús');
+  const trainWord = word(4, 'up', (t0 + t1) / 2, 'en tren');
+  // the solid line only over the train: ::before up to --a, ::after from --b
+  return `<span class="rec bus" aria-hidden="true" style="--a:${pc(t0 === 0 ? p : 0)};--b:${pc(t0 === 0 ? 100 : p)}">`
+    + `<span class="carretera" style="left:${pc(b0)};width:${pc(b1 - b0)}"></span><b style="left:0"></b><b style="left:100%"></b><i style="left:${pc(p)}"></i>`
+    + (bus.first ? busWords + word(1, 'up', p, place(bus.stop)) + change + trainWord
+      : trainWord + word(1, 'up', p, place(bus.stop)) + change + busWords) + '</span>';
+}
+// the same on the train's sheet on a phone (option A): a line, dashed where it is the bus, with the bus drawn in ink
+// over it, «autobús», the change and «tren» under it, and the sentence that says it («En autobús fins a la
+// Plana-Picamoixons (arriba a les 14:04). Allà, el tren de les 14:14.»). The drawing is for the eye; the words say it
+export type TripBus = { first: boolean, stop: string, words: string };
+export function busSheet(b: TripBus): string {
+  const [x, y] = b.first ? ['bus', 'tr'] : ['tr', 'bus'], [p, q] = b.first ? ['autobús', 'tren'] : ['tren', 'autobús'];
+  return `<div class="tramos" aria-hidden="true"><span class="l ${x}"></span><span class="l ${y}"></span>`
+    + `<b style="left:0"></b><b style="left:50%"></b><b style="left:100%"></b><span class="autocar" style="left:${b.first ? 25 : 75}%">${INK_COACH}</span>`
+    + `<span class="n" style="left:25%">${p}</span><span class="n dalt" style="left:50%">${esc(place(b.stop))}</span><span class="n" style="left:75%">${q}</span></div>`
+    + `<p class="frase">${esc(b.words)}</p>`;
+}
+// a stop's name on the line, its article in lower case as in a sentence («la Plana», as Àlex saw it on 05-11)
+const place = (id: string): string => stopName(id).replace(/^(La|Les|El|Els|L’|L')(?=[\s’']|$)/, m => m.toLowerCase());
+
+// a bus, side on, in paper like the wagon: the windows the colour of the wall, the orange band of «ara», dark wheels
+export const coachSvg = (body: string, windows: string, line = ''): string => `<svg viewBox="0 0 64 30" aria-hidden="true">`
+  + `<rect x="2" y="3" width="60" height="21" rx="4" fill="${body}"${line}/><g fill="${windows}">`
+  + [6, 18, 30, 42].map(x => `<rect x="${x}" y="7" width="9" height="8" rx="1"/>`).join('') + '<rect x="54" y="7" width="5" height="11" rx="1"/></g>'
+  + '<rect x="2" y="18" width="50" height="1.6" fill="#E8A35C"/><g fill="#2D241C"><circle cx="15" cy="25" r="4"/><circle cx="49" cy="25" r="4"/></g></svg>';
+const COACH = coachSvg('#F1EADC', '#6B5645'), INK_COACH = coachSvg('#F1EADC', '#6B5645', ' stroke="#2D241C" stroke-width="1.6"');
 
 // the wagon, side on, its nose towards the arrival (the line always runs from departure to arrival): a paper body
 // like the poster's words, windows the colour of the wall, the orange band of «ara» and dark wheels on the line
@@ -40,6 +82,7 @@ export function fitJourney(rec: HTMLElement): void {
   const rem = parseFloat(getComputedStyle(document.documentElement).fontSize), W = rec.clientWidth, gap = .5 * rem;
   // too short a line says nothing: it stays hidden rather than squeeze its dots together
   rec.classList.toggle('off', W < 8 * rem);
+  if(rec.classList.contains('bus')){ fitBus(rec, W, gap); return; }
   const labels = [...rec.querySelectorAll<HTMLElement>('.s:not(.pleg)')], dots = labels.map(s => s.previousElementSibling as HTMLElement);
   const fold = rec.querySelector<HTMLElement>('.pleg')!, n = labels.length;
   labels.forEach((s, i) => { s.hidden = false; dots[i].hidden = false; });
@@ -96,5 +139,21 @@ export function fitJourney(rec: HTMLElement): void {
     const wl = parseFloat(wagon.style.left) / 100 * W - wagon.offsetWidth / 2, wr = wl + wagon.offsetWidth;
     for(const s of [...labels, fold]) s.classList.toggle('alt', !s.hidden && s.classList.contains('up')
       && parseFloat(s.style.left) < wr + gap / 2 && parseFloat(s.style.left) + s.offsetWidth > wl - gap / 2);
+  }
+}
+
+// the words of a line by bus, each at its place (the change's «canvi …» leaning towards the second vehicle), kept
+// inside the line; the first in order of need (the change's name, its time, the bus, «en tren») takes its room, and
+// one that would overlap one before it on the same side is left out
+function fitBus(rec: HTMLElement, W: number, gap: number): void {
+  const items = [...rec.querySelectorAll<HTMLElement>('.c, .autocar')].sort((p, q) => +p.dataset.k! - +q.dataset.k!);
+  const taken: { up: [number, number][], down: [number, number][] } = { up: [], down: [] };
+  for(const el of items){
+    el.hidden = false;
+    const w = el.offsetWidth, x = parseFloat(el.dataset.at!) / 100 * W, side = el.classList.contains('down') ? 'down' : 'up';
+    const left = Math.max(0, Math.min(W - w, x - parseFloat(el.dataset.x ?? '.5') * w));
+    el.style.left = left + 'px';
+    if(taken[side].some(([l, r]) => left < r + gap && left + w > l - gap)){ el.hidden = true; continue; }
+    taken[side].push([left, left + w]);
   }
 }
