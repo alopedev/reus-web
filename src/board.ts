@@ -1,7 +1,7 @@
-import { hhmm } from './time';
+import { hhmm, type Bus } from './time';
 import { lineStyle } from './towns';
 import { journey } from './journey';
-import type { Row, Shown } from './shown';
+import { busWords, type Row, type Shown } from './shown';
 
 // the board's trips as they read: one row's HTML per trip, the train shown first. Every word of a row is decided here
 // («el pròxim» or «ja ha sortit», «després» or «demà», a delay, «cancel·lat», «sense dades», Camp de Tarragona, what a
@@ -10,7 +10,7 @@ import type { Row, Shown } from './shown';
 // The window first on a phone (Àlex 19-10, P2 on one line): the board is one line, the highlighted time alone; the
 // next trip is on the ruler and in the train's sheet
 export function board(v: Extract<Shown, { kind: 'train' }>, ida: boolean, phone: boolean): string[] {
-  return v.rows.filter(r => !phone || r.big).map(r => trip(r, ida, phone, r.big ? journey(v.stops, r.dep, r.arr, v.where?.at ?? null) : ''));
+  return v.rows.filter(r => !phone || r.big).map(r => trip(r, ida, phone, r.big ? journey(v.stops, r.dep, r.arr, v.where?.at ?? null, v.bus) : '', r.big ? v.bus : null));
 }
 
 // one trip of the board: line, departure, which one it is («el pròxim», with its countdown, and «després»; «demà»
@@ -18,7 +18,9 @@ export function board(v: Extract<Shown, { kind: 'train' }>, ida: boolean, phone:
 // town. The train shown is big; the other is a button that shows it
 // On a phone only the times are left, with the countdown on the big train and «demà» where it applies; every trip
 // is a button with a «›» that opens its detail, the big one included
-function trip(r: Row, ida: boolean, phone: boolean, rec: string): string {
+// a trip that runs part of its way by bus (works on the line, option A, Àlex 05-11): on a phone, «bus + tren» (or
+// «tren + bus») under the countdown, where «sense dades» would go; a delay or a cancellation keeps its own words
+function trip(r: Row, ida: boolean, phone: boolean, rec: string, bus: Bus | null): string {
   const {big, ave: isAve, until, morrow, live} = r;
   // the live delay (option A, Àlex 10-10): the time struck in orange and the new one beside it, the arrival
   // corrected; cancelled, struck; on time, nothing. Unknown says there is no live data yet, never «on time»
@@ -28,12 +30,13 @@ function trip(r: Row, ida: boolean, phone: boolean, rec: string): string {
   const arrCls = live?.kind === 'cancel' ? 't arr off' : 't arr';
   if(phone){
     const w = !big ? (morrow ? 'demà' : '') : late ? `<span class="nova">${hhmm(late.dep)}</span>${soonW}`
-      : live?.kind === 'cancel' ? '<span class="mes">cancel·lat</span>' : live?.kind === 'unknown' ? `${soonW}<span class="gris">sense dades</span>` : soonW;
+      : live?.kind === 'cancel' ? '<span class="mes">cancel·lat</span>' : bus ? `${soonW}<span class="gris">${bus.first ? 'bus + tren' : 'tren + bus'}</span>`
+      : live?.kind === 'unknown' ? `${soonW}<span class="gris">sense dades</span>` : soonW;
     const cells = `<span class="pill" style="${lineStyle(r.line)}">${r.line}</span> <span class="t${struck}"${big ? ' id="dep"' : ''}>${hhmm(r.dep)}</span> `
-      + `<span class="w${live ? ' viu' : ''}">${w}</span> <span class="${arrCls}">${arr}</span> <span class="mas" aria-hidden="true">›</span>`;
+      + `<span class="w${live ? ' viu' : bus ? ' dos' : ''}">${w}</span> <span class="${arrCls}">${arr}</span> <span class="mas" aria-hidden="true">›</span>`;
     const where = isAve ? (ida ? ' a' : ' des de') + ' Camp de Tarragona' : '';
     const said = late ? `, amb ${late.min} min de retard, surt cap a les ${hhmm(late.dep)} i arriba a les ${hhmm(late.arr)}` : live?.kind === 'cancel' ? ', cancel·lat' : '';
-    const label = `${isAve ? 'AVE' : r.line} de les ${hhmm(r.dep)}${where}${said || (big && until ? ', surt en ' + until : morrow ? ', demà' : '') + `, arriba a les ${hhmm(r.arr)}`}. Veure el detall i comprar`;
+    const label = `${isAve ? 'AVE' : r.line} de les ${hhmm(r.dep)}${where}${said || (big && until ? ', surt en ' + until : morrow ? ', demà' : '') + `, arriba a les ${hhmm(r.arr)}`}${bus ? ', ' + busWords(bus) : ''}. Veure el detall i comprar`;
     return `<button type="button" class="trip${big ? ' big' : ' tt'}" data-m="${r.dep}" data-d="${r.day}"${isAve ? ' data-ave' : ''} aria-haspopup="dialog" aria-label="${label}">${cells}</button>`;
   }
   const soon = big ? soonW : '';

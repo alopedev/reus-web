@@ -31,8 +31,8 @@ Regla de fusion (docs/referencias/datos-red.md #5):
        - Si su firma de Barcelona coincide (si toca dos o mas estaciones de Barcelona,
          basta un minuto de diferencia en cada una), en algun dia en que circula, con la de
          un tren de fom ya admitido -> es el mismo tren fisico (normalmente
-         REGIONAL, que duplica fom 1:1; tambien el caso de un tren que fom trae
-         partido en un tramo interno, como Lleida via La Plana-Picamoixons). Se usa
+         REGIONAL, que duplica fom 1:1; tambien el de un tren que fom trae solo en
+         parte: el resto lo hace en autobus por obras, ver with_bus). Se usa
          el tren completo de av (con su numero real) para TODOS los dias en que
          circula -- coincida o no fom ese dia concreto -- y se descarta el/los
          trip_id de fom que hacian de tramo corto (si no, el mismo tren fisico
@@ -43,7 +43,9 @@ Regla de fusion (docs/referencias/datos-red.md #5):
          hora en todas las estaciones comunes (same_train) salen los dos y
          one_per_train los une; si no, ese dia fom trae otro tren en ese hueco y
          manda el de fom (fom trae un horario por dia y av uno para todos: entre
-         semana, las R11 de las 09:10 y 09:40 a Sants iban al reves en av).
+         semana, las R11 de las 09:10 y 09:40 a Sants iban al reves en av). Y el dia
+         en que el tramo de fom empalma con un autobus de obras de fom (with_bus):
+         ese dia el tren es el autobus y el tramo, con el trozo en autobus en `b`.
        - Si no coincide en ningun dia -> se anade completo desde av, con la linea
          de la heuristica del punto 4 (los REG.EXP./MD que fom no tiene en
          absoluto: Ribera d'Ebre, Tortosa-Ulldecona, Girona-Portbou...).
@@ -246,25 +248,30 @@ def runs(cal, exc, sid, d):
 
 def load_fom(gtfs, day_range):
     """Devuelve:
-      - fom_trains: lista de dicts {trip_id, date, line, stops:[(seq,stop_id,arr,dep)]}
+      - fom_trains: lista de dicts {trip_id, date, line, bus, stops:[(seq,stop_id,arr,dep)]}
         (todas las paradas, sin filtrar Catalunya todavia), solo trips activos en
-        day_range cuya linea sea R11/R13-R17.
+        day_range cuya linea sea R11/R13-R17. `bus`: es un autobus (route_type 3), el que
+        Rodalies pone donde el tren no pasa por obras (with_bus).
       - line_stops: {linea: set(stop_id)} de TODOS los trips de fom de esa linea en
         el rango (toquen o no Barcelona), para la heuristica de asignacion de `p`.
     """
-    routes = {}
+    routes, bus_routes = {}, set()
     for r in gtfs.rows("routes.txt"):
         name = r["route_short_name"]
         if name in LINEAS_FOM:
             routes[r["route_id"]] = name
+            if r.get("route_type") == "3":
+                bus_routes.add(r["route_id"])
     if not routes:
         raise SystemExit("fom: no se ha encontrado ninguna de las lineas R11/R13-R17 en routes.txt")
 
-    trip_line, trip_service = {}, {}
+    trip_line, trip_service, bus_trips = {}, {}, set()
     for r in gtfs.rows("trips.txt"):
         line = routes.get(r["route_id"])
         if line:
             trip_line[r["trip_id"]] = line
+            if r["route_id"] in bus_routes:
+                bus_trips.add(r["trip_id"])
             trip_service[r["trip_id"]] = r["service_id"]
     if not trip_line:
         raise SystemExit("fom: no hay trips en las lineas R11/R13-R17")
@@ -306,7 +313,7 @@ def load_fom(gtfs, day_range):
             line_stops[line].add(stop_id)
         fom_trains.append({
             "trip_id": trip_id, "date": service_date[trip_service[trip_id]],
-            "line": line, "stops": stops,
+            "line": line, "bus": trip_id in bus_trips, "stops": stops,
         })
     return fom_trains, line_stops
 
@@ -353,8 +360,8 @@ def _same_minute(x, y):
 
 
 def fom_is_piece(f_stops, a_stops):
-    """El tren de fom es el mismo que el de av, o solo un tramo (fom parte algunos trenes, como Lleida via
-    La Plana-Picamoixons): sus paradas son paradas seguidas del de av. Si no -- fom para donde av no, o se
+    """El tren de fom es el mismo que el de av, o solo un tramo (donde el resto va en autobus por obras, como
+    Lleida <-> La Plana-Picamoixons desde el 02-11-2026; ver with_bus): sus paradas son paradas seguidas del de av. Si no -- fom para donde av no, o se
     salta paradas de av --, fom trae otro tren para ese dia y manda el de fom: trae un horario por dia y
     av uno para todos (el 13-10-2026 las R11 de las 09:10 y 09:40 a Sants iban al reves en av). Un par de
     minutos de diferencia con las mismas paradas no cuenta: los feeds discrepan a menudo en una llegada.
@@ -370,6 +377,38 @@ def fom_is_piece(f_stops, a_stops):
         return False
     start = a_ids.index(f_ids[0])
     return a_ids[start:start + len(f_ids)] == f_ids
+
+
+BUS_WAIT = 75   # minutos como mucho entre el autobus y el tren en el cambio (el 05-11-2026, 63 en la Plana a las 08:57)
+
+
+def with_bus(piece, a_stops, buses):
+    """El viaje entero de un tren que hace parte del camino en autobus (obras: desde el 02-11-2026 Rodalies hace
+    Lleida <-> La Plana-Picamoixons en autobus en las R13 y R14). av sigue dando el tren entero; fom da el tramo en
+    tren (`piece`, que fom_is_piece ya ha dado por bueno) y los autobuses aparte (`buses`, los de ese dia). Busca el
+    autobus que lleva al tren (acaba donde el tren empieza, saliendo de una parada anterior del de av) o que sale de
+    donde el tren acaba (hacia una parada posterior), con BUS_WAIT minutos como mucho de espera: el mas cercano al
+    tren y, si hay dos a la misma hora, el que para en mas pueblos (ningun pueblo del autobus pierde el viaje; en
+    Lleida puede haber uno mas rapido, que sale mas tarde). Devuelve (paradas, [primera, ultima parada en
+    autobus]), con la parada del cambio llegando en un vehiculo y saliendo en el otro, o None: sin autobus, el
+    tren de av como hasta ahora. Paradas como (seq, stop_id, llegada, salida)."""
+    a_ids = [sid for _q, sid, _a, _e in a_stops]
+    first, last = piece[0], piece[-1]
+    if first[1] not in a_ids or last[1] not in a_ids:
+        return None
+    before = set(a_ids[:a_ids.index(first[1])])
+    after = set(a_ids[a_ids.index(last[1]) + 1:])
+    to_train = [bus for bus in buses if bus[-1][1] == first[1] and bus[0][1] in before
+                and 0 <= first[3] - bus[-1][2] <= BUS_WAIT]
+    if to_train:
+        bus = max(to_train, key=lambda x: (x[-1][2], len(x)))
+        return list(bus[:-1]) + [(0, first[1], bus[-1][2], first[3])] + list(piece[1:]), [bus[0][1], first[1]]
+    from_train = [bus for bus in buses if bus[0][1] == last[1] and bus[-1][1] in after
+                  and 0 <= bus[0][3] - last[2] <= BUS_WAIT]
+    if from_train:
+        bus = min(from_train, key=lambda x: (x[0][3], -len(x)))
+        return list(piece[:-1]) + [(0, last[1], last[2], bus[0][3])] + list(bus[1:]), [last[1], bus[-1][1]]
+    return None
 
 
 def rodalies_numbers(fom_numero):
@@ -462,7 +501,7 @@ def one_per_train(trenes, dias):
         return {**a, "s": head + s + tail}
 
     trenes = list(trenes)
-    key = lambda t: (t["n"], t["p"], json.dumps(t["s"]))
+    key = lambda t: (t["n"], t["p"], json.dumps(t["s"]), tuple(t.get("b", ())))
     index = {key(t): i for i, t in enumerate(trenes)}
     rank = lambda i: (len(trenes[i]["s"]), trenes[i]["n"].isdigit())
     out = {}
@@ -541,8 +580,11 @@ def main():
     # -- red_stations: paradas (no-Barcelona) que ya forman parte de la red segun
     # los trenes de fom que SI tocan Barcelona (paso 1 de la regla de fusion). --
     fom_by_date = collections.defaultdict(list)
+    buses_by_date = collections.defaultdict(list)   # los autobuses de obras de cada dia (with_bus)
     for t in fom_trains:
-        if any(s[1] in BARCELONA for s in t["stops"]):
+        if t["bus"]:
+            buses_by_date[t["date"]].append(t["stops"])
+        elif any(s[1] in BARCELONA for s in t["stops"]):
             fom_by_date[t["date"]].append(t)
 
     red_stations = set()
@@ -606,7 +648,7 @@ def main():
     # segun que dias coincidieran con fom y cuales no (visto en la practica). Un numero
     # cuyo horario cambia a mitad del rango da dos grupos, cada uno con sus dias. --
     # -- av: candidatos regionales/REG.EXP./MD y AVE/Avlo, uno por numero y horario --
-    ave_ocurrencias = []      # [(date, p, tuple(stops filtrados), numero)]
+    ave_ocurrencias = []      # [(date, p, tuple(stops filtrados), numero, tramo en autobus o None)]
     regional_ocurrencias = []  # idem
 
     for trip_ids in av_groups(av_trips, av_stops_by_trip):
@@ -632,7 +674,7 @@ def main():
             kept = [s for s in stops if s[1] in (SANTS, CAMP_TARRAGONA)]
             seq = tuple((sid, a, e) for _sq, sid, a, e in kept)
             for d in dias_numero:
-                ave_ocurrencias.append((d, p, seq, numero))
+                ave_ocurrencias.append((d, p, seq, numero, None))
             continue
 
         # REGIONAL / REG.EXP. / MD
@@ -655,6 +697,7 @@ def main():
         matched_lines = collections.Counter()
         matched_ftids = []
         fom_days = set()   # dias en que fom trae otro tren en ese hueco: manda el de fom
+        bus_days = {}      # dias en que el tren hace parte del camino en autobus: {dia: (paradas, tramo)}
         if sig:
             for d in dias_numero:
                 ftid = find_fom(d, sig)
@@ -671,6 +714,9 @@ def main():
                     continue
                 matched_ftids.append(ftid)
                 matched_lines[fom_by_trip_id[ftid]["line"]] += 1
+                bus = with_bus(fom_stops, stops, buses_by_date.get(d, ()))
+                if bus:
+                    bus_days[d] = bus
         dias_numero = dias_numero - fom_days
         if not dias_numero:
             continue
@@ -691,7 +737,12 @@ def main():
                 continue
 
         for d in dias_numero:
-            regional_ocurrencias.append((d, line, seq, numero))
+            if d in bus_days:
+                trip, b = bus_days[d]
+                kept_bus = filter_catalunya(trip, stop_names, dropped)
+                regional_ocurrencias.append((d, line, tuple((sid, a, e) for _sq, sid, a, e in kept_bus), numero, b))
+            else:
+                regional_ocurrencias.append((d, line, seq, numero, None))
 
     # -- fom: construir las ocurrencias finales, salvo los trips absorbidos por un
     # tren completo de av (mismo tren fisico, ver arriba). --
@@ -704,7 +755,7 @@ def main():
             if len(kept) < 2:
                 continue
             seq = tuple((sid, a, e) for _sq, sid, a, e in kept)
-            fom_ocurrencias.append((date, t["line"], seq, t["trip_id"]))
+            fom_ocurrencias.append((date, t["line"], seq, t["trip_id"], None))
 
     # -- unir por (linea/producto, secuencia de paradas): mismo tren fisico en varios
     # dias -> una sola entrada en `trenes`, con `dias` apuntando a todas las fechas. --
@@ -712,13 +763,13 @@ def main():
     signatures = {}   # (p, stops) -> indice en `trenes`
     trenes = []
     dias = collections.defaultdict(set)
-    for date, p, stops, numero in todas:
-        key = (p, stops)
+    for date, p, stops, numero, b in todas:
+        key = (p, stops, tuple(b or ()))
         idx = signatures.get(key)
         if idx is None:
             idx = len(trenes)
             signatures[key] = idx
-            trenes.append({"n": numero, "p": p, "s": [list(s) for s in stops]})
+            trenes.append({"n": numero, "p": p, "s": [list(s) for s in stops], **({"b": b} if b else {})})
         elif not trenes[idx]["n"] and numero:
             trenes[idx]["n"] = numero
         dias[date.isoformat()].add(idx)

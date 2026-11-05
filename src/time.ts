@@ -2,10 +2,14 @@ import red from '../data/red.json';
 
 // the network timetable (scripts/extract_red.py, contract in docs/referencias/datos-red-contrato.md): every train
 // once, with its stops as [stop_id, arrival, departure], and the trains that run each day
+// f: its number in the Rodalies feed, where it differs; b: the part it runs by bus, from one of its stops to a later one
+// (works on the line, scripts/extract_red.py with_bus)
+export interface NetTrain { n: string; f?: string; p: string; s: [string, number, number][]; b?: [string, string] }
 export interface Network {
   fuente: string; actualizado: string;
   estaciones: Record<string, { nombre: string; comarca?: string; lineas?: string[]; barcelona?: boolean; ll?: [lat: number, lon: number] }>;
-  trenes: { n: string; f?: string; p: string; s: [string, number, number][] }[];   // f: its number in the Rodalies feed, where it differs
+  trenes: NetTrain[];
+
   dias: Record<string, number[]>;
 }
 // exported so towns.ts can build the chooser's groups from the same parsed network, without reading red.json twice
@@ -44,11 +48,29 @@ export function direct(iso: string, from: string, to: string): Train[] {
 // that number that calls at `from` and later at `to`, as direct() found it (any day's, for a day beyond the
 // timetable, which borrows another day's trains)
 export function stopsBetween(iso: string, id: string, from: string, to: string): [stop: string, arr: number][] | null {
+  const x = trainOf(iso, id, from, to);
+  return x && x.t.s.slice(x.a + 1, x.b).map(y => [y[0], y[1]]);
+}
+function trainOf(iso: string, id: string, from: string, to: string): { t: NetTrain, a: number, b: number } | null {
   for(const i of [...(NET.dias[iso] ?? []), ...NET.trenes.keys()]){
     const t = NET.trenes[i]; if(t.n !== id) continue;
     const a = t.s.findIndex(x => x[0]===from), b = t.s.findIndex(x => x[0]===to);
-    if(a >= 0 && b > a) return t.s.slice(a + 1, b).map(x => [x[0], x[1]]);
+    if(a >= 0 && b > a) return { t, a, b };
   }
+  return null;
+}
+
+// the part of a trip made by bus (red.json's `b`): the bus first and then the train, or the other way, the stop where
+// one gives way to the other, when the first arrives there and when the second leaves. Null when the trip is all by
+// train: it boards at the change or after it, or the train has no bus. The same train as stopsBetween's
+export type Bus = { first: boolean, stop: string, arrives: number, leaves: number };
+export function busLeg(iso: string, id: string, from: string, to: string): Bus | null {
+  const x = trainOf(iso, id, from, to);
+  if(!x?.t.b) return null;
+  const ids = x.t.s.map(y => y[0]), i0 = ids.indexOf(x.t.b[0]), i1 = ids.indexOf(x.t.b[1]);
+  const change = (i: number, first: boolean): Bus => ({ first, stop: ids[i], arrives: x.t.s[i][1], leaves: x.t.s[i][2] });
+  if(x.a >= i0 && x.a < i1 && x.b > i1) return change(i1, true);
+  if(x.a < i0 && x.b > i0 && x.b <= i1) return change(i0, false);
   return null;
 }
 // a stop's name on the big train's route, where room is short: without «Barcelona» before the city's stations, only

@@ -114,8 +114,13 @@
   box-shadow:1px 1px 0 var(--shadow); transform:translate(-50%,-50%); }
 /* the ends, departure and arrival, are bigger than the stops */
 .rec b{ width:.6rem; height:.6rem; }
-.rec .s{ position:absolute; white-space:nowrap; font-size:.93rem; line-height:1.1; color:var(--soft); }
-.rec .s.up{ bottom:.5rem; } .rec .s.down{ top:.5rem; }
+.rec .s, .rec .c{ position:absolute; white-space:nowrap; font-size:.93rem; line-height:1.1; color:var(--soft); }
+.rec .s.up, .rec .c.up{ bottom:.5rem; } .rec .s.down, .rec .c.down{ top:.5rem; }
+/* a trip by bus part of its way (works on the line; Àlex 05-11, option A): dashed where it is the bus, with a paper
+   bus over it, solid where it is the train (::before and ::after, by --a and --b); only the change is a dot */
+.rec .carretera{ position:absolute; top:-1px; height:0; border-top:2.5px dashed var(--paper); opacity:.8; }
+.rec .autocar{ position:absolute; bottom:.45rem; width:2.5rem; line-height:0; pointer-events:none; }
+.rec .autocar svg{ display:block; width:100%; height:auto; filter:drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
 /* where the train is now, while it is on its way (Àlex 10-10, option A): a paper wagon, its wheels on the line, its
    middle where the timetable puts it; a soft shadow like the poster's words, never the hard one of what you can press.
    The name it would cover climbs over it */
@@ -272,6 +277,10 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   @media (max-width:350px){ #dep{ font-size:2.4rem; } }
   /* the live delay on a phone: the new time over the countdown, in the narrow column between the two times */
   .big .w.viu{ display:flex; flex-direction:column; white-space:nowrap; line-height:1.08; }
+  /* a trip by bus part of its way: «bus + tren» under the countdown, on one line each; under 370 px a
+     countdown of hours takes two */
+  .big .w.dos{ display:flex; flex-direction:column; white-space:nowrap; line-height:1.08; }
+  @media (max-width:370px){ .big .w.dos .soon{ white-space:normal; } }
   .big .nova{ font-size:1.45rem; margin:0; vertical-align:baseline; }
   /* on a phone the board keeps only the times (6B, Àlex 06-10): every trip is a button ending in «›», the big one
      too, and opens its detail in a sheet (detail.ts). The «›» stands in a column of its own, so the arrivals still
