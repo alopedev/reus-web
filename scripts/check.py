@@ -2083,7 +2083,7 @@ async def check_days(browser):
 # highlighted time; on a phone (P2 on one line, Àlex 19-10) heading the board at the right, the days at its left
 TALONS = """(() => { const box = e => { const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
   const n = s => s.replace(/\\s+/g, ' ').trim();
-  return {stubs: [...document.querySelectorAll('#talons .talo, #board .talo')].map(a => ({cls: a.classList[1], text: n(a.textContent), href: a.href, tab: a.target,
+  return {stubs: [...document.querySelectorAll('#talons .talo, #board .talo')].map(a => ({cls: a.classList[1], tag: a.tagName, text: n(a.textContent), href: a.href ?? null, tab: a.target ?? null,
             label: a.getAttribute('aria-label'), shadow: getComputedStyle(a).filter, wrap: a.querySelector('.in').getBoundingClientRect().height, inCap: !!a.closest('#cap'), ...box(a)})),
           sheets: [...document.querySelectorAll('#days .full')].map(box), track: box(document.querySelector('.track')),
           ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')), vw: innerWidth, vh: innerHeight,
@@ -2102,42 +2102,47 @@ async def check_talons(browser):
     ventanilla/filosofias.md): no subtitle, the board one line, and «Compra» heading it at the right, the days at its
     left, both above the highlighted time; the one thing raised, and no «Avisa» on the wall (it stays in the train's
     sheet). The ticket as it was, with its printed date. Raised, on one line, a finger big, inside the screen and clear
-    of what is around it, from 320 px to the phone held sideways. On a 390 × 726 phone (an iPhone with Safari's bars)
+    of what is around it, from 320 px to the phone held sideways. Since 05-11 (Àlex: B of three, with his word) the
+    phone's stub says «Aquest», a wagon behind its dotted line: a button that opens the train's sheet, as the time does. On a 390 × 726 phone (an iPhone with Safari's bars)
     the window is at least 265 px tall, as before the day pad, day and night."""
     errs = []
     for w, h in ((1440, 900), (1280, 800), (1920, 1080), (390, 844), (390, 726), (360, 740), (320, 568), (844, 390)):
         page = await hero_page(browser, w, h)
-        t = await page.evaluate(TALONS); phone = w < 600 or h < 500
-        if [x["text"] for x in t["stubs"]] != ["Compra"]: errs.append(f"{w}x{h}: the stubs read {[x['text'] for x in t['stubs']]}, expected «Compra» alone"); await page.close(); continue
+        t = await page.evaluate(TALONS); phone = w < 600 or h < 500; word = "Aquest" if phone else "Compra"
+        if [x["text"] for x in t["stubs"]] != [word]: errs.append(f"{w}x{h}: the stubs read {[x['text'] for x in t['stubs']]}, expected «{word}» alone"); await page.close(); continue
         c = t["stubs"][0]
-        if "venta.renfe.com" not in c["href"] or c["tab"] != "_blank" or "Renfe" not in (c["label"] or ""): errs.append(f"{w}x{h}: «Compra» is not a link to Renfe in a new tab ({c})")
-        if "drop-shadow" not in c["shadow"]: errs.append(f"{w}x{h}: «Compra» is not raised ({c['shadow']})")
-        if c["wrap"] > 3.2 * t["rem"] + 2: errs.append(f"{w}x{h}: «Compra» breaks in two lines ({c['wrap']:.0f} px)")
-        if c["l"] < 0 or c["r"] > t["vw"] or c["b"] > t["vh"]: errs.append(f"{w}x{h}: «Compra» leaves the screen ({c})")
+        if not phone and ("venta.renfe.com" not in (c["href"] or "") or c["tab"] != "_blank" or "Renfe" not in (c["label"] or "")): errs.append(f"{w}x{h}: «Compra» is not a link to Renfe in a new tab ({c})")
+        if phone and (c["tag"] != "BUTTON" or c["href"] or "Obre el tren de les" not in (c["label"] or "")): errs.append(f"{w}x{h}: «Aquest» is not a button naming the train ({c})")
+        if "drop-shadow" not in c["shadow"]: errs.append(f"{w}x{h}: «{word}» is not raised ({c['shadow']})")
+        if c["wrap"] > 3.2 * t["rem"] + 2: errs.append(f"{w}x{h}: «{word}» breaks in two lines ({c['wrap']:.0f} px)")
+        if c["l"] < 0 or c["r"] > t["vw"] or c["b"] > t["vh"]: errs.append(f"{w}x{h}: «{word}» leaves the screen ({c})")
         for name, o in [("the window", t["win"])] + [("a row of the board", y) for y in t["rows"]] + [("the ruler", t["track"]), ("«ara»", t["ara"])]:
-            if o and overlap(c, o): errs.append(f"{w}x{h}: «Compra» covers {name}")
+            if o and overlap(c, o): errs.append(f"{w}x{h}: «{word}» covers {name}")
         d = t["dep"]
         if t["avisa"]: errs.append(f"{w}x{h}: «Avisa» is on the wall (it stays in the train's sheet)")
         if t["onTicket"] or t["fecha"] == "none": errs.append(f"{w}x{h}: the ticket lost its printed date or holds the days")
         if not phone:
-            if c["inCap"]: errs.append(f"{w}x{h}: a desktop has «Compra» heading the board")
+            if c["inCap"]: errs.append(f"{w}x{h}: a desktop has «{word}» heading the board")
             if c["b"] > d["t"] + 2 or d["t"] - c["b"] > 3 * t["rem"] or c["l"] >= d["r"] or d["l"] >= c["r"]:
-                errs.append(f"{w}x{h}: «Compra» is not just over the time (stub {c['l']:.0f}–{c['r']:.0f} × {c['t']:.0f}–{c['b']:.0f}, time {d['l']:.0f}–{d['r']:.0f} from {d['t']:.0f})")
+                errs.append(f"{w}x{h}: «{word}» is not just over the time (stub {c['l']:.0f}–{c['r']:.0f} × {c['t']:.0f}–{c['b']:.0f}, time {d['l']:.0f}–{d['r']:.0f} from {d['t']:.0f})")
             if t["taco"] == "none": errs.append(f"{w}x{h}: a desktop lost its day pad")
         else:
             sh, rows = t["sheets"], t["rows"]
             if len(rows) != 1: errs.append(f"{w}x{h}: the phone's board has {len(rows)} rows, expected the highlighted time alone")
-            if not c["inCap"]: errs.append(f"{w}x{h}: «Compra» does not head the board")
-            # the days at the left, «Compra» at the right, on one line over the highlighted time
+            if not c["inCap"]: errs.append(f"{w}x{h}: «{word}» does not head the board")
+            # the days at the left, «{word}» at the right, on one line over the highlighted time
             elif max(x["r"] for x in sh) > c["l"] or any(x["b"] < c["t"] or x["t"] > c["b"] for x in sh) or c["b"] > rows[0]["t"] + 2 or c["r"] < rows[0]["r"] - 3 * t["rem"]:
-                errs.append(f"{w}x{h}: the days and «Compra» do not head the board on one line (days {sh}, stub {c}, row {rows[0]})")
+                errs.append(f"{w}x{h}: the days and «{word}» do not head the board on one line (days {sh}, stub {c}, row {rows[0]})")
             if t["taco"] != "none": errs.append(f"{w}x{h}: a phone still hangs the day pad")
             if w < 600 and h > 500 and t["sub"] != "none": errs.append(f"{w}x{h}: a phone still has the subtitle")
             if t["lbl"] != "none": errs.append(f"{w}x{h}: a phone still has the label over the board")
-            if c["r"] - c["l"] < 44: errs.append(f"{w}x{h}: «Compra» is narrower than a finger ({c['r'] - c['l']:.0f} px)")
+            if c["r"] - c["l"] < 44: errs.append(f"{w}x{h}: «{word}» is narrower than a finger ({c['r'] - c['l']:.0f} px)")
             hits = await page.evaluate("""(a => { const r = a.getBoundingClientRect(), x = r.left + r.width / 2; let n = 0;
               for(let y = r.top - 30; y < r.bottom + 30; y++) if(document.elementFromPoint(x, y)?.closest('.talo') === a) n++; return n; })(document.querySelector('#cap .talo'))""")
-            if hits < 44: errs.append(f"{w}x{h}: «Compra» answers a finger over {hits} px of height, under 44")
+            if hits < 44: errs.append(f"{w}x{h}: «{word}» answers a finger over {hits} px of height, under 44")
+            # pressed, it opens the train's sheet, as the highlighted time does
+            await page.click("#cap .talo"); await page.wait_for_timeout(900)
+            if not await page.evaluate("document.getElementById('detalle').open"): errs.append(f"{w}x{h}: «Aquest» pressed does not open the train's sheet")
             if overlap(t["tk"], t["win"]): errs.append(f"{w}x{h}: the ticket covers the window")
             if t["win"]["b"] - t["win"]["t"] < 120: errs.append(f"{w}x{h}: the window is a slit ({t['win']['b'] - t['win']['t']:.0f} px tall)")
         await page.close()
@@ -2157,7 +2162,7 @@ async def check_talons(browser):
             if r["tk"] > r["vw"]: errs.append(f"{w}x{h}, L'Hospitalet de l'Infant: the ticket leaves the screen (to {r['tk']:.0f} of {r['vw']})")
         await page.close()
     # «Recorda» (04-11, Àlex: option A): with a train far enough away (the day's last, picked on the ruler), a desktop
-    # has a second stub by «Compra» that downloads the train's calendar file; a phone keeps «Compra» alone in its
+    # has a second stub by «Compra» that downloads the train's calendar file; a phone keeps «Aquest» alone in its
     # header and has «Recorda-m’ho» in the train's sheet, opened by the phone's calendar (no download)
     for w, h in ((1440, 900), (1280, 800), (1920, 1080), (390, 844), (320, 568), (844, 390)):
         page = await hero_page(browser, w, h)
@@ -2180,8 +2185,8 @@ async def check_talons(browser):
                 if not await page.evaluate("!!document.querySelector('#talons .recorda.picat')"):
                     errs.append(f"{w}x{h}: «Recorda» pressed is not punched, or the page went away")
         else:
-            if texts != ["Compra"]: errs.append(f"{w}x{h}, the day's last train: the phone's header reads {texts}, expected «Compra» alone")
-            await page.click("#board button.big"); await page.wait_for_timeout(800)
+            if texts != ["Aquest"]: errs.append(f"{w}x{h}, the day's last train: the phone's header reads {texts}, expected «Aquest» alone")
+            await page.click("#cap .talo"); await page.wait_for_timeout(800)
             loc = page.locator("#detalle .recorda")
             try: await loc.scroll_into_view_if_needed(timeout=3000)
             except Exception: pass
@@ -3227,6 +3232,8 @@ async def check_paper_motion(browser):
                 m = re.search(r"scale\(([\d.]+)", (st[-1]["first"] or {}).get("transform", "")) if st else None
                 if not m or float(m.group(1)) < 1.2: errs.append(f"{when}: the end is not stamped on the ticket ({st[-1]['first'] if st else 'it does not move'})")
                 elif not 200 <= st[-1]["ms"] <= 400: errs.append(f"{when}: the stamp takes {st[-1]['ms']} ms, expected about 300")
+            # a phone's stub is «Aquest», which opens the sheet and is not punched (05-11): only a desktop has «Compra»
+            if mobile: await page.close(); continue
             # «Compra» is punched when pressed (Renfe's tab is kept from opening here): a hole stays in the stub and its
             # chad falls; another train is another stub, whole
             await page.evaluate(REC)

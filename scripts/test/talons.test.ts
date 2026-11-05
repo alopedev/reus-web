@@ -36,7 +36,23 @@ test('on a desktop a second stub, «Recorda», saves the train to the calendar; 
   assert.equal(words(html), 'Compra Recorda');
   assert.deepEqual(hrefs(html), [s.buy, s.remind]);
   assert.match(html, /class="talo recorda" href="[^"]*" download/);   // a file to open, the page stays
-  assert.equal(words(talons(s, true)), 'Compra');
+});
+
+// on a phone the header's stub is the way into the train's sheet (05-11, Àlex: B, «El tren», with the word «Aquest»):
+// the time is not seen to be pressed, the stub is, and the sheet holds buying, telling home and reminding. A button,
+// not a link: it goes nowhere, it opens the sheet
+test('on a phone the stub says «Aquest», with a wagon, and is a button that opens the train\'s sheet', () => {
+  const html = talons(train(at('2026-10-01', '09:30', HOME)), true);
+  assert.equal(words(html), 'Aquest');
+  assert.deepEqual(hrefs(html), []);
+  assert.match(html, /^<button type="button" class="talo aquest"/);
+  assert.match(html, /<i><svg viewBox="0 0 30 18"/);   // the wagon, drawn behind the dotted line
+});
+
+// the sheet is there for every train, gone or cancelled too (it says so, with its delay and the line's notice)
+test('on a phone even a departed train has its «Aquest»', () => {
+  const gone = at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 543 });
+  assert.equal(words(talons(gone, true)), 'Aquest');
 });
 
 test('a train leaving in under 15 min can be bought but not reminded', () => {

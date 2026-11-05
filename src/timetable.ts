@@ -147,7 +147,10 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   // its dotted line, and the chad falls to the floor. It stays punched until another train redraws the stubs (their
   // labels name the train)
   talonsEl.addEventListener('click', e => {
-    const c = (e.target as Element).closest<HTMLElement>('.talo'); if(!c || c.classList.contains('picat')) return;
+    const c = (e.target as Element).closest<HTMLElement>('.talo'); if(!c) return;
+    // on a phone «Aquest» opens the train's sheet, as the highlighted time does (05-11): it buys nothing, so no punch
+    if(c.classList.contains('aquest')){ if(cur) detail.open(cur); return; }
+    if(c.classList.contains('picat')) return;
     c.classList.add('picat');
     const i = c.querySelector<HTMLElement>('i'); if(reduce || !i) return;
     const chad = document.createElement('span'); chad.className = 'xapa'; chad.setAttribute('aria-hidden', 'true');
