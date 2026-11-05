@@ -149,7 +149,8 @@ def check_dias(d):
 
 
 def check_trenes(d):
-    """Rule 3: n, p, stops, stop_id membership, non-decreasing times; f, when there is one, a number other than n."""
+    """Rule 3: n, p, stops, stop_id membership, non-decreasing times; f, when there is one, a number other than n; b,
+    when there is one, two of its stops in order."""
     errs = []
     trenes = d.get("trenes")
     estaciones = d.get("estaciones", {})
@@ -163,6 +164,13 @@ def check_trenes(d):
         # f: the train's number in the Rodalies feed, only where it differs from n (src/retards.ts)
         if "f" in t and not (isinstance(t["f"], str) and t["f"].isdigit() and t["f"] != t.get("n")):
             bad.append(f"{label}: f={t['f']!r} is not a Rodalies number other than n")
+        # b: the part of the trip made by bus, from one of its stops to a later one (works on the line; src/time.ts)
+        if "b" in t:
+            ids = [stop[0] for stop in t.get("s") or [] if isinstance(stop, list) and stop]
+            b = t["b"]
+            if not (isinstance(b, list) and len(b) == 2 and all(x in ids for x in b)
+                    and ids.index(b[0]) < ids.index(b[1])):
+                bad.append(f"{label}: b={b!r} is not two of its stops in order")
         if t.get("p") not in PRODUCTOS:
             bad.append(f"{label}: p={t.get('p')!r} not in {sorted(PRODUCTOS)}")
         s = t.get("s")

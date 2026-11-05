@@ -25,6 +25,18 @@ dialog#detalle.sale::backdrop{ animation:aclara var(--sale-ms) var(--sale) forwa
 .pliego .retard{ margin:.3rem 0 0; font-weight:700; font-size:1rem; line-height:1.3; color:#9A4A12; }   /* the delay in orange ink: paper needs a darker orange than the wall */
 .pliego .datos{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:.2rem 1rem; margin:.5rem 0 0; font-size:1rem; }
 .pliego .viatge{ margin:1rem 0 .2rem; }
+/* a trip by bus part of its way (Àlex 05-11, option A): a line, dashed for the bus and solid for the train, the bus
+   in ink over its half, the change in the middle, and the sentence under it */
+.pliego .tramos{ position:relative; height:3.6rem; margin:1rem .3rem .4rem; }
+.pliego .tramos .l{ position:absolute; top:1.9rem; height:0; }
+.pliego .tramos .l:first-child{ left:0; width:50%; } .pliego .tramos .l + .l{ left:50%; right:0; }
+.pliego .tramos .l.bus{ border-top:2.5px dashed var(--shadow); } .pliego .tramos .l.tr{ border-top:2.5px solid var(--shadow); }
+.pliego .tramos b{ position:absolute; top:1.9rem; width:.6rem; height:.6rem; border-radius:50%; background:var(--shadow); transform:translate(-50%,-50%); }
+.pliego .tramos .autocar{ position:absolute; top:.1rem; width:2.6rem; transform:translateX(-50%); line-height:0; }
+.pliego .tramos .autocar svg{ display:block; width:100%; height:auto; }
+.pliego .tramos .n{ position:absolute; top:2.35rem; font-size:.9rem; white-space:nowrap; transform:translateX(-50%); }
+.pliego .tramos .n.dalt{ top:-.2rem; }
+.pliego .frase{ margin:.2rem 0 0; font-size:1rem; line-height:1.35; }
 /* where the train is now (Àlex 10-10, option A): its two ends, the ink wagon on the line between them, the words under */
 .pliego .via{ position:relative; height:1.5px; margin:2.2rem .35rem 0; background:rgba(45,36,28,.55); }
 .pliego .via b{ position:absolute; top:50%; width:.6rem; height:.6rem; border-radius:50%; background:var(--shadow); transform:translate(-50%,-50%); }

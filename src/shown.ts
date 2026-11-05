@@ -1,6 +1,6 @@
 import type { ViewState } from './state';
 import type { Trip } from './detail';
-import { addDays, hhmm, dur, dayData, NET, BCN, bcnName, CAMP, stopsBetween, stopName, type Train } from './time';
+import { addDays, hhmm, dur, dayData, NET, BCN, bcnName, CAMP, stopsBetween, stopName, busLeg, type Train, type Bus } from './time';
 import { buyUrl } from './buy';
 import { remindUrl } from './calendar';
 import { homeText } from './home';
@@ -41,6 +41,7 @@ export type Shown = Common & ({ kind: 'none' } | {
   kind: 'train', ave: boolean, rows: Row[], buy: string, remind: string, stops: [stop: string, arr: number][] | null,
   trip: Trip,                        // the train's sheet on a phone
   where: Where | null,               // where it is now, by the timetable; null when it is not on its way
+  bus: Bus | null,                   // the part of its trip by bus (works on the line); null when all by train
   lines: string[],                   // the board's regional lines, whose notices go on the stamp
 });
 
@@ -123,7 +124,7 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   const ends = isAve ? (ida ? [v.station, CAMP] : [CAMP, v.station]) : ida ? [v.station, v.town] : [v.town, v.station];
   // Renfe opens the day's list, not the train: a cancelled or departed one has nothing to buy (12-10, option A)
   const buy = cancelled || (!tomorrow && leaves < now.min) ? '' : buyUrl(ends[0], ends[1], day, a[0]);
-  const stops = stopsBetween(day, a[2], ends[0], ends[1]);
+  const stops = stopsBetween(day, a[2], ends[0], ends[1]), bus = isAve ? null : busLeg(day, a[2], ends[0], ends[1]);
   const there = isAve ? 'Camp de Tarragona' : townName;
   // «Recorda» (04-11, option A): into the visitor's calendar with an alarm 15 min before, at the time it now leaves;
   // a train leaving sooner than that, gone or cancelled, has nothing to remind
@@ -136,17 +137,20 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
     stops: stops?.length ?? null, buy, remind,
     ave: isAve ? (ida ? `L’AVE no arriba ${atPlace(townName)}: baixa a Camp de Tarragona.` : `L’AVE no surt ${ofPlace(townName)}: surt de Camp de Tarragona.`) : '',
     home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(late ? late.arr : a[1]), tomorrow), news: lineNews(avisos, a[3], isAve), where,
+    bus: bus && { first: bus.first, stop: bus.stop, words: bus.first
+      ? `En autobús fins ${atPlace(NET.estaciones[bus.stop]?.nombre ?? bus.stop)} (arriba a les ${hhmm(bus.arrives)}). Allà, el tren de les ${hhmm(bus.leaves)}.`
+      : `En tren fins ${atPlace(NET.estaciones[bus.stop]?.nombre ?? bus.stop)} (arriba a les ${hhmm(bus.arrives)}). Allà, l’autobús de les ${hhmm(bus.leaves)}.` },
     live: late ? `Amb ${late.min} min de retard: surt cap a les ${hhmm(late.dep)} i arriba cap a les ${hhmm(late.arr)}.` : lv?.kind === 'unknown' ? 'Retard: sense dades en directe encara.' : '' };
   // what a screen reader hears: the train, only when it changes (never the countdown's refresh)
   const sFrom = isAve ? (ida ? bcn : 'Camp de Tarragona') : from, sTo = isAve ? (ida ? 'Camp de Tarragona' : `Barcelona ${bcn}`) : to;
-  const say = `${picked ? 'Tren triat, demà' : tomorrow ? 'Avui ja no queden trens. El primer de demà' : v.useNow ? 'Pròxim tren' : 'Tren triat'}: ${hhmm(a[0])}, ${isAve ? 'AVE ' : ''}${ofPlace(sFrom)} ${atPlace(sTo)}${cancelled ? ', cancel·lat' : late ? `, amb ${late.min} min de retard: surt cap a les ${hhmm(late.dep)}; arriba a les ${hhmm(late.arr)}` : `; arriba a les ${hhmm(a[1])}`}.`;
+  const say = `${picked ? 'Tren triat, demà' : tomorrow ? 'Avui ja no queden trens. El primer de demà' : v.useNow ? 'Pròxim tren' : 'Tren triat'}: ${hhmm(a[0])}, ${isAve ? 'AVE ' : ''}${ofPlace(sFrom)} ${atPlace(sTo)}${cancelled ? ', cancel·lat' : late ? `, amb ${late.min} min de retard: surt cap a les ${hhmm(late.dep)}; arriba a les ${hhmm(late.arr)}` : `; arriba a les ${hhmm(a[1])}`}.${bus ? ' ' + cap(busWords(bus)) + '.' : ''}`;
   return { kind: 'train', key: a[0] + v.dir + isAve + v.town + v.station + day + (lv?.kind ?? ''), say,
     label: picked ? '' : lastAve ? 'Avui ja no queden regionals' : tomorrow ? 'Avui ja no en queden · demà' : '', note,
     knob: tomorrow && !picked ? null : a[0], valuetext: picked ? `${isAve ? 'AVE' : 'tren'} de demà de les ${hhmm(a[0])}` : tomorrow ? 'avui ja no queden trens' : `${isAve ? 'AVE' : 'tren'} de les ${hhmm(a[0])}`,
     light: tomorrow ? a[0] : start, day,
     // the ruler has one mark: the knob always stands on the train shown (every tick is a train, the AVE like the rest)
     ruler: seen.map(({t, ave:w}) => ({dep: t[0], ave: w, on: (picked || !tomorrow) && w === isAve && t[0] === a[0]})), tomorrow: picked,
-    ave: isAve, rows, buy, remind, stops, trip, where, lines: [...new Set(rows.filter(r => !r.ave).map(r => r.line))] };
+    ave: isAve, rows, buy, remind, stops, trip, where, bus, lines: [...new Set(rows.filter(r => !r.ave).map(r => r.line))] };
 }
 
 // the day sheet pressed, «avui» or «demà»: the day of the train shown (Àlex 19-10), so that at night, with tomorrow's
@@ -183,4 +187,10 @@ function noTrain(v: ViewState, from: string, to: string, iso: string): string {
   const town = NET.estaciones[v.town].nombre, bcn = bcnName(v.station);
   const alt = others.length > 1 ? `${others.slice(0, -1).join(', ')} o de ${others[others.length - 1]}` : others[0];
   return ida ? `Des de ${bcn} no hi ha tren directe ${atPlace(town)}. Surt de ${alt}.` : `${cap(ofPlace(town))} no hi ha tren directe a ${bcn}. Va a ${alt.replace(' o de ', ' o a ')}.`;
+}
+
+// the bus part in words, for a screen reader: «en autobús fins a la Plana-Picamoixons», «en autobús des de …»
+export function busWords(bus: Bus): string {
+  const name = NET.estaciones[bus.stop]?.nombre ?? bus.stop;
+  return bus.first ? `en autobús fins ${atPlace(name)}` : `en autobús des ${ofPlace(name)}`;
 }
