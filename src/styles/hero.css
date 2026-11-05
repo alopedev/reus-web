@@ -277,10 +277,10 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   @media (max-width:350px){ #dep{ font-size:2.4rem; } }
   /* the live delay on a phone: the new time over the countdown, in the narrow column between the two times */
   .big .w.viu{ display:flex; flex-direction:column; white-space:nowrap; line-height:1.08; }
-  /* a trip by bus part of its way: «bus + tren» under the countdown, on one line each; on the narrowest (320 px) a
+  /* a trip by bus part of its way: «bus + tren» under the countdown, on one line each; under 370 px a
      countdown of hours takes two */
   .big .w.dos{ display:flex; flex-direction:column; white-space:nowrap; line-height:1.08; }
-  @media (max-width:350px){ .big .w.dos .soon{ white-space:normal; } }
+  @media (max-width:370px){ .big .w.dos .soon{ white-space:normal; } }
   .big .nova{ font-size:1.45rem; margin:0; vertical-align:baseline; }
   /* on a phone the board keeps only the times (6B, Àlex 06-10): every trip is a button ending in «›», the big one
      too, and opens its detail in a sheet (detail.ts). The «›» stands in a column of its own, so the arrivals still
