@@ -7,6 +7,10 @@ import type { Shown } from './shown';
 import type { Trip } from './detail';
 import { esc } from './html';
 import { whatsappUrl } from './home';
+import { tear } from './paper';
+
+// the paper of a stub, torn off its ticket (06-11, option B): each one its own tear
+const paper = (seed: number) => `<span class="in" style="clip-path:${tear(seed)}">`;
 
 const TICKET = '<svg viewBox="0 0 28 18" aria-hidden="true"><path d="M2 2h24v4.2a2.8 2.8 0 0 0 0 5.6V16H2v-4.2a2.8 2.8 0 0 0 0-5.6z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M19 3.5v11" stroke="currentColor" stroke-width="1.2" stroke-dasharray="1.6 1.6"/><path d="M6 7h9M6 10.5h6" stroke="#E07A1F" stroke-width="1.8"/></svg>';
 
@@ -24,13 +28,13 @@ const WAGON = '<svg viewBox="0 0 30 18" aria-hidden="true"><rect x="2" y="2.5" w
 // nowhere), for every train shown: the sheet of one gone or cancelled says so
 export function talons(s: Shown, phone: boolean): string {
   if(s.kind !== 'train') return '';
-  if(phone) return `<button type="button" class="talo agafa" aria-label="${esc(`Obre el tren de les ${s.trip.dep}`)}"><span class="in"><i>${WAGON}</i><span>Agafa’l</span></span></button>`;
+  if(phone) return `<button type="button" class="talo agafa" aria-label="${esc(`Obre el tren de les ${s.trip.dep}`)}">${paper(3)}<i>${WAGON}</i><span>Agafa’l</span></span></button>`;
   if(!s.buy) return '';
   const label = `Compra a Renfe el tren de les ${s.trip.dep} (s’obre en una altra pestanya)`;
-  const buy = `<a class="talo compra" href="${esc(s.buy)}" target="_blank" rel="noopener" aria-label="${esc(label)}"><span class="in"><i>${TICKET}</i><span>Compra</span></span></a>`;
+  const buy = `<a class="talo compra" href="${esc(s.buy)}" target="_blank" rel="noopener" aria-label="${esc(label)}">${paper(3)}<i>${TICKET}</i><span>Compra</span></span></a>`;
   if(!s.remind) return buy;
   const away = /^https:/.test(s.remind), remind = `Afegeix el tren de les ${s.trip.dep} al teu calendari, amb un avís 15 min abans`;
-  return buy + ` <a class="talo recorda" href="${esc(s.remind)}" ${away ? 'target="_blank" rel="noopener"' : 'download'} aria-label="${esc(remind)}"><span class="in"><i>${CLOCK}</i><span>Recorda</span></span></a>`;
+  return buy + ` <a class="talo recorda" href="${esc(s.remind)}" ${away ? 'target="_blank" rel="noopener"' : 'download'} aria-label="${esc(remind)}">${paper(14)}<i>${CLOCK}</i><span>Recorda</span></span></a>`;
 }
 
 // the train's sheet on a phone (detail.ts): its ways out as paper buttons. «Recorda-m’ho» (04-11, option A) is not

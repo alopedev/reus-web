@@ -2084,7 +2084,8 @@ async def check_days(browser):
 TALONS = """(() => { const box = e => { const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
   const n = s => s.replace(/\\s+/g, ' ').trim();
   return {stubs: [...document.querySelectorAll('#talons .talo, #board .talo')].map(a => ({cls: a.classList[1], tag: a.tagName, text: n(a.textContent), href: a.href ?? null, tab: a.target ?? null,
-            label: a.getAttribute('aria-label'), shadow: getComputedStyle(a).filter, wrap: a.querySelector('.in').getBoundingClientRect().height, inCap: !!a.closest('#cap'), ...box(a)})),
+            label: a.getAttribute('aria-label'), shadow: getComputedStyle(a).filter, wrap: a.querySelector('.in').getBoundingClientRect().height,
+            clip: getComputedStyle(a.querySelector('.in')).clipPath, dash: getComputedStyle(a.querySelector('i')).borderRightStyle, holes: getComputedStyle(a.querySelector('i')).backgroundImage, inCap: !!a.closest('#cap'), ...box(a)})),
           sheets: [...document.querySelectorAll('#days .full')].map(box), track: box(document.querySelector('.track')),
           ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')), vw: innerWidth, vh: innerHeight,
           dep: box(document.getElementById('dep')), win: box(document.getElementById('win')), rows: [...document.querySelectorAll('#board .trip')].map(box),
@@ -2115,6 +2116,9 @@ async def check_talons(browser):
         if phone and (c["tag"] != "BUTTON" or c["href"] or "Obre el tren de les" not in (c["label"] or "")): errs.append(f"{w}x{h}: «Agafa’l» is not a button naming the train ({c})")
         if "drop-shadow" not in c["shadow"]: errs.append(f"{w}x{h}: «{word}» is not raised ({c['shadow']})")
         if c["wrap"] > 3.2 * t["rem"] + 2: errs.append(f"{w}x{h}: «{word}» breaks in two lines ({c['wrap']:.0f} px)")
+        # torn off its ticket along the perforation (Àlex 06-11, option B): a torn left edge, a row of holes for the dashed line
+        if not c["clip"].startswith("polygon") or c["dash"] != "none" or "radial-gradient" not in c["holes"]:
+            errs.append(f"{w}x{h}: «{word}» is not torn along a perforation (clip {c['clip'][:30]}, line {c['dash']}, {c['holes'][:30]})")
         if c["l"] < 0 or c["r"] > t["vw"] or c["b"] > t["vh"]: errs.append(f"{w}x{h}: «{word}» leaves the screen ({c})")
         for name, o in [("the window", t["win"])] + [("a row of the board", y) for y in t["rows"]] + [("the ruler", t["track"]), ("«ara»", t["ara"])]:
             if o and overlap(c, o): errs.append(f"{w}x{h}: «{word}» covers {name}")

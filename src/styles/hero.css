@@ -171,8 +171,8 @@
 .full.on .pp{ background-color:#E8DECB; }
 .full.on b{ color:#B5361F; }
 .full:focus-visible{ outline:2px solid var(--paper); outline-offset:4px; border-radius:2px; }
-/* the stubs (A3, Àlex 18-10; talons.ts): what the highlighted time leads to, out on the wall. Ticket stubs with a
-   notch on each side, a drawing of what they do behind a dotted line, and the verb; raised like everything that can
+/* the stubs (A3, Àlex 18-10; talons.ts): what the highlighted time leads to, out on the wall. Ticket stubs torn
+   off along their perforation (06-11) with a notch on the right, a drawing of what they do behind a dotted line, and the verb; raised like everything that can
    be pressed (the shadow on the link, the notches cut from the paper inside it, or the mask would cut the shadow
    too). On a desktop over the highlighted time; on a phone in a row under the board, the day pad up by the ticket
    (Àlex 18-10) */
@@ -188,10 +188,20 @@
 /* «Aquest» on a phone (05-11) is a button, the sheet's way in: the same paper, none of the button's own look */
 button.talo{ appearance:none; background:none; border:0; padding:0; margin:0; font:inherit; cursor:pointer; }
 .talo .in{ display:inline-flex; align-items:center; gap:.4rem; min-height:max(2.75rem, 44px); box-sizing:border-box; padding:.3rem .75rem .3rem .65rem;
-  background:#EFE6D2 var(--grain); font:700 .95rem var(--texto); white-space:nowrap;
-  -webkit-mask:radial-gradient(circle at 0 50%, transparent .3rem, #000 .32rem) left/51% 100% no-repeat, radial-gradient(circle at 100% 50%, transparent .3rem, #000 .32rem) right/51% 100% no-repeat;
-  mask:radial-gradient(circle at 0 50%, transparent .3rem, #000 .32rem) left/51% 100% no-repeat, radial-gradient(circle at 100% 50%, transparent .3rem, #000 .32rem) right/51% 100% no-repeat; }
-.talo i{ display:inline-flex; padding-right:.4rem; border-right:1.5px dashed rgba(45,36,28,.45); line-height:0; }
+  font:700 .95rem var(--texto); white-space:nowrap;
+  /* torn off its ticket along the perforation (Àlex 06-11, option B of three; mockups in aquest/papel/): the left
+     edge torn by hand (clip-path from tear() in paper.ts, each stub its own) and paler where the fibres show; the
+     notch kept on the right; the light falling on a sheet not quite flat, and more grain, with a fibre */
+  padding-left:.85rem; box-shadow:inset .42rem 0 .18rem -.2rem #FBF7EE;
+  background:linear-gradient(168deg, rgba(255,252,244,.55), rgba(255,252,244,0) 45%, rgba(45,36,28,.07) 100%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='.55 2.2' numOctaves='3' seed='9'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .28  0 0 0 0 .2  0 0 0 .13 0'/></filter><rect width='90' height='90' filter='url(%23f)'/></svg>"),
+    #EFE6D2 var(--grain);
+  -webkit-mask:radial-gradient(circle at 100% 50%, transparent .3rem, #000 .32rem);
+  mask:radial-gradient(circle at 100% 50%, transparent .3rem, #000 .32rem); }
+.talo .in > span{ text-shadow:.02rem .015rem 0 rgba(45,36,28,.25); }
+/* the dashed line is now the row of holes it was torn beside */
+.talo i{ display:inline-flex; padding-right:.55rem; line-height:0;
+  background:radial-gradient(circle, rgba(45,36,28,.5) .055rem, transparent .07rem) right center / .2rem .19rem repeat-y; }
 .talo svg{ height:1.05rem; width:auto; }
 .talo:hover{ filter:drop-shadow(.3rem .3rem 0 rgba(14,9,6,.9)); }
 .talo:active{ filter:none; transform:translate(.15rem,.15rem) rotate(-1.5deg); }
@@ -201,7 +211,7 @@ button.talo{ appearance:none; background:none; border:0; padding:0; margin:0; fo
    shade shows through, and its chad (.xapa) falling to the floor; with reduced motion only the hole */
 .talo{ position:relative; }
 .talo i{ position:relative; }
-.talo.picat i::after{ content:''; position:absolute; right:-.23rem; top:50%; width:.42rem; height:.42rem; margin-top:-.21rem;
+.talo.picat i::after{ content:''; position:absolute; right:-.11rem; top:50%; width:.42rem; height:.42rem; margin-top:-.21rem;
   border-radius:50%; background:#615140; box-shadow:inset .05rem .06rem 0 rgba(14,9,6,.55); }
 .talo .xapa{ position:absolute; display:block; width:.42rem; height:.42rem; margin:-.21rem 0 0 -.21rem; border-radius:50%; background:#EFE6D2; pointer-events:none;
   animation:cau .52s cubic-bezier(.4,0,1,1) .06s both; }
