@@ -436,7 +436,8 @@ QE_TARGET = [0, 1, 2, 4, 3, 5, 3, 3]
 # lifts off at roughly this progress
 def letters_start(i): return .06 + i * .035
 
-CHIP_RECT = """(i => { const chips = document.querySelectorAll('#letras .ficha'); const el = chips[i]; if(!el) return null;
+# a chip by its letter's index in the name, in whichever layer it is (on the wall, #letras; off it, #letras-mesa)
+CHIP_RECT = """(i => { const el = document.querySelector(`.ficha[data-i="${i}"]`); if(!el) return null;
   const b = el.getBoundingClientRect(); return {x: b.left + b.width / 2, y: b.top + b.height / 2}; })"""
 # the on-screen box of the i-th character of an element's text, over all its text nodes in order (h1.brand has a
 # span per cell of its board, h2#qe one text node), through whatever transform its ancestors currently carry
@@ -448,7 +449,7 @@ GLYPH_RECT = """((sel, i) => { const el = document.querySelector(sel); if(!el) r
   const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 1);
   const rects = r.getClientRects(); if(!rects.length) return null; const b = rects[0];
   return {x: b.left + b.width / 2, y: b.top + b.height / 2}; })"""
-LETTERS_STATE = """(() => { const chips = document.querySelectorAll('#letras .ficha');
+LETTERS_STATE = """(() => { const chips = document.querySelectorAll('#letras .ficha, #letras-mesa .ficha');
   const c = s => getComputedStyle(document.querySelector(s));
   const h1 = c('.brand'), h2 = c('#qe');
   return {count: chips.length,
@@ -499,21 +500,25 @@ async def check_letters_pair(page):
     return errs
 
 async def check_letters_layer(page):
-    """#letras: fixed, full viewport, non-interactive, a direct child of body (sibling of #hero/#repisa, never
-    nested inside either — their transform/filter would break its fixed positioning), above both of them."""
-    info = await page.evaluate("""() => { const l = document.getElementById('letras'); if(!l) return null;
-      const c = getComputedStyle(l);
-      return {position: c.position, pointerEvents: c.pointerEvents, zIndex: c.zIndex,
-              parentIsBody: l.parentElement === document.body, ariaHidden: l.getAttribute('aria-hidden')}; }""")
-    if not info: return ["#letras is missing"]
+    """Two layers, non-interactive, aria-hidden, direct children of body (siblings of #hero/#repisa, never nested
+    inside either -- their transform/filter would move them), above both of them. #letras is fixed, full viewport:
+    the chips still on the wall, which is fixed too. #letras-mesa scrolls with the page, as the table does
+    (check_letters_ride), and clips what sticks out, so a chip off the screen never widens the page (check_drop_width)."""
     errs = []
-    if info["position"] != "fixed": errs.append(f"#letras is not position:fixed ({info['position']})")
-    if info["pointerEvents"] != "none": errs.append("#letras is not pointer-events:none")
-    if not info["parentIsBody"]: errs.append("#letras is not a direct child of body")
-    if info["ariaHidden"] != "true": errs.append("#letras is not aria-hidden")
-    try: z = float(info["zIndex"])
-    except (TypeError, ValueError): z = None
-    if z is None or z <= 2: errs.append(f"#letras z-index ({info['zIndex']}) is not above the wall (0) and the table (2)")
+    for lid, pos in (("letras", "fixed"), ("letras-mesa", "absolute")):
+        info = await page.evaluate("""id => { const l = document.getElementById(id); if(!l) return null;
+          const c = getComputedStyle(l);
+          return {position: c.position, pointerEvents: c.pointerEvents, zIndex: c.zIndex, overflow: c.overflowX,
+                  parentIsBody: l.parentElement === document.body, ariaHidden: l.getAttribute('aria-hidden')}; }""", lid)
+        if not info: errs.append(f"#{lid} is missing"); continue
+        if info["position"] != pos: errs.append(f"#{lid} is not position:{pos} ({info['position']})")
+        if info["pointerEvents"] != "none": errs.append(f"#{lid} is not pointer-events:none")
+        if not info["parentIsBody"]: errs.append(f"#{lid} is not a direct child of body")
+        if info["ariaHidden"] != "true": errs.append(f"#{lid} is not aria-hidden")
+        if pos == "absolute" and info["overflow"] != "clip": errs.append(f"#{lid} does not clip what sticks out (overflow {info['overflow']})")
+        try: z = float(info["zIndex"])
+        except (TypeError, ValueError): z = None
+        if z is None or z <= 2: errs.append(f"#{lid} z-index ({info['zIndex']}) is not above the wall (0) and the table (2)")
     return errs
 
 async def check_letters_rest(page):
@@ -547,8 +552,8 @@ async def check_letters_midway(page):
     if st["h2Vis"] == "hidden" or st["h2Disp"] == "none": errs.append("h2#qe was hidden with visibility/display, not just color/opacity")
     if not st["h2Text"].strip(): errs.append("h2#qe lost its text content")
     above = await page.evaluate("""() => { const z = s => { const el = document.querySelector(s); return el ? +getComputedStyle(el).zIndex || 0 : 0; };
-      return z('#letras') > z('#hero') && z('#letras') > z('#repisa'); }""")
-    if not above: errs.append("#letras is not above #hero and #repisa at p=0.3")
+      return ['#letras', '#letras-mesa'].every(l => z(l) > z('#hero') && z(l) > z('#repisa')); }""")
+    if not above: errs.append("#letras or #letras-mesa is not above #hero and #repisa at p=0.3")
     return errs
 
 async def check_letters_positions(page):
@@ -573,6 +578,32 @@ async def check_letters_positions(page):
         if d > 3: errs.append(f"chip {i} is {d:.1f}px from its h2 glyph at p=0.97")
     return errs
 
+async def check_letters_ride(page):
+    """A phone scrolls the page on its own (the compositor) and the page's code hears of it later: on Àlex's iPhone
+    (06-11) the landed letters of «Què és» were redrawn 8-10 times a second while the table moved 60, and parted
+    from it by up to 25 pt. So between two redraws a chip that has left the wall rides the table, and one still on
+    the wall stays with the wall: here the page is scrolled and read in the same task, before its scroll event runs."""
+    errs = []
+    for p, dy in ((.3, 40), (.7, 40), (.7, -40)):
+        await letters_at(page, p)
+        got = await page.evaluate("""(dy => { const chip = i => { const el = document.querySelector(`.ficha[data-i="${i}"]`);
+            return el && el.getBoundingClientRect().top; };
+          const ids = [...document.querySelectorAll('.ficha')].map(el => +el.dataset.i), qe = () => document.getElementById('qe').getBoundingClientRect().top;
+          const before = ids.map(chip), t0 = qe();
+          scrollTo({top: scrollY + dy, behavior: 'instant'});
+          return {table: qe() - t0, chips: ids.map((i, k) => ({i, moved: chip(i) - before[k]}))}; })""", dy)
+        if abs(got["table"] + dy) > 1: errs.append(f"p={p}: the table moved {got['table']:.1f} px for a {dy:+d} px scroll (the test's own premise)")
+        if sorted(c["i"] for c in got["chips"] if c["i"] == c["i"]) != list(range(len(NAME))):
+            errs.append(f"p={p}: the chips carry indexes {[c['i'] for c in got['chips']]} (data-i), expected 0 to {len(NAME) - 1}")
+        for c in got["chips"]:
+            flown = p > letters_start(c["i"])
+            want = -dy if flown else 0
+            if abs(c["moved"] - want) > 1.5:
+                errs.append(f"p={p}, scrolled {dy:+d} px: chip {c['i']} moved {c['moved']:.1f} px before the page redrew, "
+                            f"its {'table' if flown else 'wall'} {want:.1f} px")
+    await letters_at(page, .7)
+    return errs
+
 async def check_letters_landed(page):
     """Once the wall is gone (p=1) the chips are gone too, and the real h2 shows where they landed."""
     await letters_at(page, 1)
@@ -585,7 +616,7 @@ async def check_letters_landed(page):
 async def check_letters_reversible(page):
     """Scrubbing 0.3 -> 0.8 -> 0.3 leaves the chips exactly where they were the first time at 0.3."""
     async def snapshot():
-        return await page.evaluate("""() => [...document.querySelectorAll('#letras .ficha')].map(el => {
+        return await page.evaluate("""() => [...document.querySelectorAll('.ficha')].sort((a, b) => a.dataset.i - b.dataset.i).map(el => {
           const b = el.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top)]; })""")
     await letters_at(page, .3); before = await snapshot()
     await letters_at(page, .8); await letters_at(page, .3); after = await snapshot()
@@ -646,6 +677,7 @@ async def check_letters(page, name):
     errs += [f"rest: {e}" for e in await check_letters_rest(page)]
     errs += [f"midway: {e}" for e in await check_letters_midway(page)]
     errs += [f"positions: {e}" for e in await check_letters_positions(page)]
+    errs += [f"ride: {e}" for e in await check_letters_ride(page)]
     errs += [f"landed: {e}" for e in await check_letters_landed(page)]
     errs += [f"reversible: {e}" for e in await check_letters_reversible(page)]
     errs += [f"toolbar: {e}" for e in await check_toolbar(page)]
