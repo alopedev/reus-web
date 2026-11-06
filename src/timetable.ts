@@ -148,8 +148,8 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   // labels name the train)
   talonsEl.addEventListener('click', e => {
     const c = (e.target as Element).closest<HTMLElement>('.talo'); if(!c) return;
-    // on a phone «Aquest» opens the train's sheet, as the highlighted time does (05-11): it buys nothing, so no punch
-    if(c.classList.contains('aquest')){ if(cur) detail.open(cur); return; }
+    // on a phone «Agafa’l» opens the train's sheet, as the highlighted time does (05-11): it buys nothing, so no punch
+    if(c.classList.contains('agafa')){ if(cur) detail.open(cur); return; }
     if(c.classList.contains('picat')) return;
     c.classList.add('picat');
     const i = c.querySelector<HTMLElement>('i'); if(reduce || !i) return;

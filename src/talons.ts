@@ -2,7 +2,7 @@
 // has to guess it is behind the time. A ticket stub with its notches, a drawing of what it does and its verb, one word
 // so it stays narrow: «Compra» opens Renfe's search for the train's trip and day. On a desktop it stands over the time;
 // on a phone it heads the board, right of «avui · demà» (#cap; Àlex 19-10, P2 on one line), and since 05-11 it says
-// «Aquest» and opens the train's sheet, where buying, telling home and reminding live. Pure: the HTML, from shown()
+// «Agafa’l» (06-11; «Aquest» the day before) and opens the train's sheet, where buying, telling home and reminding live. Pure: the HTML, from shown()
 import type { Shown } from './shown';
 import type { Trip } from './detail';
 import { esc } from './html';
@@ -19,12 +19,12 @@ const WAGON = '<svg viewBox="0 0 30 18" aria-hidden="true"><rect x="2" y="2.5" w
 // «Recorda» (04-11, Àlex: option A of three): on a desktop a second stub by «Compra», the train into the visitor's
 // calendar with an alarm 15 min before; a phone's header has room for one stub, so there it lives in the train's
 // sheet. The iCalendar file is downloaded and opened by the calendar (the page stays); Google Calendar, a new tab
-// On a phone the stub is the way into the train's sheet (05-11, Àlex: B of three, with his word «Aquest»): the time
+// On a phone the stub is the way into the train's sheet (05-11, Àlex: B of three, with his word, «Agafa’l» since 06-11): the time
 // is not seen to be pressed and the stub is, and the sheet holds buying, telling home and reminding. A button (it goes
 // nowhere), for every train shown: the sheet of one gone or cancelled says so
 export function talons(s: Shown, phone: boolean): string {
   if(s.kind !== 'train') return '';
-  if(phone) return `<button type="button" class="talo aquest" aria-label="${esc(`Obre el tren de les ${s.trip.dep}`)}"><span class="in"><i>${WAGON}</i><span>Aquest</span></span></button>`;
+  if(phone) return `<button type="button" class="talo agafa" aria-label="${esc(`Obre el tren de les ${s.trip.dep}`)}"><span class="in"><i>${WAGON}</i><span>Agafa’l</span></span></button>`;
   if(!s.buy) return '';
   const label = `Compra a Renfe el tren de les ${s.trip.dep} (s’obre en una altra pestanya)`;
   const buy = `<a class="talo compra" href="${esc(s.buy)}" target="_blank" rel="noopener" aria-label="${esc(label)}"><span class="in"><i>${TICKET}</i><span>Compra</span></span></a>`;
