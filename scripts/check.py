@@ -436,7 +436,8 @@ QE_TARGET = [0, 1, 2, 4, 3, 5, 3, 3]
 # lifts off at roughly this progress
 def letters_start(i): return .06 + i * .035
 
-CHIP_RECT = """(i => { const chips = document.querySelectorAll('#letras .ficha'); const el = chips[i]; if(!el) return null;
+# a chip by its letter's index in the name, in whichever layer it is (on the wall, #letras; off it, #letras-mesa)
+CHIP_RECT = """(i => { const el = document.querySelector(`.ficha[data-i="${i}"]`); if(!el) return null;
   const b = el.getBoundingClientRect(); return {x: b.left + b.width / 2, y: b.top + b.height / 2}; })"""
 # the on-screen box of the i-th character of an element's text, over all its text nodes in order (h1.brand has a
 # span per cell of its board, h2#qe one text node), through whatever transform its ancestors currently carry
@@ -448,7 +449,7 @@ GLYPH_RECT = """((sel, i) => { const el = document.querySelector(sel); if(!el) r
   const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 1);
   const rects = r.getClientRects(); if(!rects.length) return null; const b = rects[0];
   return {x: b.left + b.width / 2, y: b.top + b.height / 2}; })"""
-LETTERS_STATE = """(() => { const chips = document.querySelectorAll('#letras .ficha');
+LETTERS_STATE = """(() => { const chips = document.querySelectorAll('#letras .ficha, #letras-mesa .ficha');
   const c = s => getComputedStyle(document.querySelector(s));
   const h1 = c('.brand'), h2 = c('#qe');
   return {count: chips.length,
@@ -499,21 +500,25 @@ async def check_letters_pair(page):
     return errs
 
 async def check_letters_layer(page):
-    """#letras: fixed, full viewport, non-interactive, a direct child of body (sibling of #hero/#repisa, never
-    nested inside either — their transform/filter would break its fixed positioning), above both of them."""
-    info = await page.evaluate("""() => { const l = document.getElementById('letras'); if(!l) return null;
-      const c = getComputedStyle(l);
-      return {position: c.position, pointerEvents: c.pointerEvents, zIndex: c.zIndex,
-              parentIsBody: l.parentElement === document.body, ariaHidden: l.getAttribute('aria-hidden')}; }""")
-    if not info: return ["#letras is missing"]
+    """Two layers, non-interactive, aria-hidden, direct children of body (siblings of #hero/#repisa, never nested
+    inside either -- their transform/filter would move them), above both of them. #letras is fixed, full viewport:
+    the chips still on the wall, which is fixed too. #letras-mesa scrolls with the page, as the table does
+    (check_letters_ride), and clips what sticks out, so a chip off the screen never widens the page (check_drop_width)."""
     errs = []
-    if info["position"] != "fixed": errs.append(f"#letras is not position:fixed ({info['position']})")
-    if info["pointerEvents"] != "none": errs.append("#letras is not pointer-events:none")
-    if not info["parentIsBody"]: errs.append("#letras is not a direct child of body")
-    if info["ariaHidden"] != "true": errs.append("#letras is not aria-hidden")
-    try: z = float(info["zIndex"])
-    except (TypeError, ValueError): z = None
-    if z is None or z <= 2: errs.append(f"#letras z-index ({info['zIndex']}) is not above the wall (0) and the table (2)")
+    for lid, pos in (("letras", "fixed"), ("letras-mesa", "absolute")):
+        info = await page.evaluate("""id => { const l = document.getElementById(id); if(!l) return null;
+          const c = getComputedStyle(l);
+          return {position: c.position, pointerEvents: c.pointerEvents, zIndex: c.zIndex, overflow: c.overflowX,
+                  parentIsBody: l.parentElement === document.body, ariaHidden: l.getAttribute('aria-hidden')}; }""", lid)
+        if not info: errs.append(f"#{lid} is missing"); continue
+        if info["position"] != pos: errs.append(f"#{lid} is not position:{pos} ({info['position']})")
+        if info["pointerEvents"] != "none": errs.append(f"#{lid} is not pointer-events:none")
+        if not info["parentIsBody"]: errs.append(f"#{lid} is not a direct child of body")
+        if info["ariaHidden"] != "true": errs.append(f"#{lid} is not aria-hidden")
+        if pos == "absolute" and info["overflow"] != "clip": errs.append(f"#{lid} does not clip what sticks out (overflow {info['overflow']})")
+        try: z = float(info["zIndex"])
+        except (TypeError, ValueError): z = None
+        if z is None or z <= 2: errs.append(f"#{lid} z-index ({info['zIndex']}) is not above the wall (0) and the table (2)")
     return errs
 
 async def check_letters_rest(page):
@@ -547,8 +552,8 @@ async def check_letters_midway(page):
     if st["h2Vis"] == "hidden" or st["h2Disp"] == "none": errs.append("h2#qe was hidden with visibility/display, not just color/opacity")
     if not st["h2Text"].strip(): errs.append("h2#qe lost its text content")
     above = await page.evaluate("""() => { const z = s => { const el = document.querySelector(s); return el ? +getComputedStyle(el).zIndex || 0 : 0; };
-      return z('#letras') > z('#hero') && z('#letras') > z('#repisa'); }""")
-    if not above: errs.append("#letras is not above #hero and #repisa at p=0.3")
+      return ['#letras', '#letras-mesa'].every(l => z(l) > z('#hero') && z(l) > z('#repisa')); }""")
+    if not above: errs.append("#letras or #letras-mesa is not above #hero and #repisa at p=0.3")
     return errs
 
 async def check_letters_positions(page):
@@ -573,6 +578,32 @@ async def check_letters_positions(page):
         if d > 3: errs.append(f"chip {i} is {d:.1f}px from its h2 glyph at p=0.97")
     return errs
 
+async def check_letters_ride(page):
+    """A phone scrolls the page on its own (the compositor) and the page's code hears of it later: on Àlex's iPhone
+    (06-11) the landed letters of «Què és» were redrawn 8-10 times a second while the table moved 60, and parted
+    from it by up to 25 pt. So between two redraws a chip that has left the wall rides the table, and one still on
+    the wall stays with the wall: here the page is scrolled and read in the same task, before its scroll event runs."""
+    errs = []
+    for p, dy in ((.3, 40), (.7, 40), (.7, -40)):
+        await letters_at(page, p)
+        got = await page.evaluate("""(dy => { const chip = i => { const el = document.querySelector(`.ficha[data-i="${i}"]`);
+            return el && el.getBoundingClientRect().top; };
+          const ids = [...document.querySelectorAll('.ficha')].map(el => +el.dataset.i), qe = () => document.getElementById('qe').getBoundingClientRect().top;
+          const before = ids.map(chip), t0 = qe();
+          scrollTo({top: scrollY + dy, behavior: 'instant'});
+          return {table: qe() - t0, chips: ids.map((i, k) => ({i, moved: chip(i) - before[k]}))}; })""", dy)
+        if abs(got["table"] + dy) > 1: errs.append(f"p={p}: the table moved {got['table']:.1f} px for a {dy:+d} px scroll (the test's own premise)")
+        if sorted(c["i"] for c in got["chips"] if c["i"] == c["i"]) != list(range(len(NAME))):
+            errs.append(f"p={p}: the chips carry indexes {[c['i'] for c in got['chips']]} (data-i), expected 0 to {len(NAME) - 1}")
+        for c in got["chips"]:
+            flown = p > letters_start(c["i"])
+            want = -dy if flown else 0
+            if abs(c["moved"] - want) > 1.5:
+                errs.append(f"p={p}, scrolled {dy:+d} px: chip {c['i']} moved {c['moved']:.1f} px before the page redrew, "
+                            f"its {'table' if flown else 'wall'} {want:.1f} px")
+    await letters_at(page, .7)
+    return errs
+
 async def check_letters_landed(page):
     """Once the wall is gone (p=1) the chips are gone too, and the real h2 shows where they landed."""
     await letters_at(page, 1)
@@ -585,7 +616,7 @@ async def check_letters_landed(page):
 async def check_letters_reversible(page):
     """Scrubbing 0.3 -> 0.8 -> 0.3 leaves the chips exactly where they were the first time at 0.3."""
     async def snapshot():
-        return await page.evaluate("""() => [...document.querySelectorAll('#letras .ficha')].map(el => {
+        return await page.evaluate("""() => [...document.querySelectorAll('.ficha')].sort((a, b) => a.dataset.i - b.dataset.i).map(el => {
           const b = el.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top)]; })""")
     await letters_at(page, .3); before = await snapshot()
     await letters_at(page, .8); await letters_at(page, .3); after = await snapshot()
@@ -646,6 +677,7 @@ async def check_letters(page, name):
     errs += [f"rest: {e}" for e in await check_letters_rest(page)]
     errs += [f"midway: {e}" for e in await check_letters_midway(page)]
     errs += [f"positions: {e}" for e in await check_letters_positions(page)]
+    errs += [f"ride: {e}" for e in await check_letters_ride(page)]
     errs += [f"landed: {e}" for e in await check_letters_landed(page)]
     errs += [f"reversible: {e}" for e in await check_letters_reversible(page)]
     errs += [f"toolbar: {e}" for e in await check_toolbar(page)]
@@ -1938,6 +1970,7 @@ async def check_hero(browser):
     errs += [f"phone sheet: {e}" for e in await check_sheet_close(browser)]
     errs += [f"paper: {e}" for e in await check_paper_motion(browser)]
     errs += await check_sheet_holds_page(browser)
+    errs += [f"bar: {e}" for e in await check_bar_tint(browser)]
     # 3.5 · the Barcelona station
     errs += [f"station: {e}" for e in await check_station(browser)]
     # the big train's route, only on a desktop
@@ -3010,6 +3043,54 @@ SHEET_WATCH = """(() => { const d = document.getElementById('detalle'), p = d.qu
     d.addEventListener('click', e => { if(e.target === d) go(); }, {once:true, capture:true});
   }); })()"""
 
+# Safari 26 on an iPhone paints the band under its toolbar in the colour of the fixed box at the bottom edge: it
+# hit-tests a point near the middle of the edge (4 px in, by some accounts 8), skips all but fixed and sticky boxes
+# (pointer-events too, by some accounts) and walks up to the fixed one. With none there it falls back to the body
+# (world.ts gives the body the wall's colour); but once a sheet has been there it kept the sheet's paper after the
+# sheet closed, on the hero and on the table (Àlex's iPhone, 06-11). Read here the way Safari is said to read it
+BAR_PROBE = """(() => { const s = document.createElement('style'); s.textContent = '*{pointer-events:auto!important}'; document.head.appendChild(s);
+  const fixed = el => { for(let n = el; n && n !== document.documentElement; n = n.parentElement){ const p = getComputedStyle(n).position;
+    if(p === 'fixed' || p === 'sticky') return n; } return null; };
+  const out = [4, 8].map(d => { const at = document.elementsFromPoint(innerWidth / 2, innerHeight - d).map(fixed).find(Boolean);
+    if(!at) return {d, none: true};
+    const c = getComputedStyle(at), r = at.getBoundingClientRect(), inner = r.height - parseFloat(c.paddingTop) - parseFloat(c.paddingBottom)
+      - parseFloat(c.borderTopWidth) - parseFloat(c.borderBottomWidth);
+    return {d, el: at.id || at.className, colour: c.backgroundColor, wide: r.width / innerWidth, paints: c.backgroundClip !== 'content-box' || inner > .5 ? inner : 0,
+      opacity: +c.opacity, shown: c.visibility === 'visible'}; });
+  s.remove(); return {probes: out, body: getComputedStyle(document.body).backgroundColor}; })()"""
+
+async def check_bar_tint(browser):
+    """Under Safari 26's toolbar, the band is the body's colour (the wall's) before a sheet opens and again once it
+    has closed, on the hero and on the table: a fixed strip along the bottom edge, as wide as the screen, above
+    everything but the sheets themselves (they go to the top layer), holds the body's colour for Safari to read,
+    and paints nothing on the page (its background is clipped to an empty content box)."""
+    errs = []
+    async def probe(page, when):
+        got = await page.evaluate(BAR_PROBE)
+        for pr in got["probes"]:
+            where = f"{when}, {pr['d']} px above the bottom"
+            if pr.get("none"): errs.append(f"{where}: no fixed box for Safari to read"); continue
+            if pr["colour"] != got["body"]: errs.append(f"{where}: Safari reads {pr['colour']} from «{pr['el']}», the body is {got['body']}")
+            if pr["wide"] < .9: errs.append(f"{where}: «{pr['el']}» spans {pr['wide']:.0%} of the screen (Safari wants 90 %)")
+            if pr["paints"]: errs.append(f"{where}: «{pr['el']}» paints {pr['paints']:.0f} px of its colour on the page")
+            if pr["opacity"] < .99 or not pr["shown"]: errs.append(f"{where}: «{pr['el']}» is not shown (Safari skips it)")
+    for name, opts, sheet, close in (
+            ("phone", dict(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True), "#cap .talo", "Escape"),
+            ("desktop", dict(viewport={"width": 1440, "height": 900}), ".tk .town", "Escape")):
+        page = await open_page(browser, reduced_motion="reduce", **opts)
+        await page.clock.set_fixed_time("2026-09-28T19:00:00Z")
+        await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1500)
+        await page.add_style_tag(content=".top,.info{opacity:1!important;transition:none!important;transform:none!important}")
+        await probe(page, f"{name}, hero")
+        await page.click(sheet, timeout=CLICK_MS); await page.wait_for_timeout(600)
+        await page.keyboard.press(close); await page.wait_for_timeout(600)
+        if await page.evaluate("!!document.querySelector('dialog[open]')"): errs.append(f"{name}: the sheet did not close"); await page.close(); continue
+        await probe(page, f"{name}, hero, after a sheet")
+        await page.evaluate("scrollTo({top: document.getElementById('repisa').offsetTop, behavior: 'instant'})"); await page.wait_for_timeout(600)
+        await probe(page, f"{name}, table")
+        await page.close()
+    return errs
+
 async def check_sheet_close(browser):
     """The train's sheet on a phone closes softly (Àlex 20-10, option A): no handle on top (nothing can be dragged
     yet) and no ✕ drawn (Àlex: «quita la x»); a tap outside, Esc or Android's back gesture slide the paper back down
@@ -3540,10 +3621,14 @@ async def main():
         if sys.argv[1:] == ["fulls"]:
             failures += await check_sheet_holds_page(browser)
             failures += await check_sheet_close(browser)
+            failures += await check_bar_tint(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · fulls"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["abast"]:
             failures += await check_reach(browser) + await check_remember(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · abast"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["barra"]:
+            failures += await check_bar_tint(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · barra"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["a11y"]:
             failures += await check_a11y(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · a11y"); sys.exit(1 if failures else 0)

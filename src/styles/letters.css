@@ -2,6 +2,11 @@
    A layer of its own, fixed and above both the wall (#hero, z-index 0) and the table (#repisa, z-index 2):
    nested inside either, its transform/filter would break its own fixed positioning and .escena would clip it. */
 #letras{ position:fixed; inset:0; z-index:5; pointer-events:none; }
+/* once a chip has left the wall it rides the table: this layer scrolls with the page, as the table does, so a phone
+   that scrolls ahead of the page's code carries the chips along with it (Àlex's iPhone, 06-11). Its height is set
+   by letters.ts (as far down as a chip can be seen); it clips what sticks out, or a chip off the screen would widen
+   the page, as the tilted table would without .retall */
+#letras-mesa{ position:absolute; left:0; top:0; width:100%; z-index:5; pointer-events:none; overflow:clip; }
 .ficha{ position:absolute; left:0; top:0; line-height:1;
   font-family:var(--serif); font-weight:400; letter-spacing:-.02em; }
 /* the 3D flip lives on its own child (.flip), never mixed into .ficha's own transform: combining the flip's
@@ -24,4 +29,4 @@
    color yields exactly color*(1-alpha). Only visible while a chip is still glued to the wall (cartel state). */
 .ficha .lavado{ position:absolute; inset:0; border-radius:.15em; background:#000; opacity:0; }
 .ficha .som{ position:absolute; inset:0; border-radius:.15em; z-index:-1; }
-@media (prefers-reduced-motion: reduce){ #letras{ display:none; } }
+@media (prefers-reduced-motion: reduce){ #letras, #letras-mesa{ display:none; } }
