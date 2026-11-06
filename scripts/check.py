@@ -1970,6 +1970,7 @@ async def check_hero(browser):
     errs += [f"phone sheet: {e}" for e in await check_sheet_close(browser)]
     errs += [f"paper: {e}" for e in await check_paper_motion(browser)]
     errs += await check_sheet_holds_page(browser)
+    errs += [f"bar: {e}" for e in await check_bar_tint(browser)]
     # 3.5 · the Barcelona station
     errs += [f"station: {e}" for e in await check_station(browser)]
     # the big train's route, only on a desktop
@@ -3042,6 +3043,54 @@ SHEET_WATCH = """(() => { const d = document.getElementById('detalle'), p = d.qu
     d.addEventListener('click', e => { if(e.target === d) go(); }, {once:true, capture:true});
   }); })()"""
 
+# Safari 26 on an iPhone paints the band under its toolbar in the colour of the fixed box at the bottom edge: it
+# hit-tests a point near the middle of the edge (4 px in, by some accounts 8), skips all but fixed and sticky boxes
+# (pointer-events too, by some accounts) and walks up to the fixed one. With none there it falls back to the body
+# (world.ts gives the body the wall's colour); but once a sheet has been there it kept the sheet's paper after the
+# sheet closed, on the hero and on the table (Àlex's iPhone, 06-11). Read here the way Safari is said to read it
+BAR_PROBE = """(() => { const s = document.createElement('style'); s.textContent = '*{pointer-events:auto!important}'; document.head.appendChild(s);
+  const fixed = el => { for(let n = el; n && n !== document.documentElement; n = n.parentElement){ const p = getComputedStyle(n).position;
+    if(p === 'fixed' || p === 'sticky') return n; } return null; };
+  const out = [4, 8].map(d => { const at = document.elementsFromPoint(innerWidth / 2, innerHeight - d).map(fixed).find(Boolean);
+    if(!at) return {d, none: true};
+    const c = getComputedStyle(at), r = at.getBoundingClientRect(), inner = r.height - parseFloat(c.paddingTop) - parseFloat(c.paddingBottom)
+      - parseFloat(c.borderTopWidth) - parseFloat(c.borderBottomWidth);
+    return {d, el: at.id || at.className, colour: c.backgroundColor, wide: r.width / innerWidth, paints: c.backgroundClip !== 'content-box' || inner > .5 ? inner : 0,
+      opacity: +c.opacity, shown: c.visibility === 'visible'}; });
+  s.remove(); return {probes: out, body: getComputedStyle(document.body).backgroundColor}; })()"""
+
+async def check_bar_tint(browser):
+    """Under Safari 26's toolbar, the band is the body's colour (the wall's) before a sheet opens and again once it
+    has closed, on the hero and on the table: a fixed strip along the bottom edge, as wide as the screen, above
+    everything but the sheets themselves (they go to the top layer), holds the body's colour for Safari to read,
+    and paints nothing on the page (its background is clipped to an empty content box)."""
+    errs = []
+    async def probe(page, when):
+        got = await page.evaluate(BAR_PROBE)
+        for pr in got["probes"]:
+            where = f"{when}, {pr['d']} px above the bottom"
+            if pr.get("none"): errs.append(f"{where}: no fixed box for Safari to read"); continue
+            if pr["colour"] != got["body"]: errs.append(f"{where}: Safari reads {pr['colour']} from «{pr['el']}», the body is {got['body']}")
+            if pr["wide"] < .9: errs.append(f"{where}: «{pr['el']}» spans {pr['wide']:.0%} of the screen (Safari wants 90 %)")
+            if pr["paints"]: errs.append(f"{where}: «{pr['el']}» paints {pr['paints']:.0f} px of its colour on the page")
+            if pr["opacity"] < .99 or not pr["shown"]: errs.append(f"{where}: «{pr['el']}» is not shown (Safari skips it)")
+    for name, opts, sheet, close in (
+            ("phone", dict(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True), "#cap .talo", "Escape"),
+            ("desktop", dict(viewport={"width": 1440, "height": 900}), ".tk .town", "Escape")):
+        page = await open_page(browser, reduced_motion="reduce", **opts)
+        await page.clock.set_fixed_time("2026-09-28T19:00:00Z")
+        await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1500)
+        await page.add_style_tag(content=".top,.info{opacity:1!important;transition:none!important;transform:none!important}")
+        await probe(page, f"{name}, hero")
+        await page.click(sheet, timeout=CLICK_MS); await page.wait_for_timeout(600)
+        await page.keyboard.press(close); await page.wait_for_timeout(600)
+        if await page.evaluate("!!document.querySelector('dialog[open]')"): errs.append(f"{name}: the sheet did not close"); await page.close(); continue
+        await probe(page, f"{name}, hero, after a sheet")
+        await page.evaluate("scrollTo({top: document.getElementById('repisa').offsetTop, behavior: 'instant'})"); await page.wait_for_timeout(600)
+        await probe(page, f"{name}, table")
+        await page.close()
+    return errs
+
 async def check_sheet_close(browser):
     """The train's sheet on a phone closes softly (Àlex 20-10, option A): no handle on top (nothing can be dragged
     yet) and no ✕ drawn (Àlex: «quita la x»); a tap outside, Esc or Android's back gesture slide the paper back down
@@ -3572,10 +3621,14 @@ async def main():
         if sys.argv[1:] == ["fulls"]:
             failures += await check_sheet_holds_page(browser)
             failures += await check_sheet_close(browser)
+            failures += await check_bar_tint(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · fulls"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["abast"]:
             failures += await check_reach(browser) + await check_remember(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · abast"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["barra"]:
+            failures += await check_bar_tint(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · barra"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["a11y"]:
             failures += await check_a11y(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · a11y"); sys.exit(1 if failures else 0)
