@@ -55,7 +55,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     setRoute(route(state.dir==='casa', NET.estaciones[state.town].nombre));
     marks = v.ruler;
     setDays(now.date, looked(v, now.date));
-    setTalons(talons(v));
+    setTalons(talons(v, narrow.matches));
     byId('lbl').textContent = v.label;
     tIn.value = String(v.knob ?? Math.min(R1, Math.max(R0, now.min)));
     tIn.setAttribute('aria-valuetext', v.valuetext);
@@ -143,10 +143,14 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   const talonsEl = byId('talons');
   const talonsDraw = redrawer(talonsEl, f => f.classList[1] ? '.' + f.classList[1] : null);
   function setTalons(html: string){ talonsDraw.draw(html); }
-  // «Compra» is punched when pressed, like a ticket at the gate (option B, Àlex 20-10): a hole on its dotted line, and
-  // the chad falls to the floor. It stays punched until another train redraws the stub (its label names the train)
+  // a stub is punched when pressed, like a ticket at the gate (option B, Àlex 20-10; «Recorda» too, 04-11): a hole on
+  // its dotted line, and the chad falls to the floor. It stays punched until another train redraws the stubs (their
+  // labels name the train)
   talonsEl.addEventListener('click', e => {
-    const c = (e.target as Element).closest<HTMLElement>('.compra'); if(!c || c.classList.contains('picat')) return;
+    const c = (e.target as Element).closest<HTMLElement>('.talo'); if(!c) return;
+    // on a phone «Agafa’l» opens the train's sheet, as the highlighted time does (05-11): it buys nothing, so no punch
+    if(c.classList.contains('agafa')){ if(cur) detail.open(cur); return; }
+    if(c.classList.contains('picat')) return;
     c.classList.add('picat');
     const i = c.querySelector<HTMLElement>('i'); if(reduce || !i) return;
     const chad = document.createElement('span'); chad.className = 'xapa'; chad.setAttribute('aria-hidden', 'true');

@@ -2,7 +2,7 @@
 // test's own. `npm test`, no network
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import retards, { read } from '../../api/retards.ts';
+import retards, { read, readAve } from '../../api/retards.ts';
 import avisos from '../../api/avisos.ts';
 
 const NOW = Date.parse('2026-10-10T15:40:00Z'), S = (t: number) => String(Math.round(t / 1000));
@@ -91,7 +91,7 @@ test('Renfe cutting a connection once is asked again: the page still gets its de
 test('Renfe down: still a 502, after asking twice and no more', async () => {
   const { res, asked } = await invoke(retards, () => new TypeError('fetch failed'));
   assert.equal(res.status, 502);
-  assert.deepEqual([...asked.values()], [2, 2]);
+  assert.deepEqual([...asked.values()], [2, 2, 2]);
 });
 
 // while Renfe or the Generalitat fail, the CDN goes on giving its last good answer for a while instead of the error;
@@ -107,4 +107,51 @@ test('the CDN keeps the last delays for 2 minutes when Renfe fails', async () =>
 test('the CDN keeps the last notices for 10 minutes when the Generalitat fails', async () => {
   const { res } = await invoke(avisos, () => new Response('<rss><channel></channel></rss>'));
   assert.equal(staleIfError(res), 600);
+});
+
+// the AVE (04-11, Àlex: option A): Renfe gives its delay in another feed, the long-distance one, whose tripId is the
+// train number, one digit and the day («0307312026-11-05» is the 03073 of the 5th)
+const ld = (entity: object[], at = NOW - 20e3) => ({ header: header(at), entity });
+const ldUpdate = (tripId: string, delay: number, stopId = '04104') =>
+  ({ id: `TUUPDATE_${tripId}`, tripUpdate: { trip: { tripId, scheduleRelationship: 'SCHEDULED' },
+    stopTimeUpdate: [{ arrival: { delay, time: S(NOW + 300e3) }, stopId }], delay } });
+
+test('an AVE running late: its delay in whole minutes under its number, today\'s only', () => {
+  const a = readAve(ld([ldUpdate('0307312026-11-05', 720), ldUpdate('0309112026-11-04', 300)]), '2026-11-05');
+  assert.deepEqual(a, { '03073': { estat: 'circula', retard: 12, parada: '04104' } });
+});
+
+test('a cancelled AVE is cancelled', () => {
+  const a = readAve(ld([cancel('0330112026-11-04')]), '2026-11-04');
+  assert.deepEqual(a, { '03301': { estat: 'cancelat' } });
+});
+
+// the feed gives one train several times: one per digit after the number, and now and then twice with two delays
+// (04-11, 07:22: the 03062 with +4 and with +11 min). The smaller one is kept: the page then tells a traveller to be
+// at the station sooner, never too late to catch it. A copy that runs beats one that is cancelled
+test('the same AVE given several times: the smaller delay, and running over cancelled', () => {
+  const a = readAve(ld([ldUpdate('0306212026-11-04', 660), ldUpdate('0306212026-11-04', 240), ldUpdate('0306222026-11-04', 660),
+    cancel('0366212026-11-04'), ldUpdate('0366222026-11-04', 480, '71801')]), '2026-11-04');
+  assert.deepEqual(a, { '03062': { estat: 'circula', retard: 4, parada: '04104' }, '03662': { estat: 'circula', retard: 8, parada: '71801' } });
+});
+
+const madridToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid' }).format(new Date());
+
+test('the function answers the AVE beside the regionals, from the long-distance feed', async () => {
+  const [trips, vehicles] = feeds([], []);
+  const { res } = await invoke(retards, url => json(url.includes('_LD') ? ld([ldUpdate(`030731${madridToday}`, 720)])
+    : url.includes('vehicle') ? vehicles : trips));
+  assert.equal(res.status, 200);
+  assert.deepEqual(((await res.json()) as { ave: unknown }).ave, { '03073': { estat: 'circula', retard: 12, parada: '04104' } });
+});
+
+// the long-distance feed failing says nothing of the regionals: they are answered, and the AVE is unknown (null),
+// never «not running»
+test('the long-distance feed down: the regionals still answered, the AVE unknown', async () => {
+  const [trips, vehicles] = feeds([update('5181S30503R15', 1500)], [vehicle('5181S30503R15', 'R15-17505')]);
+  const { res } = await invoke(retards, url => url.includes('_LD') ? new TypeError('fetch failed') : json(url.includes('vehicle') ? vehicles : trips));
+  assert.equal(res.status, 200);
+  const a = (await res.json()) as { trens: Record<string, unknown>, ave: unknown };
+  assert.equal(a.trens['17505'] !== undefined, true);
+  assert.equal(a.ave, null);
 });

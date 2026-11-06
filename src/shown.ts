@@ -2,6 +2,7 @@ import type { ViewState } from './state';
 import type { Trip } from './detail';
 import { addDays, hhmm, dur, dayData, NET, BCN, bcnName, CAMP, stopsBetween, stopName, busLeg, type Train, type Bus } from './time';
 import { buyUrl } from './buy';
+import { remindUrl } from './calendar';
 import { homeText } from './home';
 import { ofPlace, atPlace } from './ca';
 import { lineNews, type Avisos } from './avisos';
@@ -20,7 +21,8 @@ export type Where = { at: number, words: string };
 // late (2 min or more: a minute is on time), cancelled, or unknown: due within the hour and not in the feed yet, or
 // Renfe not answering, so a silence is never read as «on time»
 export type Live = { kind: 'late', min: number, dep: number, arr: number } | { kind: 'cancel' } | { kind: 'unknown' };
-const SOON = 60;   // a train enters Renfe's feed only once it runs: further away than this, nothing is expected yet
+const SOON = 60;
+const REMIND = 15;   // the calendar's alarm: minutes before the train leaves (api/calendari.ts)   // a train enters Renfe's feed only once it runs: further away than this, nothing is expected yet
 // one trip of the board: the train shown (big) and the one after it
 // (`day`: the trip's own day, today's or tomorrow's, so that picking it keeps it; `gone`: the train shown, picked,
 // has already left today, by its delay when Renfe gives one, so the board says «ja ha sortit» where it would say «el pròxim»)
@@ -36,7 +38,7 @@ interface Common {
   tomorrow: boolean;                 // tomorrow looked at («Demà», B3): the ruler is tomorrow's
 }
 export type Shown = Common & ({ kind: 'none' } | {
-  kind: 'train', ave: boolean, rows: Row[], buy: string, stops: [stop: string, arr: number][] | null,
+  kind: 'train', ave: boolean, rows: Row[], buy: string, remind: string, stops: [stop: string, arr: number][] | null,
   trip: Trip,                        // the train's sheet on a phone
   where: Where | null,               // where it is now, by the timetable; null when it is not on its way
   bus: Bus | null,                   // the part of its trip by bus (works on the line); null when all by train
@@ -100,17 +102,17 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
     morrowAve = !!av && (!r || av[0] < r[0]); morrow = morrowAve ? av : r;
   }
   const isAveTrip = (t: Train) => aves.includes(t) || t === lastAve || (t === morrow && morrowAve);
-  // the delay Renfe gives for the train shown, only for today's regionals (the feed knows the Rodalies trains running
-  // now; the AVE is not in it)
-  const liveOf = (t: Train, ave: boolean): Live | undefined => {
-    if(day !== now.date || ave) return undefined;
+  // the delay Renfe gives for the train shown, only for today's trains: the regionals from its Rodalies feed, the AVE
+  // from its long-distance one (04-11, Àlex: option A, as the regionals)
+  const liveOf = (t: Train): Live | undefined => {
+    if(day !== now.date) return undefined;
     const k = retards.train(t[2]);
     if(!k) return undefined;
     if(k.estat === 'cancelat') return { kind: 'cancel' };
     if(k.estat === 'circula') return k.retard >= 2 ? { kind: 'late', min: k.retard, dep: t[0] + k.retard, arr: t[1] + k.retard } : undefined;
     return t[0] >= now.min && t[0] - now.min <= SOON ? { kind: 'unknown' } : undefined;
   };
-  const lv = liveOf(a, isAve), late = lv?.kind === 'late' ? lv : undefined, cancelled = lv?.kind === 'cancel';
+  const lv = liveOf(a), late = lv?.kind === 'late' ? lv : undefined, cancelled = lv?.kind === 'cancel';
   const leaves = late ? late.dep : a[0];
   const until = live && !cancelled ? dur(leaves-now.min) : '';
   const rows: Row[] = (next ? [a, next] : morrow ? [a, morrow] : [a]).map(t => ({ dep: t[0], arr: t[1], line: t[3], ave: isAveTrip(t), big: t === a,
@@ -123,12 +125,16 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   // Renfe opens the day's list, not the train: a cancelled or departed one has nothing to buy (12-10, option A)
   const buy = cancelled || (!tomorrow && leaves < now.min) ? '' : buyUrl(ends[0], ends[1], day, a[0]);
   const stops = stopsBetween(day, a[2], ends[0], ends[1]), bus = isAve ? null : busLeg(day, a[2], ends[0], ends[1]);
+  const there = isAve ? 'Camp de Tarragona' : townName;
+  // «Recorda» (04-11, option A): into the visitor's calendar with an alarm 15 min before, at the time it now leaves;
+  // a train leaving sooner than that, gone or cancelled, has nothing to remind
+  const remind = cancelled || (!tomorrow && leaves < now.min + REMIND) ? '' : remindUrl({ d: day, s: leaves,
+    a: late ? late.arr : a[1], l: isAve ? 'AVE' : a[3], o: ida ? bcn : there, x: ida ? there : bcn });
   // a late train is where its delay puts it: the timetable's place that many minutes ago
   const where = day === now.date ? whereNow(now.min - (late?.min ?? 0), [[ends[0], a[0]], ...(stops ?? []), [ends[1], a[1]]]) : null;
-  const there = isAve ? 'Camp de Tarragona' : townName;
   const trip: Trip = { line: a[3], from: ida ? bcn : there, to: ida ? there : bcn, dep: hhmm(a[0]), arr: hhmm(a[1]),
     when: tomorrow ? 'Demà' : cancelled ? 'Cancel·lat' : leaves < now.min ? 'Ja ha sortit' : leaves === now.min ? 'Surt ara' : `Surt en ${dur(leaves-now.min)}`, length: dur(a[1]-a[0]),
-    stops: stops?.length ?? null, buy,
+    stops: stops?.length ?? null, buy, remind,
     ave: isAve ? (ida ? `L’AVE no arriba ${atPlace(townName)}: baixa a Camp de Tarragona.` : `L’AVE no surt ${ofPlace(townName)}: surt de Camp de Tarragona.`) : '',
     home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(late ? late.arr : a[1]), tomorrow), news: lineNews(avisos, a[3], isAve), where,
     bus: bus && { first: bus.first, stop: bus.stop, words: bus.first
@@ -144,7 +150,7 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
     light: tomorrow ? a[0] : start, day,
     // the ruler has one mark: the knob always stands on the train shown (every tick is a train, the AVE like the rest)
     ruler: seen.map(({t, ave:w}) => ({dep: t[0], ave: w, on: (picked || !tomorrow) && w === isAve && t[0] === a[0]})), tomorrow: picked,
-    ave: isAve, rows, buy, stops, trip, where, bus, lines: [...new Set(rows.filter(r => !r.ave).map(r => r.line))] };
+    ave: isAve, rows, buy, remind, stops, trip, where, bus, lines: [...new Set(rows.filter(r => !r.ave).map(r => r.line))] };
 }
 
 // the day sheet pressed, «avui» or «demà»: the day of the train shown (Àlex 19-10), so that at night, with tomorrow's

@@ -6,8 +6,9 @@ import { createLive, type LiveOptions } from './live';
 import { NET } from './time';
 
 export type Train = { estat: 'circula', retard: number, parada: string, andana?: string } | { estat: 'cancelat' };
-// cancelats: the cancelled regionals Renfe gives no position for, by their number in the Rodalies feed
-export interface Answer { llegit: string, trens: Record<string, Train>, cancelats?: string[] }
+// cancelats: the cancelled regionals Renfe gives no position for, by their number in the Rodalies feed; ave: the AVE
+// by number, from Renfe's long-distance feed (04-11), null when that feed failed and absent in an older answer
+export interface Answer { llegit: string, trens: Record<string, Train>, cancelats?: string[], ave?: Record<string, Train> | null }
 
 const FRESH = 30e3, WAIT = 6000, OLD = 3*60e3;   // Renfe rewrites every 20 s and the CDN keeps 40 s at most: 3 min is a broken feed
 
@@ -25,7 +26,7 @@ const number = (n: string): string => n.match(/^\d{4}[A-Z](\d+)[A-Z]/)?.[1] ?? n
 // a train's number in the Rodalies feed, by which a cancellation without a position comes: `f` when red.json keeps
 // one (the two feeds number some trains differently: 04-11, Sants 19:03 to Reus is AV_LD's 15039 and Rodalies' 30519,
 // whose 15039 is the 20:03), otherwise its own. A number some other train has in Rodalies is never taken for this one
-type Numbered = { n: string, f?: string };
+type Numbered = { n: string, f?: string, p?: string };
 export function rodalies(trenes: Numbered[]): (n: string) => string | null {
   const own = new Map<string, string>(), taken = new Set<string>();
   for(const t of trenes){ if(t.f) { own.set(t.n, t.f); taken.add(t.f); } else if(!/^\d+$/.test(t.n)) taken.add(number(t.n)); }
@@ -43,8 +44,8 @@ export type Known = Train | { estat: 'sense' } | { estat: 'error' };
 // follow() asks at most every 30 s (live.ts); onChange runs when what is known changes
 export function createRetards(onChange: () => void, o: Omit<Partial<LiveOptions<Answer, ''>>, 'ask'> & { ask?: Ask, trenes?: Numbered[] } = {}){
   const { ask = askFunction, trenes = NET.trenes, ...rest } = o;
-  const inRodalies = rodalies(trenes);
-  const live = createLive<Answer, ''>(onChange, { fresh: FRESH, usable, sign: a => a.trens, ...rest, ask: () => ask() });
+  const inRodalies = rodalies(trenes), aves = new Set(trenes.filter(t => t.p === 'AVE').map(t => t.n));
+  const live = createLive<Answer, ''>(onChange, { fresh: FRESH, usable, sign: a => ({ trens: a.trens, ave: a.ave }), ...rest, ask: () => ask() });
   return {
     follow: () => live.follow(''),
     // undefined before the first answer; then what the last answer says of it, while it is fresh
@@ -52,6 +53,8 @@ export function createRetards(onChange: () => void, o: Omit<Partial<LiveOptions<
       if(!live.answered()) return undefined;
       const a = live.answer();
       if(!a) return { estat: 'error' };
+      // an AVE comes in its own part of the answer; without it (the feed failed, or an answer from before), unknown
+      if(aves.has(n)) return a.ave ? a.ave[n] ?? { estat: 'sense' } : { estat: 'error' };
       const r = inRodalies(n);
       return a.trens[number(n)] ?? (r && a.cancelats?.includes(r) ? { estat: 'cancelat' } : { estat: 'sense' });
     },

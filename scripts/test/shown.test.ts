@@ -270,10 +270,17 @@ test('the message for home names the train by its time and says the arrival its 
   assert.equal(train(atLive('10:00', HOME, live({ '15005': LATE(25) }))).trip.home, 'Agafo l’R15 de les 10:03 a Sants. Arribo a Reus a les 11:58.');
 });
 
-test('the AVE has no live data at all: nothing is said of it, not even «no data yet»', () => {
-  const s = train(atLive('21:30', BACK, live({}, { estat: 'error' })));
+// the AVE as the regionals (04-11, Àlex: option A): Reus → Sants at 21:30 on 01-10, the big train is the AVE 03941
+// (Camp de Tarragona 22:17, Sants 22:59)
+test('a late AVE: its new times, as a regional\'s', () => {
+  const s = train(atLive('21:30', BACK, live({ '03941': LATE(12, '04104') })));
   assert.equal(s.ave, true);
-  assert.equal(s.rows[0].live, undefined);
+  assert.deepEqual(s.rows[0].live, { kind: 'late', min: 12, dep: 1349, arr: 1391 });
+});
+
+test('an AVE due within the hour that Renfe says nothing of: «no live data yet», never on time', () => {
+  for(const k of [{ estat: 'error' }, { estat: 'sense' }] as Known[])
+    assert.deepEqual(train(atLive('21:30', BACK, live({}, k))).rows[0].live, { kind: 'unknown' }, k.estat);
 });
 
 test('a train shown that has already left says so on the board, on its way or arrived; the next one never does', () => {
@@ -291,4 +298,33 @@ test('the day sheet pressed is the day of the train shown', () => {
   assert.equal(looked(at('2026-10-01', '23:30', HOME), '2026-10-01'), 'dema');
   assert.equal(looked(at('2026-10-01', '21:30', BACK), '2026-10-01'), 'avui');
   assert.equal(looked(at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 603, day: '2026-10-02' }), '2026-10-01'), 'dema');
+});
+
+// «Recorda» (04-11, Àlex: option A): the train shown into the visitor's calendar, with an alarm 15 min before it leaves
+const reminded = (s: Shown) => {
+  const r = train(s).remind;
+  return r && Object.fromEntries(new URL(r, 'https://capacasa.alope.dev').searchParams);
+};
+
+test('«Recorda» writes the train shown, with its stations as the sheet names them', () => {
+  assert.deepEqual(reminded(at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 663 })),
+    { d: '2026-10-01', s: '663', a: '753', l: 'R15', o: 'Sants', x: 'Reus' });
+  const s = train(at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 663 }));
+  assert.equal(s.trip.remind, s.remind);                         // the phone's sheet has the same
+  // the AVE ends at Camp de Tarragona; tomorrow's first train is tomorrow's
+  assert.deepEqual(reminded(at('2026-10-01', '21:30', BACK)), { d: '2026-10-01', s: '1337', a: '1379', l: 'AVE', o: 'Camp de Tarragona', x: 'Sants' });
+  assert.equal(reminded(at('2026-10-01', '23:10', BACK))?.d, '2026-10-02');
+});
+
+const TEN03: ViewState = { ...HOME, useNow: false, minute: 603 };   // the R15 15005, picked
+test('no «Recorda» for a train leaving in under 15 min (the alarm would come late), gone or cancelled', () => {
+  assert.equal(train(at('2026-10-01', '10:00', HOME)).remind, '');                                   // in 3 min
+  assert.equal(train(at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 543 })).remind, ''); // gone
+  assert.equal(train(atLive('09:30', TEN03, live({ '15005': { estat: 'cancelat' } }))).remind, '');
+  assert.notEqual(train(at('2026-10-01', '09:40', HOME)).remind, '');                                // the 09:55 AVE, in 15 min
+  assert.equal(train(at('2026-10-01', '09:41', HOME)).remind, '');
+});
+
+test('a late train is reminded at the time it now leaves and arrives', () => {
+  assert.deepEqual(reminded(atLive('09:30', TEN03, live({ '15005': LATE(25) }))), { d: '2026-10-01', s: '628', a: '718', l: 'R15', o: 'Sants', x: 'Reus' });
 });

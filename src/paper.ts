@@ -29,3 +29,11 @@ export function torn(seed: number, d = .32){
   for(let i=n;i>=0;i--) pts.push(`${(i/n*100).toFixed(2)}% calc(100% - ${j(1)})`);
   return `polygon(${pts.join(',')})`;
 }
+
+// a stub torn off its ticket along the perforation (Àlex 06-11, option B): the right side straight, where the notch
+// is, and the left torn by hand, up to `d` rem in, its fibres showing
+export function tear(seed: number, d = .34){
+  const r = rnd(seed), pts: string[] = [`${d + .01}rem 0`, '100% 0', '100% 100%', `${d + .01}rem 100%`], m = 26;
+  for(let i=m;i>=0;i--) pts.push(`${(r()*d).toFixed(3)}rem ${(i/m*100).toFixed(1)}%`);
+  return `polygon(${pts.join(',')})`;
+}
