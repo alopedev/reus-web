@@ -29,9 +29,10 @@ Rules checked:
   10. There is an AVE Sants -> Camp de Tarragona every day (at least 5 a day), and the
       same in the opposite direction.
   11. Size: red.json is <= 150 KB gzip-compressed.
-  12. No day lost most of a line: every day, each line (R11, R13-R17, and AVE/AVLO together)
-      runs at least half its median number of trains a day over the file. A feed that comes
-      back with a day or a line half empty is held back, not published.
+  12. No day lost most of its lines: every day, each line (R11, R13-R17, and AVE/AVLO together)
+      runs at least half its median number of trains a day over the file. Two or more lines short
+      the same day look like a broken feed: held back, not published. One line alone is usually
+      works on it: published, with a warning (`aviso:`, and a GitHub warning in the robot's run).
 
 Usage: python3 scripts/check_datos.py [path-to-red.json]   (default: data/red.json)
 """
@@ -397,12 +398,12 @@ def check_ave_camp_tarragona(d):
     return capped(errs)
 
 
-def check_dia_incompleto(d):
-    """Rule 12: every day, each line runs at least half its median number of trains a day."""
+def lineas_cortas(d):
+    """Rule 12: {day: [message, ...]} for each line that runs under half its median number of trains a day."""
     trenes = d.get("trenes", [])
     dias = d.get("dias", {})
     if not isinstance(dias, dict) or not dias:
-        return []
+        return {}
     linea = lambda p: "AVE/AVLO" if p in ALTA_VELOCIDAD else p
     lineas = sorted({linea(t.get("p")) for t in trenes if t.get("p") in PRODUCTOS})
     por_dia = {}
@@ -412,15 +413,25 @@ def check_dia_incompleto(d):
             if isinstance(idx, int) and 0 <= idx < len(trenes) and trenes[idx].get("p") in PRODUCTOS:
                 c[linea(trenes[idx]["p"])] += 1
         por_dia[day] = c
-    errs = []
+    out = collections.defaultdict(list)
     for ln in lineas:
         counts = sorted(c[ln] for c in por_dia.values())
         mediana = counts[len(counts) // 2]
         for day in sorted(por_dia):
             n = por_dia[day][ln]
             if n * 2 < mediana:
-                errs.append(f"{day}: {ln} runs {n} trains, under half its usual {mediana} a day")
-    return capped(errs, 10)
+                out[day].append(f"{ln} runs {n} trains, under half its usual {mediana} a day")
+    return dict(sorted(out.items()))
+
+
+def check_dia_incompleto(d):
+    """Rule 12: two or more lines short the same day look like a broken feed: nothing is published."""
+    return capped([f"{day}: {'; '.join(m)}" for day, m in lineas_cortas(d).items() if len(m) >= 2], 10)
+
+
+def avisos_dia_incompleto(d):
+    """Rule 12: one line short alone is usually works on that line (Àlex, 07-11): published, with a warning."""
+    return [f"{day}: {m[0]}" for day, m in lineas_cortas(d).items() if len(m) == 1]
 
 
 def check_tamano(path):
@@ -456,6 +467,19 @@ def run(path, trains_path):
     ):
         failures += [f"{prefix}: {e}" for e in fn()]
     return failures
+
+
+def avisos(lines):
+    """Warnings that do not stop the robot: on stderr and, in GitHub Actions, as an annotation and in the run summary."""
+    import os
+    for line in lines:
+        msg = f"día incompleto: {line} (published anyway: one line alone, probably works)"
+        print(f"aviso: {msg}", file=sys.stderr)
+        if os.environ.get("GITHUB_ACTIONS"):
+            print(f"::warning title=Día con pocos trenes en red.json::{msg}")
+        if os.environ.get("GITHUB_STEP_SUMMARY"):
+            with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+                f.write(f"- ⚠️ {msg}\n")
 
 
 AVISO_DIAS = 7   # warn when the published timetable runs out within a week
@@ -494,6 +518,8 @@ if __name__ == "__main__":
     red_path = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else root / "data/red.json"
     trains_path = root / "data/trains.json"
     failures = run(red_path, trains_path)
+    d, _ = load(red_path)
+    avisos(avisos_dia_incompleto(d or {}))
     if failures:
         print("FAIL\n  " + "\n  ".join(failures))
         sys.exit(1)
