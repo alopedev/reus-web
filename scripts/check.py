@@ -1936,7 +1936,10 @@ async def check_hora(browser):
         s = await page.evaluate(HORA)
         if s["raised"]: errs.append(f"{name}: the highlighted time is raised ({s['shadow']})")
         if s["link"]: errs.append(f"{name}: the highlighted time is a link (the stub «Compra» is the way to Renfe)")
-        if any(s[k] not in (None, "none") for k in ("dep", "mas", "talo")) or "batec" in s["cls"] or "duda" in s["cls"]:
+        # «swap» is the board's own animation when the train shown changes: with the real clock a train can leave just
+        # as the touch lands (the robot's run of 03-11), and that is not the hint beating
+        if s["dep"] not in (None, "none", "swap") or any(s[k] not in (None, "none") for k in ("mas", "talo")) \
+                or "batec" in s["cls"] or "duda" in s["cls"]:
             errs.append(f"{name}: a touch on the window makes something beat ({s})")
         if s["kept"] is not None: errs.append(f"{name}: the browser still keeps «capacasa.hora» ({s['kept']})")
         await page.close()
