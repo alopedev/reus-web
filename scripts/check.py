@@ -1153,12 +1153,21 @@ async def check_landscape(browser):
     return errs
 
 async def check_sizes(browser):
-    """Layout at every size: read straight from the page, no waiting for the painting."""
+    """Layout at every size, read straight from the page, no waiting for the painting, on the day's timetable
+    (data/red.json): the hero shows trains, nothing overlaps, no JS error. Almost every other check reads the frozen
+    timetable (dist-paridad/) and cannot tell a new timetable from yesterday's: the timetable robot runs this,
+    check_landscape and check_things_clear (`check.py datos`), not the whole suite, so a check of an animation that
+    fails on main does not hold the data back (21-10)."""
     failures = []
     for name, (w, h) in SIZES.items():
         page = await open_page(browser, viewport={"width": w, "height": h})
+        errors = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
         await page.goto(page_url); await page.wait_for_timeout(1200)
         failures += [f"{name}: {e}" for e in await page.evaluate(FIT)]
+        rows = await page.evaluate("document.querySelectorAll('#board .trip').length")
+        if not rows: failures.append(f"{name}: the board shows no train with the new timetable")
+        failures += [f"{name}: JS error: {e}" for e in errors]
         await page.close()
     return failures
 
@@ -3632,6 +3641,11 @@ async def main():
         if sys.argv[1:] == ["barra"]:
             failures += await check_bar_tint(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · barra"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["datos"]:
+            failures += await check_sizes(browser)
+            failures += [f"horitzontal: {e}" for e in await check_landscape(browser)]
+            failures += [f"mesa: {e}" for e in await check_things_clear(browser)]
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · datos"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["a11y"]:
             failures += await check_a11y(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · a11y"); sys.exit(1 if failures else 0)
