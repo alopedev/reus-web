@@ -2,7 +2,7 @@
 // clock of the test's own. `npm test`, no browser: check.py keeps how they look
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createAvisos, lineNews, notices, gist, type Ask } from '../../src/avisos.ts';
+import { createAvisos, lineNews, notices, unread, gist, type Ask } from '../../src/avisos.ts';
 
 const T0 = Date.parse('2026-10-10T08:00:00Z'), MIN = 60e3;
 const answer = (min: number, linies: object) => ({ llegit: new Date(T0 + min * MIN).toISOString(), linies });
@@ -80,4 +80,15 @@ test('the stamp says a notice in a few words', () => {
   assert.equal(gist(AVIS.R15.text), 'per carretera');
   assert.equal(gist('Retards de fins a 15 minuts'), 'amb retards');
   assert.equal(gist('Obres a Sant Vicenç'), 'mira’l');
+});
+
+// on a desktop a silence is never «all is well» either (Àlex, 07-11, option A): the lines of the board nobody could
+// read get a blank stamp. Not before the first answer (it is being asked), nor a line read as normal or with a notice
+test('the lines nobody could read: none while asking, the unnamed ones after an answer, all when it fails', async () => {
+  const { t, avisos, follow } = setup();
+  assert.deepEqual(unread(avisos, ['R15', 'R14']), []);
+  t.next = answer(-1, AVIS); await follow();
+  assert.deepEqual(unread(avisos, ['R15', 'R13', 'R14']), ['R14']);
+  const failed = setup(); failed.t.next = null; await failed.follow();
+  assert.deepEqual(unread(failed.avisos, ['R15', 'R13']), ['R15', 'R13']);
 });
