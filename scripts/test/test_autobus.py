@@ -81,6 +81,31 @@ class TrainThenBus(unittest.TestCase):
         self.assertIsNone(extract_red.with_bus(PIECE_0712, AV_0712, [back]))
 
 
+class BusNobodyJoined(unittest.TestCase):
+    """the day Rodalies runs part of a line by bus and red.json still has a train there (no `b` for it): a train
+    that does not run. with_bus joins the buses it can; this tells us of the ones it cannot (a new kind of works)"""
+    DAY = __import__("datetime").date(2026, 11, 5)
+    TRAIN = [list(x[1:]) for x in AV_1208]
+
+    def gaps(self, t, days=None):
+        return extract_red.bus_gaps([t], days or {self.DAY.isoformat(): {0}}, {self.DAY: [BUS_1208]})
+
+    def test_a_train_where_the_bus_runs_that_day(self):
+        g = self.gaps({"n": "15052", "p": "R14", "s": self.TRAIN})
+        self.assertEqual(g, [("2026-11-05", "15052", "R14", "78400", "73100")])
+
+    def test_the_bus_part_of_a_trip_is_the_bus(self):
+        trip, b = extract_red.with_bus(PIECE_1208, AV_1208, [BUS_1208])
+        self.assertEqual(self.gaps({"n": "15052", "p": "R14", "s": [list(x[1:]) for x in trip], "b": b}), [])
+
+    def test_another_day_has_no_bus(self):
+        self.assertEqual(self.gaps({"n": "15052", "p": "R14", "s": self.TRAIN}, {"2026-11-06": {0}}), [])
+
+    def test_a_train_that_only_touches_where_the_bus_ends(self):
+        # from La Plana on, the train runs: La Plana is where the bus meets it, not a stretch by bus
+        self.assertEqual(self.gaps({"n": "15052", "p": "R14", "s": [list(x[1:]) for x in PIECE_1208]}), [])
+
+
 import check_datos
 
 STATIONS = {sid: {} for sid in ("78400", "73003", "73100", "71801")}
