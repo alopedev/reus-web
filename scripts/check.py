@@ -1207,13 +1207,21 @@ baseline = root / "scripts/baseline" / sys.platform
 async def open_page(browser, **options):
     """A page with generous timeouts: software rendering on a two-core CI machine can take long to give a frame.
     Open-Meteo is never asked: the window keeps fair weather, so no check depends on the real weather
-    (check_weather answers for it). Nor are the lines' notices (/api/avisos, a Vercel function): check_avisos answers;
+    (check_weather answers for it). Nor are the lines' notices (/api/avisos, a Vercel function): every line normal, so
+    no stamp (no answer would put the blank one on a desktop's ticket, 07-11); check_avisos answers its own;
     Renfe's live delays (/api/retards) answer every train on time; check_retards answers its own."""
     page = await browser.new_page(**options); page.set_default_timeout(120000)
     await page.route("https://api.open-meteo.com/**", lambda route: route.abort())
-    await page.route("**/api/avisos", lambda route: route.abort())
+    await page.route("**/api/avisos", no_notices)
     await page.route("**/api/retards", on_time)
     return page
+
+async def no_notices(route):
+    """/api/avisos for every check but check_avisos: no notice on any line, read far in the future so it is fresh at
+    whatever time a check fixes the clock to."""
+    import json
+    await route.fulfill(status=200, content_type="application/json", body=json.dumps(
+        {"llegit": "2100-01-01T00:00:00Z", "linies": {l: {"estat": "normal"} for l in ("R11", "R13", "R14", "R15", "R16", "R17")}}))
 
 def _on_time_answer():
     """/api/retards for every check but check_retards: every train of both timetables running on time, which says
@@ -1478,6 +1486,7 @@ async def check_weather(browser):
         return ["data/red.json has no town coordinates (ll): the window can never show the weather"]
     for code, want in WEATHER:
         page = await browser.new_page(viewport={"width": 1440, "height": 900}, reduced_motion="reduce"); page.set_default_timeout(120000)
+        await page.route("**/api/avisos", no_notices)
         asked = []
         async def answer(route, request, code=code):
             asked.append(request.url)
@@ -1509,6 +1518,11 @@ AVISOS_JS = """() => ({
   boxed: !!document.querySelector('#detalle .avisos.avis'),
   more: document.querySelector('#detalle .avisos .mes, #avis .mes')?.getAttribute('href') ?? null })"""
 
+# the blank stamp: a button or not, its ink's raised shadow, its frame's style and what the reader hears
+BLANK_JS = """() => { const e = document.querySelector('.tk .segell'); if(!e) return {};
+  return { button: e.tagName === 'BUTTON', shadow: getComputedStyle(e).textShadow,
+    border: getComputedStyle(e, '::after').borderTopStyle, label: e.getAttribute('aria-label') ?? '' } }"""
+
 def avisos_answer(kind):
     """The function's answer: «avis» on every line, «normal», «old» (read an hour before the page's 10:00) or «503»."""
     import json
@@ -1523,7 +1537,7 @@ async def avisos_page(browser, kind, w, h):
     asked = []
     async def answer(route, request):
         asked.append(request.url); await route.fulfill(**avisos_answer(kind))
-    await page.route("**/api/avisos", answer)   # the latest route wins over open_page's abort
+    await page.route("**/api/avisos", answer)   # the latest route wins over open_page's
     await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
     await page.goto(parity_url); await page.evaluate("document.fonts.ready")
     try: await page.wait_for_function("window.reus && window.reus.avisos() !== null", timeout=20000)
@@ -1533,7 +1547,7 @@ async def avisos_page(browser, kind, w, h):
 
 async def check_avisos(browser):
     """Desktop: a notice on a line of the board puts an ink stamp on the ticket, which opens a sheet with the whole
-    text; no notice, or no answer, no stamp. Phone: nothing on the board; the train's sheet says its line's notice,
+    text; no notice, no stamp; no answer (or one too old), a blank stamp, «Avisos sense consultar», flat. Phone: nothing on the board; the train's sheet says its line's notice,
     that there is none (and when it was read), or that it could not be read (an error, or an answer too old)."""
     errs = []
     page, asked = await avisos_page(browser, "avis", 1440, 900)
@@ -1554,10 +1568,20 @@ async def check_avisos(browser):
     await page.keyboard.press("Escape"); await page.wait_for_timeout(300); a = await page.evaluate(AVISOS_JS)
     if a["open"] or "segell" not in a["focus"]: errs.append(f"Esc leaves #avis open ({a['open']}) or the focus off the stamp ({a['focus']})")
     await page.close()
-    for kind in ("normal", "503", "old"):
+    page, _ = await avisos_page(browser, "normal", 1440, 900)
+    a = await page.evaluate(AVISOS_JS)
+    if a["stamp"]: errs.append(f"with no notice the ticket has a stamp: «{a['stamp']}»")
+    await page.close()
+    # no answer, or one too old: a blank stamp (Àlex, 07-11, option A), grey, dashed and flat; it does not press
+    for kind in ("503", "old"):
         page, _ = await avisos_page(browser, kind, 1440, 900)
         a = await page.evaluate(AVISOS_JS)
-        if a["stamp"]: errs.append(f"with «{kind}» the ticket has a stamp: «{a['stamp']}»")
+        b = await page.evaluate(BLANK_JS)
+        if not a["stamp"] or " ".join(a["stamp"].split()) != "Avisos sense consultar":
+            errs.append(f"with «{kind}» the ticket's stamp reads «{a['stamp']}», expected «Avisos sense consultar»")
+        elif b["button"] or b["shadow"] != "none" or b["border"] != "dashed" or "consultar" not in b["label"]:
+            errs.append(f"with «{kind}» the blank stamp is not flat, dashed and named: {b}")
+        if kind == "503": await page.screenshot(path=str(shots / "avisos-sense-consultar.png"))
         await page.close()
     # a phone: never a stamp; the big train's sheet says what is known of the R15
     phone = {"avis": NOTICE, "normal": "Sense avisos a l’R15 (consultat a les 09:58).",
@@ -1600,7 +1624,7 @@ async def retards_page(browser, kind, w, h):
     async def answer(route):
         if status != "200": await route.fulfill(status=int(status), body="{}")
         else: await route.fulfill(status=200, content_type="application/json", body=json.dumps({"llegit": "2026-09-28T07:59:40Z", "trens": trens}))
-    await page.route("**/api/retards", answer)   # the latest route wins over open_page's abort
+    await page.route("**/api/retards", answer)   # the latest route wins over open_page's
     await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
     await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(2500)
     return page

@@ -2,8 +2,8 @@ import type { LineNews, Notice } from './notice';
 import { createLive, type LiveOptions } from './live';
 
 // the lines' notices, as the Generalitat publishes them (09-10): api/avisos.ts reads its feeds, since the page cannot
-// (no CORS). Three states per line, never two: a notice, normal (checked at a time), or unknown. Unknown shows
-// nothing on the board and says so in a phone's sheet, so a silence is never taken for «all is well»
+// (no CORS). Three states per line, never two: a notice, normal (checked at a time), or unknown. Unknown puts a
+// blank stamp on a desktop's ticket (07-11) and says so in a phone's sheet, so a silence is never taken for «all is well»
 export type Line = { estat: 'avis', text: string, publicat: string | null } | { estat: 'normal' } | { estat: 'error' };
 export interface Answer { llegit: string, linies: Record<string, Line> }
 
@@ -56,6 +56,12 @@ export function lineNews(avisos: Pick<Avisos, 'line' | 'read'>, line: string, is
 // the notices of the board's lines, for the stamp (notice.ts shows them)
 export function notices(avisos: Pick<Avisos, 'line'>, lines: string[]): Notice[] {
   return lines.flatMap(l => { const n = avisos.line(l); return n?.estat === 'avis' ? [{ line: l, text: n.text }] : []; });
+}
+
+// the board's lines nobody could read (an error, an old answer, a line the answer does not name): on a desktop they get
+// a blank stamp (Àlex, 07-11, option A). Before the first answer, none: it is being asked
+export function unread(avisos: Pick<Avisos, 'line'>, lines: string[]): string[] {
+  return lines.filter(l => avisos.line(l)?.estat === 'error');
 }
 
 // a notice in a few words for the stamp, from what it says; «mira’l» when none fits

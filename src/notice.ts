@@ -7,7 +7,7 @@ import { gist } from './avisos';
 import { esc } from './html';
 
 // how the lines' notices show (09-10, Àlex): on a desktop, an ink stamp on the ticket when a line of the board has a
-// notice (option A), which opens a sheet with the whole text; on a phone nothing on the board, and the train's own
+// notice (option A), which opens a sheet with the whole text, and a blank grey one when they could not be read (07-11); on a phone nothing on the board, and the train's own
 // sheet (#detalle) says what is known of its line: a notice, none, or that it could not be asked
 export const MORE = 'https://rodalies.gencat.cat/ca/';
 const FROM = 'Avisos: Generalitat de Catalunya. No substitueix la informació oficial.';
@@ -34,6 +34,11 @@ export function stamp(ns: Notice[]): string {
   return `<button type="button" class="segell" aria-haspopup="dialog" aria-label="Avís de la Generalitat a ${ns.map(n => 'l’' + n.line).join(' i ')}: ${gist(ns[0].text)}. Veure l’avís">`
     + `Avís ${lines}<small>${gist(ns[0].text)} ›</small></button>`;
 }
+// the blank stamp (Àlex, 07-11, option A): when nobody could read the notices of the board's lines, the same stamp in
+// grey, dashed and flat, where the notice would be. It does not press: there is nothing behind it to read
+export const blank = (lines: string[]): string =>
+  `<span class="segell blanc" role="note" aria-label="No hem pogut consultar els avisos de la Generalitat ${lines.length > 1 ? 'de les línies' : 'de la línia'} ${lines.join(' i ')}">`
+  + `Avisos <small>sense consultar</small></span>`;
 // what a screen reader hears when a notice appears or changes
 export const heard = (ns: Notice[]): string => grouped(ns).map(g => `Avís de la Generalitat a ${g.lines.map(l => 'l’' + l).join(' i ')}: ${gist(g.text)}.`).join(' ');
 
