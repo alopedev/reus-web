@@ -12,6 +12,10 @@
 .segell:hover{ text-shadow:var(--alzado-papel-hover); }
 .segell:active{ text-shadow:none; transform:rotate(-7deg) translate(.05em,.05em); }
 .segell:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; }
+/* the blank stamp (07-11, option A): nobody could read the notices. Grey ink (5:1 on the ticket), a faded dashed frame,
+   flat and still: it does not press */
+.segell.blanc, .segell.blanc:hover, .segell.blanc:active{ color:#6b5f52; text-shadow:none; cursor:default; transform:rotate(-7deg); }
+.segell.blanc::after{ border-color:#6b5f52; border-style:dashed; opacity:.75; }
 
 #avis .nota{ margin:0 0 1rem; }
 #avis .k, .pliego .avisos .k{ display:flex; align-items:center; gap:.4rem; margin:0 0 .35rem; font-weight:700; }
