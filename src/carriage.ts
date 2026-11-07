@@ -49,7 +49,8 @@ export function plan(A: number, win: Win, wide: boolean): Plan {
     }
     return { m, floorY, cx, seats, eye, lamp: null, ...rack(floorY, m) };
   }
-  const scale = .6, x = .07, y0 = .25 - ARMREST*scale;
+  // its backrest's back just right of the window's left edge (on a 390 × 844 phone, 7 % of the height from the screen's)
+  const scale = .6, x = win.x*A + .028, y0 = .25 - ARMREST*scale;
   const seats: Seat[] = [
     { x, y0, scale, dir: 1, handle: true },
     { x: x - .17*scale, y0, scale, dir: -1, handle: false },

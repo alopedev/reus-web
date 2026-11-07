@@ -7,7 +7,7 @@ import { plan, ARMREST } from '../../src/carriage.ts';
 
 // a desktop's window (1440 × 900) and a phone's (390 × 844), as world.ts measures them: fractions of the screen, y up
 const A = 1440/900, desk = { x: .32, y: .40, z: .68, w: .78 };
-const a = 390/844, phone = { x: .06, y: .48, z: .94, w: .80 };
+const a = 390/844, phone = { x: .091, y: .346, z: .909, w: .706 };
 const near = (x: number, y: number) => Math.abs(x - y) < 1e-9;
 
 test('on a wide screen, two seats either side of the window, face to face, standing on the floor', () => {
@@ -30,7 +30,7 @@ test('on a phone, our seat alone, close up at the left edge, its armrest at a qu
   assert.equal(ours.length, 1);
   const s = ours[0];
   assert.equal(s.dir, 1, 'facing the window, seen in profile');
-  assert.ok(near(s.x, .07));
+  assert.ok(Math.abs(s.x - .07) < .001, 'its back just right of the window\'s left edge');
   assert.ok(near(s.scale, .6), 'a fixed size on the screen, whatever the window measures');
   assert.ok(near(s.y0 + ARMREST*s.scale, .25), 'the armrest a quarter up the screen: the bottom edge cuts below it');
   assert.ok(s.y0 < 0, 'its base off the screen');
@@ -47,6 +47,13 @@ test('on a phone, a lamp over our seat (lit only at night, see room.ts); none on
   assert.ok(p.lamp);
   assert.ok(p.lamp![0] < phone.x*a + .1, 'over our seat, at the window\'s left');
   assert.equal(plan(A, desk, true).lamp, null);
+});
+
+test('on a screen with no room at the sides but a window away from its edge, our seat stands at the window\'s corner', () => {
+  // 900 × 900: a desktop's window in the middle, too close to the edges for a bay of seats
+  const win = { x: .2, y: .388, z: .8, w: .758 }, p = plan(1, win, false), s = p.seats.find(t => t.handle)!;
+  assert.ok(Math.abs(s.x - win.x*1 - (.07 - phone.x*a)) < .001, 'as far from the window\'s left edge as on a phone');
+  assert.ok(s.y0 + (ARMREST + .3)*s.scale > win.y, 'its back rises over the window\'s bottom edge');
 });
 
 test('a phone\'s seat stays where it is when the window grows (taller at night with fewer rows)', () => {

@@ -1112,7 +1112,8 @@ async def check_still_window(browser):
         img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB"); await page.close()
         pa, pb = [[sum(img.getpixel((int(x) + i, int(y) + j))[c] for i in range(-2, 3) for j in range(-2, 3)) / 25 for c in range(3)] for x, y in (a, b)]
         d = sum((u - v) ** 2 for u, v in zip(pa, pb)) ** .5
-        if d < 60: errs.append(f"{name}: the still frame's window is not where #win is (wall above it and sky inside differ by only {d:.0f})")
+        # the carriage's grey wall (07-11) is nearer the sky's colour than the brown one was: 40 to 60 apart at 10:00
+        if d < 30: errs.append(f"{name}: the still frame's window is not where #win is (wall above it and sky inside differ by only {d:.0f})")
     return errs
 
 # phones held sideways: short and wide, a desktop's proportions without its height
@@ -1174,7 +1175,7 @@ async def check_carriage(browser):
             await page.close()
             errs += [f"{name} {when}: JS error: {e}" for e in errors]
             if not v: errs.append(f"{name} {when}: reus.vagon() gives nothing (no carriage built)"); continue
-            if v["gaps"] > .001: errs.append(f"{name} {when}: {v['gaps']:.2%} of the wall is missing around the window")
+            if v["gaps"] > .0002: errs.append(f"{name} {when}: {v['gaps']:.2%} of the wall is missing around the window")
             if v["seats"] and v["over"] > 0: errs.append(f"{name} {when}: a seat covers {v['over']:.2%} of the window on a wide screen")
             if not v["seats"] and not 0 < v["over"] <= CARRIAGE_OVER: errs.append(f"{name} {when}: our seat covers {v['over']:.2%} of the window, expected some and at most {CARRIAGE_OVER:.0%}")
     return errs

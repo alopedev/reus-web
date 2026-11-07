@@ -156,10 +156,11 @@ export function createRoom(renderer: WebGLRenderer): Room {
     let inW = 0, over = 0, outW = 0, gaps = 0;
     for(let y = 0; y < H; y++) for(let x = 0; x < W; x++){
       const a = px[(y*W + x)*4 + 3], u = (x + .5)/W, v = (y + .5)/H;
-      // in the window's opening (its rounded corners are wall), in wall units
-      const X = u*boxA, qx = Math.max(box.x*boxA + boxR - X, X - box.z*boxA + boxR, 0), qy = Math.max(box.y + boxR - v, v - box.w + boxR, 0);
-      const inside = u > box.x && u < box.z && v > box.y && v < box.w && Math.hypot(qx, qy) < boxR;
-      if(inside){ inW++; if(a > 242) over++; } else { outW++; if(a < 250) gaps++; }
+      // how far from the window's opening (its rounded corners are wall), in wall units: a pixel either side of its
+      // edge is the edge's own, counted in neither
+      const qx = Math.abs(u*boxA - (box.x + box.z)/2*boxA) - ((box.z - box.x)/2*boxA - boxR), qy = Math.abs(v - (box.y + box.w)/2) - ((box.w - box.y)/2 - boxR);
+      const sd = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - boxR;
+      if(sd < -2/H){ inW++; if(a > 242) over++; } else if(sd > 2/H){ outW++; if(a < 250) gaps++; }
     }
     return { over: over/Math.max(1, inW), gaps: gaps/Math.max(1, outW) };
   }
