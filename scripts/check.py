@@ -3353,7 +3353,13 @@ async def check_paper_motion(browser):
             # the arrows cross the two ends over to their new places, one over and one under
             for turn in range(2):
                 await page.evaluate(REC)
-                await tap_at(page, ".tk .swap"); await page.wait_for_timeout(700)
+                await tap_at(page, ".tk .swap")
+                # on a slow runner the swap can hold the page's thread for seconds (in desktop it may move the window,
+                # and the carriage, 07-11, is repainted in software): wait for the two ends to start, not a fixed time
+                if motion != "reduce":
+                    try: await page.wait_for_function("window.__rec.filter(r => r.name === 'creua').length >= 2", timeout=10000)
+                    except Exception: pass
+                await page.wait_for_timeout(700)
                 cr = [r for r in await page.evaluate("window.__rec") if r["name"] == "creua"]
                 when = f"{where}, the arrows ({turn + 1})"
                 if motion == "reduce":
@@ -3369,6 +3375,8 @@ async def check_paper_motion(browser):
                 await tap_at(page, f".tk .end.{end}"); await page.wait_for_timeout(700)
                 await page.evaluate(REC)
                 for sel in steps:
+                    try: await page.wait_for_selector(sel, timeout=10000)
+                    except Exception: pass
                     if not await tap_at(page, sel): errs.append(f"{where}, picking from .end.{end}: no {sel} to press"); break
                     await page.wait_for_timeout(800)
                 # the stamp comes once the sheet has gone: on a slow runner, painted in software, it can take longer
