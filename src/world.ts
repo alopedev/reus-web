@@ -4,6 +4,7 @@ import { daylight, type Hour } from './light';
 import { PHONE } from './phone';
 import type { Weather } from './weather';
 import watercolorFrag from './shaders/watercolor.frag?raw';
+import { createRoom } from './room';
 
 export interface World {
   frame(dx: number, time: number, reveal: number): void;   // move the landscape by dx and paint it
@@ -15,6 +16,7 @@ export interface World {
   snap(r: DOMRect): HTMLCanvasElement | null;              // a copy of the painting in that box of the viewport (flaps.ts)
   painted(): number;                                       // share of the canvas the last watercolour pass painted (check.py)
   walls(): number;                                         // how many times the whole wall has been painted (check.py)
+  carriage(): { over: number; gaps: number; seats: boolean }; // the 3D carriage: the window a seat covers, the wall missing (check.py)
 }
 // something scattered on the landscape: position, size, and turn around the vertical axis
 type Placement = [x: number, y: number, z: number, size: [number, number, number], turn?: number];
@@ -108,13 +110,17 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
       skyTop:{value:new Vector3()}, skyHor:{value:new Vector3()}, sunCol:{value:new Vector3()}, sunPos:{value:new Vector2()}, sunA:{value:.85},
       aspect:{value:1}, waspect:{value:1}, hor:{value:.42}, win:{value:new Vector4(.2,.3,.8,.8)}, wrad:{value:.04}, seats:{value:1},
       wallA:{value:new Vector3()}, wallB:{value:new Vector3()}, wood:{value:new Vector3()}, seat:{value:new Vector3()},
-      foldY:{value:0}, shade:{value:0}, wx:{value:0}, brd:{value:new Vector4(0,0,0,0)}, washAll:{value:0} },
+      foldY:{value:0}, shade:{value:0}, wx:{value:0}, brd:{value:new Vector4(0,0,0,0)}, washAll:{value:0},
+      tRoom:{value:null as unknown}, tRoomP:{value:null as unknown}, tPaper:{value:null as unknown}, overWin:{value:0} },
     vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`,
     fragmentShader: watercolorFrag,
   });
   const postScene = new Scene(), postCam = new OrthographicCamera(-1,1,1,-1,0,1);
   postScene.add(new Mesh(new PlaneGeometry(2,2), post));
   const U = post.uniforms;
+  // the carriage round the window, built in 3D and painted with brush strokes (room.ts)
+  const room = createRoom(renderer);
+  U.tRoom.value = room.raw.texture; U.tRoomP.value = room.painted.texture; U.tPaper.value = room.paper.texture;
   // the painting is kept in `kept` and copied to the screen. Outside the window nothing moves once the wall is
   // painted (the wall, the board, the seats do not depend on the time of the landscape), and the watercolour pass
   // is most of the GPU's work: so a frame repaints only the window's box, unless the wall itself changes (the
@@ -164,7 +170,14 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     // the wall is painted again only if it changed: a resize that leaves the screen, the window and the board as they
     // were (the arrows' own, a toolbar's, a ResizeObserver's) would cost a whole watercolour pass for nothing (30-10)
     const was = wall; wall = JSON.stringify([W, H, U.win.value.toArray(), U.wrad.value, U.brd.value.toArray(), U.seats.value, rw, rh]);
-    if(wall !== was) wallKept = wetKept = false;
+    if(wall !== was){
+      wallKept = wetKept = false;
+      // a wide screen has a bay of seats either side of the window; a phone (or any screen with no room at the
+      // sides) our seat alone, close up over the window's lower-left corner (carriage.ts)
+      room.layout(W/H, {x:U.win.value.x, y:U.win.value.y, z:U.win.value.z, w:U.win.value.w}, U.wrad.value, U.seats.value > .5);
+      U.overWin.value = U.seats.value > .5 ? 0 : 1;
+      if(lit) room.render(W, H);
+    }
     camera.aspect = wa; camera.fov = wa < 1.3 ? 50 : 40;
     const hor = .42; U.hor.value = hor;
     const vfov = camera.fov*Math.PI/180;
@@ -179,6 +192,10 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     U.skyTop.value.set(...p.top); U.skyHor.value.set(...p.hor); U.sunCol.value.set(...p.sun); U.sunPos.value.set(...p.sunUV); U.sunA.value = p.glow;
     U.wallA.value.set(...p.wallA); U.wallB.value.set(...p.wallB); U.wood.value.set(...p.wood); U.seat.value.set(...p.seat);
     wallKept = wetKept = false;
+    // the carriage's light: the night's, by how dark the wall gets (wallA, 0 by day, 1 at night)
+    const l = .3*p.wallA[0] + .55*p.wallA[1] + .15*p.wallA[2];
+    room.light(p, 1 - Math.min(1, Math.max(0, (l - .25)/.2)));
+    room.render(kept.width, kept.height);
     hemi.color.set(p.hemi[0]); hemi.groundColor.set(p.hemi[1]); hemi.intensity = p.hemi[2]*LUX;
     sun.color.set(p.dir[0]); sun.intensity = p.dir[1]*LUX; sun.position.set(...p.dir[2]);
     // Safari on iPhone paints the strip around the Dynamic Island in one flat colour, read at load: the top edge of
@@ -243,6 +260,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
   // (rendimiento/movil.md, 30-10). The browser links them on its own thread; only a first use waits for one
   renderer.compile(scene, camera);
   for(const s of [postScene, copyScene, washScene]) renderer.compile(s, postCam);
+  room.compile();
   // 0 fair, 1 overcast, 2 rain (drops on the glass), 3 fog: the shader's wx
   function setWeather(w: Weather){ U.wx.value = ['clear', 'cloudy', 'rain', 'fog'].indexOf(w); }
   // the painting under a box of the viewport, copied at the device's pixels: the post pass is drawn again first,
@@ -256,5 +274,6 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     ctx.drawImage(canvas, r.left*k, r.top*k, r.width*k, r.height*k, 0, 0, out.width, out.height);
     return out;
   }
-  return {frame, setTime, resize, setWash, setWeather, grain: () => grain, snap, painted: () => share, walls: () => walls};
+  return {frame, setTime, resize, setWash, setWeather, grain: () => grain, snap, painted: () => share, walls: () => walls,
+    carriage: () => ({ ...room.coverage(), seats: U.seats.value > .5 })};
 }
