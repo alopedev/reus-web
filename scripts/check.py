@@ -889,6 +889,11 @@ async def check_table_follows(browser):
         # the papers' text reflows, as when the web fonts replace the fallback
         await page.add_style_tag(content=".mesa p, .mesa li{ letter-spacing:.07em; }"); await page.wait_for_timeout(800); await table_sized(page)
         settled = await page.evaluate(TABLE_STATE)
+        # the painted table has the size the reflowed scene asks for: comparing it with a fresh measure alone missed a
+        # table that ignored the reflow and the resize alike (both stale, both equal: 08-11)
+        if not await page.evaluate(TABLE_SIZED):
+            e = await page.evaluate("[document.getElementById('escena').clientWidth, document.getElementById('escena').clientHeight]")
+            errs.append(f"{name}: the painted table stays {settled['lienzo']} after the papers settle; the scene is now {e}")
         await page.evaluate("dispatchEvent(new Event('resize'))"); await page.wait_for_timeout(800); await table_sized(page)
         fresh = await page.evaluate(TABLE_STATE); await page.close()
         if settled["papers"] == before["papers"]: errs.append(f"{name}: the papers did not reflow (the check proves nothing)"); continue
@@ -1204,13 +1209,22 @@ async def check_sizes(browser):
 # fonts and antialiasing differ between systems, so each one keeps its own reference frames
 baseline = root / "scripts/baseline" / sys.platform
 
+# headless Chromium hides the scrollbars but still keeps the gutter that base.css asks for while a sheet is open
+# (html:has(dialog[open]){scrollbar-gutter:stable}): on a desktop, opening a sheet moved the hero 7.5 px to the left
+# and closing it back, and each move repainted the whole wall and carriage in software, seconds on the CI (08-11).
+# No real browser does that: a classic scrollbar already takes the gutter at rest, an overlay one keeps none
+NO_GUTTER = """addEventListener('DOMContentLoaded', () => { const s = document.createElement('style');
+  s.textContent = 'html{scrollbar-gutter:auto!important}'; document.head.appendChild(s); })"""
+
 async def open_page(browser, **options):
     """A page with generous timeouts: software rendering on a two-core CI machine can take long to give a frame.
     Open-Meteo is never asked: the window keeps fair weather, so no check depends on the real weather
     (check_weather answers for it). Nor are the lines' notices (/api/avisos, a Vercel function): every line normal, so
     no stamp (no answer would put the blank one on a desktop's ticket, 07-11); check_avisos answers its own;
-    Renfe's live delays (/api/retards) answer every train on time; check_retards answers its own."""
+    Renfe's live delays (/api/retards) answer every train on time; check_retards answers its own.
+    The open sheet's stable scrollbar gutter is left out (NO_GUTTER)."""
     page = await browser.new_page(**options); page.set_default_timeout(120000)
+    await page.add_init_script(NO_GUTTER)
     await page.route("https://api.open-meteo.com/**", lambda route: route.abort())
     await page.route("**/api/avisos", no_notices)
     await page.route("**/api/retards", on_time)
@@ -3153,13 +3167,17 @@ PHONE = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), d = document.
           home: (h => h && {url: h.origin + h.pathname, text: h.searchParams.get('text'), tab: d.querySelector('.avisa').target === '_blank'})(d.querySelector('.avisa') && new URL(d.querySelector('.avisa').href)),
           focus: document.activeElement?.matches('#board button.big') ?? false}; })()"""
 
+# whether a dialog closed the moment its way out ended (sheet.ts waits for those animations, at most a second): read
+# in a task right after they all finish, so it holds however slow the frames are. A wall-clock limit did not: on the
+# CI's software rendering a frame holds the page's timers back, and a 0.2 s slide took 1.8–5.2 s to close (20-10 to
+# 08-11) with nothing wrong. Called once the gesture's own handlers have run, with the animations then running
+ON_END = """(d, runs, set) => { const look = () => setTimeout(() => set(!d.open), 0);
+  if(!runs.length) return look(); Promise.all(runs.map(a => a.finished)).then(look, look); }"""
+# how long a sheet may take to close at all, in the page's time, before it counts as never closing
+SHEET_GIVE_UP_MS = 10000
 # the sheet's way out, armed before the gesture: whether the sheet was still open when the gesture landed, the
-# animations it then ran (the paper's keyframes and the backdrop's) and when it closed
-# sheet.ts closes a sheet within a second of page time, but on the CI's software rendering a frame holds its timers
-# back: closing took 1.8 s on 20-10, 2.4 s and 2.54 s on 21-10. A sheet that never closes still fails (SHEET_WATCH
-# gives up at 4 s)
-SHEET_SHUT_MS = 3500
-SHEET_WATCH = """(() => { const d = document.getElementById('detalle'), p = d.querySelector('.pliego');
+# animations it then ran (the paper's keyframes and the backdrop's), whether it closed as they ended and when
+SHEET_WATCH = """(() => { const d = document.getElementById('detalle'), p = d.querySelector('.pliego'), onEnd = """ + ON_END + """;
   window.__cierre = new Promise(done => {
     const go = () => { const t0 = performance.now();
       setTimeout(() => {                                     // once the gesture's own handlers have run
@@ -3167,8 +3185,9 @@ SHEET_WATCH = """(() => { const d = document.getElementById('detalle'), p = d.qu
         const runs = document.getAnimations().filter(a => a.playState === 'running');
         const paper = runs.find(a => a.effect.target === p), dim = runs.find(a => a.effect.target === d && a.effect.pseudoElement === '::backdrop');
         const last = paper ? paper.effect.getKeyframes().at(-1).transform : null;
-        (function wait(){ if(d.open && performance.now() - t0 < 4000) return setTimeout(wait, 20);
-          done({still, last, dim: !!dim, open: d.open, ms: Math.round(performance.now() - t0),
+        let ended = null; onEnd(d, d.getAnimations({subtree: true}).filter(a => a.playState === 'running'), v => ended = v);
+        (function wait(){ if((d.open || ended === null) && performance.now() - t0 < """ + str(SHEET_GIVE_UP_MS) + """) return setTimeout(wait, 20);
+          done({still, last, dim: !!dim, open: d.open, ended, ms: Math.round(performance.now() - t0),
                 focus: document.activeElement?.matches('#board button.big') ?? false}); })();
       }, 0);
     };
@@ -3268,7 +3287,7 @@ async def check_sheet_close(browser):
                 if not c["still"]: errs.append(f"{when}: the sheet closes at once, without sliding down")
                 if not c["last"] or "translateY(100%)" not in c["last"].replace(" ", ""): errs.append(f"{when}: the paper does not slide back down (ends at {c['last']})")
                 if not c["dim"]: errs.append(f"{when}: the backdrop does not clear with the paper")
-                if c["ms"] > SHEET_SHUT_MS: errs.append(f"{when}: the sheet takes {c['ms']} ms to close")
+                if not c["open"] and not c["ended"]: errs.append(f"{when}: the sheet does not close as its way out ends ({c['ms']} ms)")
             await page.wait_for_timeout(300)
         await page.close()
     return errs
@@ -3285,19 +3304,20 @@ REC = """(() => { if(window.__rec) { window.__rec.length = 0; return; } window._
   new MutationObserver(look).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['open', 'class', 'style']});
   document.addEventListener('animationstart', look, true); })()"""
 # whether a dialog was still open once a gesture's own handlers had run, and when it closed
-SHUT = """((id) => { const d = document.getElementById(id);
+SHUT = """((id) => { const d = document.getElementById(id), onEnd = """ + ON_END + """;
   window.__shut = new Promise(done => { let held = null;
     const go = e => { const t0 = performance.now(); if(e.type === 'cancel') held = e.cancelable;
       setTimeout(() => { const still = d.open;
-        (function wait(){ if(d.open && performance.now() - t0 < 4000) return setTimeout(wait, 20);
-          done({still, held, open: d.open, ms: Math.round(performance.now() - t0), focus: document.activeElement?.className || ''}); })(); }, 0);
+        let ended = null; onEnd(d, d.getAnimations({subtree: true}).filter(a => a.playState === 'running'), v => ended = v);
+        (function wait(){ if((d.open || ended === null) && performance.now() - t0 < """ + str(SHEET_GIVE_UP_MS) + """) return setTimeout(wait, 20);
+          done({still, held, open: d.open, ended, ms: Math.round(performance.now() - t0), focus: document.activeElement?.className || ''}); })(); }, 0);
     };
     d.addEventListener('cancel', go, {once:true, capture:true});
     d.addEventListener('click', e => { if(e.target === d || e.target.closest('.x, .opt, .est')) go(e); }, {once:true, capture:true});
   }); })"""
 
-# what SHUT saw, or that nothing closed the dialog within 8 s (a gesture that missed it would wait forever)
-SHUT_READ = "Promise.race([window.__shut, new Promise(r => setTimeout(() => r({still: true, held: null, open: true, ms: 8000, focus: ''}), 8000))])"
+# what SHUT saw, or that nothing closed the dialog (a gesture that missed it would wait forever)
+SHUT_READ = "Promise.race([window.__shut, new Promise(r => setTimeout(() => r({still: true, held: null, open: true, ended: null, ms: 15000, focus: ''}), 15000))])"
 
 async def tap_at(page, sel):
     """A plain click at the middle of what sel finds, without waiting for it to stand still (the ticket's ends and
@@ -3327,8 +3347,8 @@ def paper_moves(rec, when, way, motion, shut=None):
         if "translateY" not in p["last"]["transform"]: errs.append(f"{when}: the sheet does not go back down (ends at {p['last']})")
         if p["last"]["opacity"] != "0": errs.append(f"{when}: the sheet does not fade as it leaves (ends at {p['last']})")
         if not 120 <= p["ms"] <= 300: errs.append(f"{when}: the sheet takes {p['ms']} ms to leave, expected about 200")
-        # sheet.ts closes within a second; a software-rendered frame holds its timers back (SHEET_SHUT_MS)
-        if shut and shut["ms"] > SHEET_SHUT_MS: errs.append(f"{when}: the sheet takes {shut['ms']} ms to close")
+        # sheet.ts closes the moment its way out ends (ON_END), not on its one-second fallback nor later
+        if shut and not shut["open"] and not shut["ended"]: errs.append(f"{when}: the sheet does not close as its way out ends ({shut['ms']} ms)")
     if not dim: errs.append(f"{when}: the backdrop does not {'darken' if way == 'in' else 'clear'} with the sheet")
     return errs
 
