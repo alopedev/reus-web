@@ -1221,7 +1221,7 @@ async def no_notices(route):
     whatever time a check fixes the clock to."""
     import json
     await route.fulfill(status=200, content_type="application/json", body=json.dumps(
-        {"llegit": "2100-01-01T00:00:00Z", "linies": {l: {"estat": "normal"} for l in ("R11", "R13", "R14", "R15", "R16", "R17")}}))
+        {"llegit": "2100-01-01T00:00:00Z", "linies": {l: {"estat": "normal"} for l in ("R1", "R2", "R2N", "R2S", "R4", "R11", "R13", "R14", "R15", "R16", "R17")}}))
 
 def _on_time_answer():
     """/api/retards for every check but check_retards: every train of both timetables running on time, which says
