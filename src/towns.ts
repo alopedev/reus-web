@@ -1,17 +1,17 @@
-import { NET, SANTS, CAMP } from './time';
+import { NET, SANTS, CAMP, VILAFANT } from './time';
 
 // each line's colour, as Renfe paints it (shared by the board and the chooser)
 // Rodalies' line colours; R13 and R15 a shade darker and R17 in ink letters, so every pill reads at 4.5:1 (11-10)
 export const LINE: Record<string, string> = { R11:'#0064A7', R13:'#DD1B78', R14:'#6A2C91', R15:'#8C6F52', R16:'#B8114E', R17:'#F39700' };
 const INK: Record<string, string> = { R17:'#2D241C' };
-// a pill's colours, as CSS variables: --c its colour, --t its letters (the AVE and any unknown line in ink)
+// a pill's colours, as CSS variables: --c its colour, --t its letters (the fast trains, AV, and any unknown line in ink)
 export const lineStyle = (l: string): string => `--c:${LINE[l] ?? 'var(--shadow)'};--t:${INK[l] ?? '#FFFFFF'}`;
 
 // out of the chooser: Barcelona's own stations (their own picker is 3.5), the two dense commuter stops nearest
-// Barcelona (El Prat de Llobregat, El Prat Aeroport, Bellvitge - Gornal) and Camp de Tarragona (AVE only, no
+// Barcelona (El Prat de Llobregat, El Prat Aeroport, Bellvitge - Gornal) Camp de Tarragona and Figueres-Vilafant (fast trains only, no
 // regional line of its own). Everything else with a direct train from a `barcelona` station and one back is a
 // town: a station reached one way only (Cerbère, 12-10: ten trains out, none back) would leave half the ticket empty
-const EXCLUDE = new Set(['71707', '72400', '71708', CAMP]);
+const EXCLUDE = new Set(['71707', '72400', '71708', CAMP, VILAFANT]);
 const bcnIds = new Set(Object.keys(NET.estaciones).filter(id => NET.estaciones[id].barcelona));
 const fromBcn = new Set<string>(), toBcn = new Set<string>();
 for(const t of NET.trenes){

@@ -4,7 +4,7 @@ import { find, marks } from './find';
 import { PHONE } from './phone';
 import { state } from './state';
 import { byId } from './dom';
-import { NET, BCN, hasAve } from './time';
+import { NET, BCN, FAST, altOf } from './time';
 import { rag } from './paper';
 import { closeSheet, closesSoftly, still } from './sheet';
 import { esc } from './html';
@@ -13,7 +13,7 @@ export interface Chooser { open(): void; openStation(): void }
 
 
 // what each Barcelona station misses, read from the data: França has no R11 (named by its corridor's first town).
-// The AVE leaves only from Sants, so it is said only there, and only for a town the AVE serves
+// The fast trains (AV) are said only where one of them leaves for the town, or for its other station (altOf)
 function reach(id: string): string {
   const regional = (id: string) => (NET.estaciones[id]?.lineas ?? []).filter(l => l.startsWith('R'));
   const all = [...new Set(BCN.flatMap(s => regional(s.id)))].sort();
@@ -22,7 +22,8 @@ function reach(id: string): string {
     const where = GROUPS.find(g => g.lines.includes(l))?.label.split(' · ')[0];
     return where ? `l’${l} (${where})` : `l’${l}`;
   });
-  const ave = hasAve(state.town) && NET.trenes.some(t => t.p === 'AVE' && t.s.some(x => x[0] === id)) ? ' i l’AVE' : '';
+  const ends = new Set([state.town, altOf(state.town)]);
+  const ave = NET.trenes.some(t => t.p === FAST && t.s.some(x => x[0] === id) && t.s.some(x => ends.has(x[0]))) ? ' i l’AV' : '';
   return (miss.length ? `Totes menys ${miss.join(' i ')}` : 'Totes les línies') + ave;
 }
 

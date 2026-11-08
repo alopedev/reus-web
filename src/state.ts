@@ -4,7 +4,7 @@ import { REUS, SANTS } from './time';
 // town (the default sense); 'bcn' = the town → Barcelona
 export type Direction = 'casa' | 'bcn';
 // minute: the departure of the train chosen (useNow false); day: its day, when it is one of tomorrow's trips picked on
-// the board (null: today's); ave: that train is the AVE from Camp de Tarragona;
+// the board (null: today's); ave: that train is a fast one from the town's other station (altOf: Camp de Tarragona, Figueres-Vilafant);
 // town: the chosen town's stop_id (Reus by default, until the chooser picks another one); station: the Barcelona
 // end's stop_id (Sants by default)
 export interface ViewState { dir: Direction; useNow: boolean; minute: number | null; day: string | null; ave: boolean; town: string; station: string }

@@ -1,6 +1,6 @@
 import type { ViewState } from './state';
 import type { Trip } from './detail';
-import { addDays, hhmm, dur, dayData, NET, BCN, bcnName, CAMP, stopsBetween, stopName, busLeg, type Train, type Bus } from './time';
+import { addDays, hhmm, dur, dayData, NET, BCN, bcnName, FAST, altOf, stopsBetween, stopName, busLeg, type Train, type Bus } from './time';
 import { buyUrl } from './buy';
 import { remindUrl } from './calendar';
 import { homeText } from './home';
@@ -12,8 +12,8 @@ import type { Retards } from './retards';
 // paints what comes out. Pure: the moment, the visitor's choice and what is known of the notices go in, plain data
 // comes out (scripts/test/ runs it in Node against the frozen timetable)
 
-// a train on the ruler: the day's (today's, or tomorrow's when tomorrow is looked at), regionals and AVE together in
-// order of departure; `on` is the train shown
+// a train on the ruler: the day's (today's, or tomorrow's when tomorrow is looked at), regionals and fast trains
+// together in order of departure; `on` is the train shown
 export type Mark = { dep: number, ave: boolean, on: boolean };
 // where the train shown is now, by the timetable: how far along its trip (0 at departure, 1 at arrival) and in words
 export type Where = { at: number, words: string };
@@ -25,8 +25,9 @@ const SOON = 60;
 const REMIND = 15;   // the calendar's alarm: minutes before the train leaves (api/calendari.ts)   // a train enters Renfe's feed only once it runs: further away than this, nothing is expected yet
 // one trip of the board: the train shown (big) and the one after it
 // (`day`: the trip's own day, today's or tomorrow's, so that picking it keeps it; `gone`: the train shown, picked,
-// has already left today, by its delay when Renfe gives one, so the board says «ja ha sortit» where it would say «el pròxim»)
-export type Row = { dep: number, arr: number, line: string, ave: boolean, big: boolean, until: string, morrow: boolean, day: string, gone: boolean, live?: Live };
+// has already left today, by its delay when Renfe gives one, so the board says «ja ha sortit» where it would say «el pròxim»;
+// `ave`: a fast train from or to the town's other station, `other` its name: Camp de Tarragona, Figueres-Vilafant)
+export type Row = { dep: number, arr: number, line: string, ave: boolean, other: string, big: boolean, until: string, morrow: boolean, day: string, gone: boolean, live?: Live };
 interface Common {
   key: string; say: string;          // #aviso: what a screen reader hears, only when `key` changes
   label: string; note: string;       // #lbl, #note
@@ -50,6 +51,8 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   const start = v.useNow ? now.min : v.minute ?? now.min;
   const ida = v.dir === 'casa';
   const townName = NET.estaciones[v.town].nombre, bcn = bcnName(v.station);
+  // the town's other station, where some fast trains call instead of the town's own (altOf)
+  const alt = altOf(v.town) ?? v.town, altName = NET.estaciones[alt]?.nombre ?? townName;
   const from = ida ? bcn : townName, to = ida ? townName : `Barcelona ${bcn}`;
   let {d, exact} = dayData(now.date, v.town, v.station);
   const marks = (d: ReturnType<typeof dayData>['d']) => [...(ida ? d.r : d.b).map(t => ({t, ave:false})), ...(ida ? d.ar : d.ab).map(t => ({t, ave:true}))].sort((x, y) => x.t[0]-y.t[0]);
@@ -115,42 +118,42 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   const lv = liveOf(a), late = lv?.kind === 'late' ? lv : undefined, cancelled = lv?.kind === 'cancel';
   const leaves = late ? late.dep : a[0];
   const until = live && !cancelled ? dur(leaves-now.min) : '';
-  const rows: Row[] = (next ? [a, next] : morrow ? [a, morrow] : [a]).map(t => ({ dep: t[0], arr: t[1], line: t[3], ave: isAveTrip(t), big: t === a,
+  const rows: Row[] = (next ? [a, next] : morrow ? [a, morrow] : [a]).map(t => ({ dep: t[0], arr: t[1], line: t[3], ave: isAveTrip(t), other: isAveTrip(t) ? altName : '', big: t === a,
     until: t === a ? until : '', gone: t === a && !tomorrow && leaves < now.min, morrow: (!!lastAve && t !== lastAve) || t === morrow || (picked && t === a),
     day: t === lastAve ? now.date : nextDay || t === morrow ? addDays(now.date, 1) : now.date,
     ...(t === a && lv ? { live: lv } : {}) }));
-  // the big train links to Renfe's search for its trip and day (the AVE's trip ends at Camp de Tarragona); its stops
+  // the big train links to Renfe's search for its trip and day (a trip from the other station ends there); its stops
   // are counted in a phone's sheet and drawn on a desktop's board
-  const ends = isAve ? (ida ? [v.station, CAMP] : [CAMP, v.station]) : ida ? [v.station, v.town] : [v.town, v.station];
+  const ends = isAve ? (ida ? [v.station, alt] : [alt, v.station]) : ida ? [v.station, v.town] : [v.town, v.station];
   // Renfe opens the day's list, not the train: a cancelled or departed one has nothing to buy (12-10, option A)
   const buy = cancelled || (!tomorrow && leaves < now.min) ? '' : buyUrl(ends[0], ends[1], day, a[0]);
   const stops = stopsBetween(day, a[2], ends[0], ends[1]), bus = isAve ? null : busLeg(day, a[2], ends[0], ends[1]);
-  const there = isAve ? 'Camp de Tarragona' : townName;
+  const there = isAve ? altName : townName, fast = a[3] === FAST;
   // «Recorda» (04-11, option A): into the visitor's calendar with an alarm 15 min before, at the time it now leaves;
   // a train leaving sooner than that, gone or cancelled, has nothing to remind
   const remind = cancelled || (!tomorrow && leaves < now.min + REMIND) ? '' : remindUrl({ d: day, s: leaves,
-    a: late ? late.arr : a[1], l: isAve ? 'AVE' : a[3], o: ida ? bcn : there, x: ida ? there : bcn });
+    a: late ? late.arr : a[1], l: a[3], o: ida ? bcn : there, x: ida ? there : bcn });
   // a late train is where its delay puts it: the timetable's place that many minutes ago
   const where = day === now.date ? whereNow(now.min - (late?.min ?? 0), [[ends[0], a[0]], ...(stops ?? []), [ends[1], a[1]]]) : null;
   const trip: Trip = { line: a[3], from: ida ? bcn : there, to: ida ? there : bcn, dep: hhmm(a[0]), arr: hhmm(a[1]),
     when: tomorrow ? 'Demà' : cancelled ? 'Cancel·lat' : leaves < now.min ? 'Ja ha sortit' : leaves === now.min ? 'Surt ara' : `Surt en ${dur(leaves-now.min)}`, length: dur(a[1]-a[0]),
     stops: stops?.length ?? null, buy, remind,
-    ave: isAve ? (ida ? `L’AVE no arriba ${atPlace(townName)}: baixa a Camp de Tarragona.` : `L’AVE no surt ${ofPlace(townName)}: surt de Camp de Tarragona.`) : '',
-    home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(late ? late.arr : a[1]), tomorrow), news: lineNews(avisos, a[3], isAve), where,
+    ave: isAve ? (ida ? `Aquest tren no arriba ${atPlace(townName)}: baixa ${atPlace(altName)}.` : `Aquest tren no surt ${ofPlace(townName)}: surt ${ofPlace(altName)}.`) : '',
+    home: homeText(a[3], ida ? bcn : there, hhmm(a[0]), ida ? there : bcn, hhmm(late ? late.arr : a[1]), tomorrow), news: lineNews(avisos, a[3], fast), where,
     bus: bus && { first: bus.first, stop: bus.stop, words: bus.first
       ? `En autobús fins ${atPlace(NET.estaciones[bus.stop]?.nombre ?? bus.stop)} (arriba a les ${hhmm(bus.arrives)}). Allà, el tren de les ${hhmm(bus.leaves)}.`
       : `En tren fins ${atPlace(NET.estaciones[bus.stop]?.nombre ?? bus.stop)} (arriba a les ${hhmm(bus.arrives)}). Allà, l’autobús de les ${hhmm(bus.leaves)}.` },
     live: late ? `Amb ${late.min} min de retard: surt cap a les ${hhmm(late.dep)} i arriba cap a les ${hhmm(late.arr)}.` : lv?.kind === 'unknown' ? 'Retard: sense dades en directe encara.' : '' };
   // what a screen reader hears: the train, only when it changes (never the countdown's refresh)
-  const sFrom = isAve ? (ida ? bcn : 'Camp de Tarragona') : from, sTo = isAve ? (ida ? 'Camp de Tarragona' : `Barcelona ${bcn}`) : to;
-  const say = `${picked ? 'Tren triat, demà' : tomorrow ? 'Avui ja no queden trens. El primer de demà' : v.useNow ? 'Pròxim tren' : 'Tren triat'}: ${hhmm(a[0])}, ${isAve ? 'AVE ' : ''}${ofPlace(sFrom)} ${atPlace(sTo)}${cancelled ? ', cancel·lat' : late ? `, amb ${late.min} min de retard: surt cap a les ${hhmm(late.dep)}; arriba a les ${hhmm(late.arr)}` : `; arriba a les ${hhmm(a[1])}`}.${bus ? ' ' + cap(busWords(bus)) + '.' : ''}`;
+  const sFrom = isAve ? (ida ? bcn : altName) : from, sTo = isAve ? (ida ? altName : `Barcelona ${bcn}`) : to;
+  const say = `${picked ? 'Tren triat, demà' : tomorrow ? 'Avui ja no queden trens. El primer de demà' : v.useNow ? 'Pròxim tren' : 'Tren triat'}: ${hhmm(a[0])}, ${fast ? 'AV ' : ''}${ofPlace(sFrom)} ${atPlace(sTo)}${cancelled ? ', cancel·lat' : late ? `, amb ${late.min} min de retard: surt cap a les ${hhmm(late.dep)}; arriba a les ${hhmm(late.arr)}` : `; arriba a les ${hhmm(a[1])}`}.${bus ? ' ' + cap(busWords(bus)) + '.' : ''}`;
   return { kind: 'train', key: a[0] + v.dir + isAve + v.town + v.station + day + (lv?.kind ?? ''), say,
     label: picked ? '' : lastAve ? 'Avui ja no queden regionals' : tomorrow ? 'Avui ja no en queden · demà' : '', note,
-    knob: tomorrow && !picked ? null : a[0], valuetext: picked ? `${isAve ? 'AVE' : 'tren'} de demà de les ${hhmm(a[0])}` : tomorrow ? 'avui ja no queden trens' : `${isAve ? 'AVE' : 'tren'} de les ${hhmm(a[0])}`,
+    knob: tomorrow && !picked ? null : a[0], valuetext: picked ? `${fast ? 'AV' : 'tren'} de demà de les ${hhmm(a[0])}` : tomorrow ? 'avui ja no queden trens' : `${fast ? 'AV' : 'tren'} de les ${hhmm(a[0])}`,
     light: tomorrow ? a[0] : start, day,
-    // the ruler has one mark: the knob always stands on the train shown (every tick is a train, the AVE like the rest)
+    // the ruler has one mark: the knob always stands on the train shown (every tick is a train, the fast ones like the rest)
     ruler: seen.map(({t, ave:w}) => ({dep: t[0], ave: w, on: (picked || !tomorrow) && w === isAve && t[0] === a[0]})), tomorrow: picked,
-    ave: isAve, rows, buy, remind, stops, trip, where, bus, lines: [...new Set(rows.filter(r => !r.ave).map(r => r.line))] };
+    ave: isAve, rows, buy, remind, stops, trip, where, bus, lines: [...new Set(rows.filter(r => r.line !== FAST).map(r => r.line))] };
 }
 
 // the day sheet pressed, «avui» or «demà»: the day of the train shown (Àlex 19-10), so that at night, with tomorrow's

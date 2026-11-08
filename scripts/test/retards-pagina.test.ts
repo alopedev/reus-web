@@ -121,6 +121,15 @@ test('an AVE by its number, from the AVE part of the answer', async () => {
   assert.deepEqual(retards.train('03062'), { estat: 'sense' });
 });
 
+// every fast train (AV, 08-11) comes in Renfe's long-distance feed, whatever Renfe sells it as: an Avant, an Alvia
+test('an Avant by its number, from the same long-distance part of the answer', async () => {
+  const t = { next: { ...answer(-20, TRENS), ave: { '34609': { estat: 'circula', retard: 6, parada: '79300' } } } };
+  const retards = createRetards(() => {}, { ask: async () => t.next, clock: () => T0, wait: () => () => {}, hidden: () => false,
+    trenes: [{ n: '34609', p: 'AV' }, { n: '17505', p: 'R15' }] });
+  retards.follow(); await new Promise(r => setTimeout(r, 0));
+  assert.deepEqual(retards.train('34609'), { estat: 'circula', retard: 6, parada: '79300' });
+});
+
 test('the long-distance feed failed, or an answer from before the AVE was read: the AVE unknown, never on time', async () => {
   for(const ave of [null, undefined]){
     const { t, retards, follow } = setup();
