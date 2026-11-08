@@ -45,3 +45,41 @@ test('nor a newer build\'s page that only changed its styles', async () => {
   await w.visit();
   assert.equal(w.kept.has('./'), false);
 });
+
+// every Rodalies town's file (08-11): not on install, but kept the first time the page fetches it, and given back
+// without a connection; one the last build kept and this one still lists comes along on install
+const PART = '/assets/rodalies-79500-abc.json';
+function partsWorker(old: Map<string, string>){
+  const listeners: Record<string, (e: unknown) => void> = {}, kept = new Map<string, string>(), net = { up: true, asked: 0 };
+  const store = (m: Map<string, string>) => ({ put: async (k: { url: string } | string, r: Response) => { m.set(typeof k === 'string' ? k : new URL(k.url).pathname, await r.text()); },
+    match: async (k: { url: string }) => m.has(new URL(k.url).pathname) ? new Response(m.get(new URL(k.url).pathname)) : undefined,
+    addAll: async () => {}, keys: async () => [...m.keys()].map(p => ({ url: 'https://capacasa.alope.dev' + p })) });
+  const caches = { open: async (k: string) => k === 'capacasa-v1' ? store(kept) : store(old), keys: async () => ['capacasa-v0', 'capacasa-v1'], match: async () => undefined };
+  const self = { addEventListener: (type: string, fn: (e: unknown) => void) => { listeners[type] = fn; }, skipWaiting() {}, clients: { claim() {} } };
+  const source = readFileSync('src/sw.js', 'utf8').replace('self.__FILES__', JSON.stringify(FILES)).replace('self.__PARTS__', JSON.stringify([PART])).replace('self.__VERSION__', '"v1"');
+  runInNewContext(source, { self, caches, location: { origin: 'https://capacasa.alope.dev' }, URL, Response, Promise, setTimeout,
+    fetch: async () => { net.asked++; if(!net.up) throw new Error('offline'); return new Response('{"t":[]}'); } });
+  async function get(path: string){
+    let answer: Promise<Response> | undefined;
+    listeners.fetch({ request: { method: 'GET', mode: 'cors', url: 'https://capacasa.alope.dev' + path }, respondWith: (p: Promise<Response>) => { answer = p; } });
+    return answer && (await answer).text();
+  }
+  async function install(){ let done: Promise<unknown> | undefined; listeners.install({ waitUntil: (p: Promise<unknown>) => { done = p; } }); await done; }
+  return { get, install, kept, net };
+}
+
+test('a town\'s Rodalies file is not kept on install, but once fetched, and it opens without a connection', async () => {
+  const w = partsWorker(new Map());
+  await w.install();
+  assert.equal(w.kept.has(PART), false);
+  assert.equal(await w.get(PART), '{"t":[]}');
+  w.net.up = false;
+  assert.equal(await w.get(PART), '{"t":[]}');
+  assert.equal(w.net.asked, 1);
+});
+test('a town file the last build kept comes along to the new one, if it still has it', async () => {
+  const w = partsWorker(new Map([[PART, '{"t":[1]}'], ['/assets/rodalies-79606-old.json', '{}']]));
+  await w.install();
+  assert.equal(w.kept.get(PART), '{"t":[1]}');
+  assert.equal(w.kept.has('/assets/rodalies-79606-old.json'), false);
+});

@@ -33,10 +33,14 @@ test('the function answers the train as a file the phone opens as an event to ad
 
 test('a train not shaped like one is a 400, never an event: the address is anyone\'s to write', async () => {
   for(const bad of [{}, { ...R15, d: '6-11-2026' }, { ...R15, s: 'x' }, { ...R15, a: 1000 }, { ...R15, s: 3000, a: 3100 },
-    { ...R15, l: 'R2' }, { ...R15, o: '' }, { ...R15, x: 'a'.repeat(61) }, { ...R15, o: 'Sants\r\nATTACH:http://x' }]){
+    { ...R15, l: 'R9' }, { ...R15, l: 'R2X' }, { ...R15, o: '' }, { ...R15, x: 'a'.repeat(61) }, { ...R15, o: 'Sants\r\nATTACH:http://x' }]){
     const res = await ask(bad);
     assert.equal(res.status, 400, JSON.stringify(bad));
   }
+});
+
+test('every Rodalies line the site shows is a train too (08-11): R1, R2 Nord, R2 Sud, R4', async () => {
+  for(const l of ['R1', 'R2', 'R2N', 'R2S', 'R4']) assert.equal((await ask({ ...R15, l, x: 'Mataró' })).status, 200, l);
 });
 
 test('a fast train (AV) and a train after midnight: DTEND the next day', async () => {

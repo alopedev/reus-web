@@ -2,7 +2,9 @@
 // run, Rodalies de Catalunya included, in two GTFS-RT feeds refreshed every 20 s (CC BY 4.0), but without CORS, so the
 // page cannot read them itself. This function reads both and answers, per train number, how late a running regional
 // is. The only place that knows the URLs
-const LINES = ['R11', 'R13', 'R14', 'R15', 'R16', 'R17'];
+// the regionals, and since 08-11 every other Rodalies line (the site serves anyone who lives in Catalonia); the feed
+// writes R2 Nord and R2 Sud as «R2N» and «R2S»
+const LINES = ['R1', 'R2', 'R2N', 'R2S', 'R3', 'R4', 'R7', 'R8', 'R11', 'R13', 'R14', 'R15', 'R16', 'R17'];
 const TRIPS = 'https://gtfsrt.renfe.com/trip_updates.json', VEHICLES = 'https://gtfsrt.renfe.com/vehicle_positions.json';
 // the AVE's delays (04-11): Renfe's long-distance feed, the same licence and also without CORS
 const LD = 'https://gtfsrt.renfe.com/trip_updates_LD.json';
@@ -34,7 +36,7 @@ const todayLetter = (): string => LETTER[['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fr
 export function read(trips: Feed, vehicles: Feed, day: string = todayLetter()): Answer {
   const number = new Map<string, { n: string, andana?: string }>();
   for(const e of vehicles.entity ?? []){
-    const id = e.vehicle?.trip?.tripId, m = e.vehicle?.vehicle?.label?.match(/^(R\d+)-(\d+)(?:-PLATF\.\((\w+)\))?/);
+    const id = e.vehicle?.trip?.tripId, m = e.vehicle?.vehicle?.label?.match(/^(R\d+[NS]?)-(\d+)(?:-PLATF\.\((\w+)\))?/);
     if(id && m && LINES.includes(m[1])) number.set(id, { n: m[2], ...(m[3] ? { andana: m[3] } : {}) });
   }
   const trens: Record<string, Train> = {}, cancelats: string[] = [];
@@ -42,7 +44,7 @@ export function read(trips: Feed, vehicles: Feed, day: string = todayLetter()): 
     const u = e.tripUpdate, id = u?.trip?.tripId ?? '', v = number.get(id);
     const cancelled = u?.trip?.scheduleRelationship === 'CANCELED';
     if(u && !v && cancelled){
-      const m = id.match(/^\d{4}([A-Z])(\d+)(R\d+)$/);
+      const m = id.match(/^\d{4}([A-Z])(\d+)(R\d+[NS]?)$/);
       if(m && m[1] === day && LINES.includes(m[3])) cancelats.push(m[2]);
     }
     if(!u || !v) continue;

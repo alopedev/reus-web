@@ -41,14 +41,14 @@ export function ics(t: Train): string {
 }
 
 // the address is anyone's to write: only a train shaped like one becomes an event. A day, two minutes of that day or
-// the next (s before a), a regional line or a fast train (AV; AVE from a page open since before 08-11), and two names of letters (the stations' own, «Camp-redó»,
+// the next (s before a), a Rodalies or regional line (R1…R8, R2N, R2S, R11…R17) or a fast train (AV; AVE from a page open since before 08-11), and two names of letters (the stations' own, «Camp-redó»,
 // «L'Hospitalet de l'Infant»): no line break can reach the file
 const NAME = /^\p{L}[\p{L} '’.·()-]{0,59}$/u;
 export function parse(q: URLSearchParams): Train | null {
   const d = q.get('d') ?? '', l = q.get('l') ?? '', o = q.get('o') ?? '', x = q.get('x') ?? '';
   const [s, a] = ['s', 'a'].map(k => /^\d{1,4}$/.test(q.get(k) ?? '') ? Number(q.get(k)) : NaN);
   const ok = /^\d{4}-\d\d-\d\d$/.test(d) && !isNaN(Date.parse(d)) && s >= 0 && a > s && a < 2880
-    && /^(R1[1-7]|AVE?)$/.test(l) && NAME.test(o) && NAME.test(x);
+    && /^(R1[1-7]|R[1-8][NS]?|AVE?)$/.test(l) && NAME.test(o) && NAME.test(x);
   return ok ? { d, s, a, l, o, x } : null;
 }
 
