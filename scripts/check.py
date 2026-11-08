@@ -354,9 +354,11 @@ async def check_wash(page, name):
         await at(f)
         seen[f] = await steady_reading(page, [near, far], wall=True)
         if await page.evaluate("+getComputedStyle(document.getElementById('sombra')).opacity > 0"): errs.append(f"the flat #sombra veil darkens the wall at {f:.0%} although WebGL paints it")
-    if not seen[.3][0] < base[0] - 8: errs.append(f"no wash at the hinge at 30% ({base[0]:.0f} → {seen[.3][0]:.0f})")
+    # the wash darkens by a share of the colour under it: on a dark spot (the carriage's floor at night) 8 levels is a lot
+    darker = lambda now, was: now < was - 8 or now < .75 * was
+    if not darker(seen[.3][0], base[0]): errs.append(f"no wash at the hinge at 30% ({base[0]:.0f} → {seen[.3][0]:.0f})")
     if abs(seen[.3][1] - base[1]) > 10: errs.append(f"the wash already covers the top of the wall at 30% ({base[1]:.0f} → {seen[.3][1]:.0f})")
-    if not seen[.7][1] < base[1] - 8: errs.append(f"the wash does not climb the wall: its top is still bare at 70% ({base[1]:.0f} → {seen[.7][1]:.0f})")
+    if not darker(seen[.7][1], base[1]): errs.append(f"the wash does not climb the wall: its top is still bare at 70% ({base[1]:.0f} → {seen[.7][1]:.0f})")
     if await page.evaluate("getComputedStyle(document.querySelector('.stage')).filter") == "none": errs.append("the texts on the wall do not dim with the wash at 70%")
     await at(0)
     back = await steady_reading(page, [near, far])
@@ -1110,7 +1112,8 @@ async def check_still_window(browser):
         img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB"); await page.close()
         pa, pb = [[sum(img.getpixel((int(x) + i, int(y) + j))[c] for i in range(-2, 3) for j in range(-2, 3)) / 25 for c in range(3)] for x, y in (a, b)]
         d = sum((u - v) ** 2 for u, v in zip(pa, pb)) ** .5
-        if d < 60: errs.append(f"{name}: the still frame's window is not where #win is (wall above it and sky inside differ by only {d:.0f})")
+        # the carriage's grey wall (07-11) is nearer the sky's colour than the brown one was: 40 to 60 apart at 10:00
+        if d < 30: errs.append(f"{name}: the still frame's window is not where #win is (wall above it and sky inside differ by only {d:.0f})")
     return errs
 
 # phones held sideways: short and wide, a desktop's proportions without its height
@@ -1151,6 +1154,33 @@ async def check_landscape(browser):
                 if not b or b["y"] < 0 or b["y"] + b["height"] > h: errs.append(f"{name}: {sel} cannot be reached in the train's sheet")
         await page.close()
     return errs
+
+async def check_carriage(browser):
+    """The carriage built in 3D (Àlex, 07-11; src/room.ts, src/carriage.ts) leaves no hole in the wall at any size
+    and, by day and at night, covers the window only where it should: on a wide screen, nothing (the seats stand either
+    side of it); on a phone and any screen without room at its sides, our seat alone over the window's lower-left
+    corner, a small part of it. `reus.vagon()` reads the carriage's own render: what of the window an opaque surface
+    covers, and what of the rest is not covered by the wall."""
+    errs = []
+    sizes = {**SIZES, **LANDSCAPE}
+    for at, when in [("2026-09-28T08:00:00Z", "day"), ("2026-09-28T21:00:00Z", "night")]:
+        for name, (w, h) in sizes.items():
+            phone = name in LANDSCAPE or w < 500
+            page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce", is_mobile=phone, has_touch=phone)
+            errors = []
+            page.on("pageerror", lambda e: errors.append(str(e)))
+            await page.clock.set_fixed_time(at)
+            await page.goto(page_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1500)
+            v = await page.evaluate("window.reus.vagon ? reus.vagon() : null")
+            await page.close()
+            errs += [f"{name} {when}: JS error: {e}" for e in errors]
+            if not v: errs.append(f"{name} {when}: reus.vagon() gives nothing (no carriage built)"); continue
+            if v["gaps"] > .0002: errs.append(f"{name} {when}: {v['gaps']:.2%} of the wall is missing around the window")
+            if v["seats"] and v["over"] > 0: errs.append(f"{name} {when}: a seat covers {v['over']:.2%} of the window on a wide screen")
+            if not v["seats"] and not 0 < v["over"] <= CARRIAGE_OVER: errs.append(f"{name} {when}: our seat covers {v['over']:.2%} of the window, expected some and at most {CARRIAGE_OVER:.0%}")
+    return errs
+
+CARRIAGE_OVER = .15   # our seat over the window's corner on a phone
 
 async def check_sizes(browser):
     """Layout at every size, read straight from the page, no waiting for the painting, on the day's timetable
@@ -1841,7 +1871,9 @@ async def board_painted(page, label):
     await page.evaluate("document.head.lastElementChild.remove()")
     off = painted_edges(shot, s["rect"])
     if any(v is None for v in off.values()): errs.append(f"{label}: the wall does not paint the board under the name (edges found: {off})")
-    elif any(abs(v) > 3 for v in off.values()): errs.append(f"{label}: the painted board is off its box by {off} px")
+    # under the board the luggage rack's rail may run (the carriage, 07-11): dark below the box is the rack, not the board;
+    # a board painted lower would move its top too
+    elif any(abs(v) > 3 for k, v in off.items() if k != "bottom") or off["bottom"] > 3: errs.append(f"{label}: the painted board is off its box by {off} px")
     return errs
 
 async def check_board_painted(browser):
@@ -3321,7 +3353,13 @@ async def check_paper_motion(browser):
             # the arrows cross the two ends over to their new places, one over and one under
             for turn in range(2):
                 await page.evaluate(REC)
-                await tap_at(page, ".tk .swap"); await page.wait_for_timeout(700)
+                await tap_at(page, ".tk .swap")
+                # on a slow runner the swap can hold the page's thread for seconds (in desktop it may move the window,
+                # and the carriage, 07-11, is repainted in software): wait for the two ends to start, not a fixed time
+                if motion != "reduce":
+                    try: await page.wait_for_function("window.__rec.filter(r => r.name === 'creua').length >= 2", timeout=10000)
+                    except Exception: pass
+                await page.wait_for_timeout(700)
                 cr = [r for r in await page.evaluate("window.__rec") if r["name"] == "creua"]
                 when = f"{where}, the arrows ({turn + 1})"
                 if motion == "reduce":
@@ -3337,6 +3375,8 @@ async def check_paper_motion(browser):
                 await tap_at(page, f".tk .end.{end}"); await page.wait_for_timeout(700)
                 await page.evaluate(REC)
                 for sel in steps:
+                    try: await page.wait_for_selector(sel, timeout=10000)
+                    except Exception: pass
                     if not await tap_at(page, sel): errs.append(f"{where}, picking from .end.{end}: no {sel} to press"); break
                     await page.wait_for_timeout(800)
                 # the stamp comes once the sheet has gone: on a slow runner, painted in software, it can take longer
@@ -3670,6 +3710,9 @@ async def main():
             failures += [f"horitzontal: {e}" for e in await check_landscape(browser)]
             failures += [f"mesa: {e}" for e in await check_things_clear(browser)]
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · datos"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["vagon"]:
+            failures += await check_carriage(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · vagon"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["a11y"]:
             failures += await check_a11y(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · a11y"); sys.exit(1 if failures else 0)
@@ -3721,6 +3764,7 @@ async def main():
         failures += await check_still_idle(browser)
         failures += await check_sizes(browser)
         failures += await check_landscape(browser)
+        failures += [f"vagon: {e}" for e in await check_carriage(browser)]
         failures += [f"compartir: {e}" for e in check_share()]
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
         failures += [f"abast: {e}" for e in await check_reach(browser) + await check_remember(browser)]

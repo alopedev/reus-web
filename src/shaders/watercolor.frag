@@ -1,6 +1,8 @@
 precision highp float;
-uniform sampler2D tScene; uniform vec2 res, sres; uniform float tq, reveal, aspect, waspect, hor, wrad, seats, foldY, shade;
-uniform vec3 skyTop, skyHor, sunCol, wallA, wallB, wood, seat; uniform vec2 sunPos; uniform float sunA; uniform vec4 win; uniform float wx; uniform vec4 brd; uniform float washAll;
+uniform sampler2D tScene; uniform vec2 res, sres; uniform float tq, reveal, aspect, waspect, hor, wrad, foldY, shade;
+uniform vec3 skyTop, skyHor, sunCol, wood; uniform vec2 sunPos; uniform float sunA; uniform vec4 win; uniform float wx; uniform vec4 brd; uniform float washAll;
+// the carriage (room.ts): as rendered (its alpha), painted (room.frag), and the paper's factor; overWin: a seat over the window
+uniform sampler2D tRoom, tRoomP, tPaper; uniform float overWin;
 varying vec2 vUv;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
@@ -78,14 +80,14 @@ void main(){
 void main(){
   vec2 uv = vUv, t2 = vec2(tq);
   float t = tq;
-  vec2 P = uv*vec2(aspect,1.);
   vec2 wc = (win.xy+win.zw)*.5, wh = (win.zw-win.xy)*.5;
   vec2 wobble = (vec2(fbm(uv*vec2(16.,11.)+3.), fbm(uv*vec2(12.,17.)-5.))-.5)*.006;   // hand-painted edges
   float sdW = sdRR((uv+wobble-wc)*vec2(aspect,1.), wh*vec2(aspect,1.), wrad);
-  float fw = .022;
   vec3 col; float edge = 0., pen = 0., order;
 
-  if(sdW < 0.){
+  // on a phone our seat stands in front of the window's lower-left corner (overWin): there the carriage is painted
+  bool ahead = overWin > .5 && texture2D(tRoom, uv).a > .95;
+  if(sdW < 0. && !ahead){
     vec2 w = (uv - win.xy)/(win.zw - win.xy);
     float e;
     col = outside(w, t, e, pen);
@@ -111,30 +113,14 @@ void main(){
     }
     order = .45 + (w.y > hor ? (1.-w.y)/(1.-hor)*.24 : .24 + (hor-w.y)/hor*.3) + (fbm(w*vec2(3.,4.)+3.1)-.5)*.25;
   } else {
-    // the carriage wall, lit by the window
-    float y = uv.y;
-    float dado = win.y - .07;
-    vec3 wall = mix(wallB, wallA, smoothstep(dado-.004, dado+.004, y + wobble.y));
-    wall *= .9 + .12*smoothstep(1., .55, y);                         // shadow under the luggage rack
-    float glow = exp(-max(sdW,0.)*7.);
-    wall = mix(wall, wall*(1.-0.3) + skyHor*.45, glow*.35);             // daylight spilling onto the wall
-    wall *= .82 + .18*smoothstep(0.,.35,uv.x)*smoothstep(1.,.65,uv.x); // corners fall into shade
-    wall *= mix(.66, 1., smoothstep(0., .24, y));                     // the foot of the wall, furthest from the window, in shadow
-    col = wall;
-    // panelling on the lower wall
-    float seam = ring(fract(P.x*3.2)-.5, .004) * step(y, dado);
-    col = mix(col, col*.8, seam*.6);
-    // rail and shelf under the window
-    float rail = ring(y-dado, .006);
-    col = mix(col, wood, rail);
-    float shelfSd = sdRR((uv+wobble-vec2(wc.x, win.y-.032))*vec2(aspect,1.), vec2(wh.x*aspect+.05, .011), .006);
-    float shelf = 1.-smoothstep(0.,.003,shelfSd);
-    col = mix(col, mix(wood, wood*1.35, smoothstep(-.011,.004,(uv.y-(win.y-.032)))), shelf);
-    // window frame: a thick wooden surround with a lit inner lip
-    float frame = 1.-smoothstep(fw-.002, fw, sdW);
-    vec3 fcol = mix(wood*1.25, wood*.75, smoothstep(0., fw, sdW));
-    col = mix(col, fcol, frame);
-    col = mix(col, col*.7, ring(sdW-fw, .006)*.8);                     // shadow cast by the frame
+    // the carriage wall: the carriage built in 3D (room.ts), painted with brush strokes (room.frag), the brush
+    // wandering a little; only its own edges, so nothing under a seat shows through
+    vec2 wob = (vec2(fbm(uv*vec2(14.,10.)+1.), fbm(uv*vec2(10.,15.)-2.))-.5)*.004;
+    vec4 rp = texture2D(tRoomP, uv + wob);
+    col = mix(vec3(dot(rp.rgb, vec3(.3,.55,.15))), rp.rgb, .9);
+    col *= mix(.7, 1., smoothstep(0., .24, uv.y));                    // the foot of the wall in shadow: the ruler reads over it
+    edge = rp.a*.7;
+    pen = smoothstep(.5, 1., rp.a)*.3;
     // the name's split-flap board (.tauler), painted on the wall like the window and the seats (Àlex, 10-10): a dark
     // panel with a soft shadow, and eight cells with their hinge. Its geometry in em, as hero.css lays it out:
     // 8.58 × 1.58 em overall, the cells 0.97 × 1.32 em every 1.05 em, starting 0.13 em in (padding + border)
@@ -155,17 +141,6 @@ void main(){
       col = mix(col, vec3(.08,.065,.055), ring(ye-.66, .025)*inC);        // the hinge
       edge += ring(sdB, .003)*.5 + ring(sdc, .03)*.35*inB;
     }
-    // seats, only where there is room at the sides
-    if(seats > .5){
-      vec2 q = vec2(min(uv.x, 1.-uv.x)*aspect, uv.y);
-      float sdS = sdRR(q - vec2(.02, .28), vec2(.2, .4), .09) + (fbm(uv*9.)-.5)*.02;
-      float sm = 1.-smoothstep(0.,.004,sdS);
-      vec3 sc = seat*(.85+.3*smoothstep(.1,.6,uv.y)) + skyHor*.06*glow;
-      sc = mix(sc, sc*.65, ring(uv.y-.44, .004));                       // cushion seam
-      col = mix(col, sc, sm);
-      edge += ring(sdS, .006)*.6;
-    }
-    edge += ring(sdW-fw, .005)*.5 + ring(y-dado, .005)*.3 + ring(shelfSd,.005)*.5;
     order = (1.-uv.y)*.25 + (fbm(uv*vec2(3.,2.)+7.)-.5)*.3;
   }
 
@@ -184,11 +159,12 @@ void main(){
   float front = wet*(1.-wet)*4.;
   vec3 A = 1. - col;
   A *= .86 + .3*fbm(uv*vec2(3.5,2.5)*vec2(aspect,1.)+11.);
-  A *= 1. + (noise(uv*sres*.4)-.5)*(sdW<0.?.35:.18)*smoothstep(.1,.6,dot(A,vec3(.333)));
+  A *= 1. + (noise(uv*sres*.4)-.5)*(sdW<0.&&!ahead?.35:.18)*smoothstep(.1,.6,dot(A,vec3(.333)));
   A *= 1. + edge*.4;
   A *= mix(.25, 1., wet) * (1. + front*.9) * step(.001, wet+front);
   vec3 paper = vec3(.94,.93,.90) * (.965 + .06*fbm(uv*sres*.09));
   vec3 c = paper * (1. - clamp(A,0.,1.));
+  if(sdW >= 0. || ahead) c *= texture2D(tPaper, uv).r + .5;          // the paper's tooth and the wall's broad washes (room.frag)
   c *= 1. - pen*wet*vec3(.62,.6,.55);
   gl_FragColor = vec4(c, 1.);
 }
