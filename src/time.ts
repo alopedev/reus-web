@@ -12,48 +12,31 @@ export interface Network {
 
   dias: Record<string, number[]>;
 }
-export const SANTS = '71801', REUS = '71400', CAMP = '04104';
-// red.json carries every fast train between Barcelona and a Catalan station (line AV; the AVE keeps AVE for now,
-// scripts/extract_red.py fast_p). Until the web shows them (Àlex picks how they look first), it sees what it saw
-// before: only the AVE (and Avlo) between Sants and Camp de Tarragona, with just those two stops, and only the
-// stations some remaining train calls at, each with the lines that still call there
-export function asBefore(net: Network): Network {
-  const keep = net.trenes.map((t): NetTrain | null => {
-    if(t.p === 'AV') return null;
-    if(t.p !== 'AVE' && t.p !== 'AVLO') return t;
-    const s = t.s.filter(x => x[0] === SANTS || x[0] === CAMP);
-    return s.length === 2 ? { ...t, s } : null;
-  });
-  const index = new Map<number, number>(), trenes: NetTrain[] = [];
-  keep.forEach((t, i) => { if(t){ index.set(i, trenes.length); trenes.push(t); } });
-  const dias = Object.fromEntries(Object.entries(net.dias).map(([d, xs]) => [d, xs.flatMap(i => index.has(i) ? [index.get(i)!] : [])]));
-  const lines = new Map<string, Set<string>>();
-  for(const t of trenes) for(const [id] of t.s){ let l = lines.get(id); if(!l) lines.set(id, l = new Set()); l.add(t.p); }
-  const estaciones: Network['estaciones'] = {};
-  for(const [id, st] of Object.entries(net.estaciones)){
-    if(!lines.has(id)) continue;
-    estaciones[id] = id === CAMP || !st.lineas ? st : { ...st, lineas: [...lines.get(id)!].sort() };
-  }
-  return { ...net, estaciones, trenes, dias };
-}
+export const SANTS = '71801', REUS = '71400', CAMP = '04104', VILAFANT = '04307';
 // exported so towns.ts can build the chooser's groups from the same parsed network, without reading red.json twice
-export const NET = asBefore(red as unknown as Network);
+export const NET = red as unknown as Network;
 // the Barcelona end of the trip (3.5): Sants first, the default. El Clot left out (Àlex, 05-10: nobody asks for it)
 // `short` is the name on the ticket, where «Passeig de Gràcia» does not fit (Àlex, 06-10); everywhere else, `name`
 export const BCN: {id: string, name: string, short: string}[] = [{id:SANTS, name:'Sants', short:'Sants'},
   {id:'71802', name:'Passeig de Gràcia', short:'Gràcia'}, {id:'79400', name:'França', short:'França'}];
 export const bcnName = (id: string): string => BCN.find(s => s.id === id)?.name ?? 'Sants';
 export const bcnShort = (id: string): string => BCN.find(s => s.id === id)?.short ?? 'Sants';
-// towns for which the AVE from Camp de Tarragona is a real alternative to the regional (about 35 min instead of 1 h 40 min)
-const AVE_COMARCAS = new Set(['Baix Camp', 'Tarragonès']);
-export const hasAve = (town: string): boolean => AVE_COMARCAS.has(NET.estaciones[town]?.comarca ?? '');
+// the fast trains (line AV: AVE, Avant, Alvia, Euromed, Intercity; Àlex, 08-11) are direct trains like any other where
+// they call at the town (Girona, Lleida, L'Aldea…). A few towns also have them at another station, a real alternative
+// to the regional: Camp de Tarragona for Baix Camp and Tarragonès (about 35 min instead of 1 h 40 min), Figueres-
+// Vilafant, 2 km from the R11's, for Figueres. `altOf` names that station, null for every other town
+export const FAST = 'AV';
+const ALT_COMARCAS = new Set(['Baix Camp', 'Tarragonès']);
+const FIGUERES = '79309';
+export const altOf = (town: string): string | null =>
+  town === FIGUERES ? VILAFANT : ALT_COMARCAS.has(NET.estaciones[town]?.comarca ?? '') ? CAMP : null;
 // who the data comes from and when it was updated: Renfe's licence asks for both
 export const source = { fuente: NET.fuente, actualizado: NET.actualizado };
 
-// a train: departure and arrival in minutes after midnight, its number and its line (R11…R17, AVE, AVLO)
+// a train: departure and arrival in minutes after midnight, its number and its line (R11…R17, AV)
 export type Train = [dep: number, arr: number, id: string, line: string];
-// one day's timetable: r Sants → Reus, b Reus → Sants; ar/ab the AVE Sants → Camp de Tarragona and back (only for
-// the towns it serves)
+// one day's timetable: r Sants → the town, b the town → Sants, regionals and fast trains; ar/ab the fast trains to and
+// from the town's other station (altOf: Camp de Tarragona, Figueres-Vilafant), only for the towns that have one
 export interface DayTimetable { r: Train[]; b: Train[]; ar: Train[]; ab: Train[] }
 
 // the direct trains of a day from one station to another: the same train stops at `from` and later at `to`
@@ -122,8 +105,10 @@ export const dur = (m: number): string => { if(m<1) return 'ara'; const h=Math.f
 export function dayData(iso: string, town: string, station: string = SANTS): {d: DayTimetable, exact: boolean} {
   const kind = (x: string) => { const w = weekday(x); return w===6 ? 6 : w===0 ? 0 : 1; };
   const exact = iso in NET.dias, day = exact ? iso : Object.keys(NET.dias).sort().reverse().find(x => kind(x)===kind(iso))!;
-  const ave = hasAve(town);
-  return {d:{r:direct(day, station, town), b:direct(day, town, station), ar:ave ? direct(day, station, CAMP) : [], ab:ave ? direct(day, CAMP, station) : []}, exact};
+  const alt = altOf(town), r = direct(day, station, town), b = direct(day, town, station);
+  // a fast train that calls at the town itself is already in r/b
+  const elsewhere = (from: string, to: string, own: Train[]) => direct(day, from, to).filter(t => t[3] === FAST && !own.some(x => x[2] === t[2]));
+  return {d:{r, b, ar:alt ? elsewhere(station, alt, r) : [], ab:alt ? elsewhere(alt, station, b) : []}, exact};
 }
 // the last day the timetable covers
 export const firstDay = (): string => Object.keys(NET.dias).sort()[0];

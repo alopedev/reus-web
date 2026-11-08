@@ -6,19 +6,19 @@ Rules checked:
      Operadora», actualizado (an ISO date), estaciones, trenes and dias.
   2. dias covers at least 14 consecutive days from actualizado; every index it lists
      points to an existing train.
-  3. Every train: n is non-empty, p is one of R11/R13/R14/R15/R16/R17/AV/AVE/AVLO, it has
+  3. Every train: n is non-empty, p is one of R11/R13/R14/R15/R16/R17/AV, it has
      at least 2 stops, every stop's stop_id is in estaciones, arrival <= departure at
      each stop, and times never go backwards along s.
   4. Every train touches at least one Barcelona station (71801, 71802, 79009, 79400) —
      the site is Barcelona <-> your town.
-  5. Fast trains (AV, and AVE/AVLO until the web shows them all) take you from Barcelona to a
+  5. Fast trains (AV: AVE, Avant, Alvia, Euromed, Intercity) take you from Barcelona to a
      Catalan station or back: besides Barcelona, they stop somewhere else.
   6. No duplicates: within the same day, no two trains share n, and no two trains are the same
      physical train under another number: two trains that stop at the same two or more stations,
      in the same order, leaving each within a minute of the other (the two Renfe feeds often
      differ by a minute at one station, e.g. Passeig de Gràcia) — arriving, where either one ends.
   7. Stations: the Barcelona ones carry barcelona: true; every town carries a non-empty
-     comarca and lineas; Camp de Tarragona (04104) carries lineas == ["AVE"] or including AVE.
+     comarca and lineas; Camp de Tarragona (04104) carries lineas == ["AV"] or including AV.
   8. Coverage: at least the 74 towns with a direct train to Barcelona (by stops.txt name)
      are present, and Reus (71400) is in Baix Camp.
   9. Parity with the current site: for every date present in both data/trains.json and
@@ -26,7 +26,7 @@ Rules checked:
      71801 then later at 71400) match trains.json's "r" key exactly on (salida, llegada),
      counting repeats (a train listed twice is an error), and Reus->Sants matches "b".
      Reports concrete extra/missing/repeated departures (HH:MM).
-  10. There is an AVE Sants -> Camp de Tarragona every day (at least 5 a day), and the
+  10. There is a fast train (AV) Sants -> Camp de Tarragona every day (at least 5 a day), and the
       same in the opposite direction.
   11. Size: red.json is <= 150 KB gzip-compressed.
   12. No day lost most of its lines: every day, each line (R11, R13-R17, and the fast trains together)
@@ -44,8 +44,8 @@ SANTS, PDG, CLOT, FRANCA = "71801", "71802", "79009", "79400"
 BARCELONA_IDS = {SANTS, PDG, CLOT, FRANCA}
 REUS = "71400"
 CAMP_TARRAGONA = "04104"
-PRODUCTOS = {"R11", "R13", "R14", "R15", "R16", "R17", "AV", "AVE", "AVLO"}
-ALTA_VELOCIDAD = {"AV", "AVE", "AVLO"}
+PRODUCTOS = {"R11", "R13", "R14", "R15", "R16", "R17", "AV"}
+ALTA_VELOCIDAD = {"AV"}
 MAX_BYTES_GZIP = 150 * 1024
 
 # data/rodalies.json (08-11-2026): every other Rodalies line with a direct train to Barcelona, apart from red.json (the
@@ -280,8 +280,8 @@ def check_estaciones(d, barcelona=BARCELONA_IDS):
             continue
         if sid == CAMP_TARRAGONA:
             lineas = info.get("lineas")
-            if lineas != ["AVE"] and (not isinstance(lineas, list) or "AVE" not in lineas):
-                bad.append(f"{sid} (Camp de Tarragona): lineas should be [\"AVE\"] or include AVE, got {lineas!r}")
+            if not isinstance(lineas, list) or "AV" not in lineas:
+                bad.append(f"{sid} (Camp de Tarragona): lineas should include AV, got {lineas!r}")
             continue
         # a plain town
         if not info.get("comarca"):
@@ -470,7 +470,7 @@ def run(path, trains_path):
         ("estaciones", lambda: check_estaciones(d)),
         ("cobertura", lambda: check_cobertura(d)),
         ("paridad", lambda: check_paridad(d, trains_path)),
-        ("AVE Camp de Tarragona", lambda: check_ave_camp_tarragona(d)),
+        ("AV Camp de Tarragona", lambda: check_ave_camp_tarragona(d)),
         ("tamaño", lambda: check_tamano(path)),
         ("día incompleto", lambda: check_dia_incompleto(d)),
     ):

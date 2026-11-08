@@ -21,6 +21,6 @@ test('every line pill reads at 4.5:1 or more', () => {
 test('R17 keeps Rodalies’ orange, in ink', () => {
   assert.deepEqual(parts(lineStyle('R17')), { '--c': '#F39700', '--t': '#2D241C' });
 });
-test('a line the site does not know takes the ink colour with paper letters', () => {
-  assert.deepEqual(parts(lineStyle('AVE')), { '--c': 'var(--shadow)', '--t': '#FFFFFF' });
+test('the fast trains (AV), like any line the site does not know, take the ink colour with paper letters', () => {
+  assert.deepEqual(parts(lineStyle('AV')), { '--c': 'var(--shadow)', '--t': '#FFFFFF' });
 });

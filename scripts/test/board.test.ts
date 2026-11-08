@@ -36,7 +36,7 @@ test('on a phone the board is one line: the highlighted time alone, no card and 
 
 const BACK: ViewState = { ...HOME, dir: 'bcn' };
 test('Reus → Sants at night: today’s last AVE from Camp de Tarragona, then tomorrow’s first regional, «demà»', () => {
-  assert.deepEqual(desk(BACK, '2026-10-01', '21:30'), ['AVE 22:17 el pròxim, en 47 min → 22:59 des de Camp de Tarragona', 'R15 05:36 demà → 07:07']);
+  assert.deepEqual(desk(BACK, '2026-10-01', '21:30'), ['AV 22:17 el pròxim, en 47 min → 22:59 des de Camp de Tarragona', 'R15 05:36 demà → 07:07']);
 });
 
 // on a phone the trip is a button: its times, the countdown, and a «›»; what a screen reader hears is the whole trip
@@ -47,8 +47,8 @@ test('on a phone the board keeps the times, and the trip says itself in full to 
   assert.deepEqual(rows.map(read), ['R15 10:03 en 3 min → 11:33 ›']);
   assert.deepEqual(rows.map(label), ['R15 de les 10:03, surt en 3 min, arriba a les 11:33. Veure el detall i comprar']);
   const night = board(at('2026-10-01', '21:30', BACK), false, true);
-  assert.deepEqual(night.map(read), ['AVE 22:17 en 47 min → 22:59 ›']);
-  assert.deepEqual(night.map(label), ['AVE de les 22:17 des de Camp de Tarragona, surt en 47 min, arriba a les 22:59. Veure el detall i comprar']);
+  assert.deepEqual(night.map(read), ['AV 22:17 en 47 min → 22:59 ›']);
+  assert.deepEqual(night.map(label), ['AV de les 22:17 des de Camp de Tarragona, surt en 47 min, arriba a les 22:59. Veure el detall i comprar']);
 });
 
 test('on a desktop the other trip is a button that names itself', () => {
@@ -93,12 +93,12 @@ test('other towns and stations: the R11 to and from Girona, the AVE to Camp de T
   assert.equal(at('2026-09-28', '10:00', girona).ruler.length, 23);   // the day's direct R11 trains, Sants → Girona
   assert.deepEqual(desk({ ...girona, dir: 'bcn' }, '2026-09-28', '10:00'), ['R11 10:19 el pròxim, en 19 min → 11:40', 'R11 11:09 després → 12:40']);
   assert.deepEqual(desk({ ...HOME, town: TARRAGONA }, '2026-09-28', '10:00'), ['R15 10:03 el pròxim, en 3 min → 11:12', 'R17 10:33 després → 11:42']);
-  assert.deepEqual(desk({ ...HOME, town: TARRAGONA }, '2026-09-28', '11:50'), ['AVE 12:00 el pròxim, en 10 min → 12:31 fins a Camp de Tarragona', 'R14 12:03 després → 13:12']);
+  assert.deepEqual(desk({ ...HOME, town: TARRAGONA }, '2026-09-28', '11:50'), ['AV 12:00 el pròxim, en 10 min → 12:31 fins a Camp de Tarragona', 'R14 12:03 després → 13:12']);
   assert.deepEqual(desk({ ...HOME, station: PDG }, '2026-09-28', '10:00'), ['R15 10:56 el pròxim, en 56 min → 12:33', 'R14 11:56 després → 13:33']);
 });
 
 test('a train picked that has already left says so where the next one would say «el pròxim»', () => {
-  assert.deepEqual(desk({ ...HOME, useNow: false, minute: 543 }, '2026-10-01', '10:00'), ['R15 09:03 ja ha sortit → 10:33', 'AVE 09:55 després → 10:26 fins a Camp de Tarragona']);
+  assert.deepEqual(desk({ ...HOME, useNow: false, minute: 543 }, '2026-10-01', '10:00'), ['R15 09:03 ja ha sortit → 10:33', 'AV 09:55 després → 10:26 fins a Camp de Tarragona']);
 });
 
 // Renfe opens the day's list, not the train (src/buy.ts). The way there is the stub «Compra» (talons.ts, A3, Àlex 18-10):

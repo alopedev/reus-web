@@ -30,7 +30,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   const tIn = byId<HTMLInputElement>('t'), nowBtn = byId<HTMLButtonElement>('nowBtn');
   const R0 = 300, R1 = 1439, pos = (m: number) => ((Math.min(R1,Math.max(R0,m))-R0)/(R1-R0)*100).toFixed(2)+'%';
   byId('hours').innerHTML = [6,9,12,15,18,21].map(x=>`<span style="left:${pos(x*60)}">${x} h</span>`).join('');
-  // today's trains on the ruler, regionals and AVE together in order of departure; `said` is the train #aviso last spoke of
+  // today's trains on the ruler, regionals and fast trains together in order of departure; `said` is the train #aviso last spoke of
   let marks: Mark[] = [], said: string | null = null;
   // the countdown redraws the board every minute: a finger or a key on the big trip keeps its place
   const boardDraw = redrawer(byId('board'), f => f.matches('button.big') ? 'button.big' : null);
@@ -190,7 +190,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     if(!rq) rq = requestAnimationFrame(()=>{ rq=0; render(); });
   }
   tIn.addEventListener('input', snap); tIn.addEventListener('change', snap); tIn.addEventListener('pointerup', ()=> setTimeout(snap, 0));
-  // keys step from train to train, AVE included
+  // keys step from train to train, fast trains included
   tIn.addEventListener('keydown', e=>{
     const cur = +tIn.value, i = marks.findIndex(x => x.dep === cur && x.ave === state.ave && !state.useNow);
     let next: Mark | undefined;

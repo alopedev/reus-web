@@ -35,10 +35,10 @@ test('a weekday morning, Sants → Reus: the next regional big, with its countdo
 test('Reus → Sants at night: today’s last AVE first, then tomorrow’s first regional with «demà»', () => {
   const s = train(at('2026-10-01', '21:30', BACK));
   assert.equal(s.label, 'Avui ja no queden regionals');
-  assert.deepEqual(rows(s), ['AVE 1337 big47 min', 'R15 336 demà']);
+  assert.deepEqual(rows(s), ['AV 1337 big47 min', 'R15 336 demà']);
   assert.equal(s.ave, true);
-  assert.equal(s.say, 'Pròxim tren: 22:17, AVE de Camp de Tarragona a Barcelona Sants; arriba a les 22:59.');
-  assert.equal(s.trip.ave, 'L’AVE no surt de Reus: surt de Camp de Tarragona.');
+  assert.equal(s.say, 'Pròxim tren: 22:17, AV de Camp de Tarragona a Barcelona Sants; arriba a les 22:59.');
+  assert.equal(s.trip.ave, 'Aquest tren no surt de Reus: surt de Camp de Tarragona.');
   assert.equal(s.trip.news.kind, 'ave');
   // the AVE has no notices: only the regional's line goes to the stamp
   assert.deepEqual(s.lines, ['R15']);
@@ -87,10 +87,10 @@ test('nothing left today: tomorrow’s first trains, the ruler stands on now', (
 test('a train picked on the ruler: the AVE when the AVE was picked, the regional otherwise', () => {
   const ave = train(at('2026-10-01', '10:00', { ...BACK, useNow: false, minute: 1337, ave: true }));
   assert.equal(ave.ave, true);
-  assert.equal(ave.say.startsWith('Tren triat: 22:17, AVE'), true);
+  assert.equal(ave.say.startsWith('Tren triat: 22:17, AV '), true);
   assert.equal(ave.rows[0].until, '');                       // no countdown away from now
   const reg = train(at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 663 }));
-  assert.deepEqual(rows(reg), ['R15 663 big', 'AVE 720 ']);  // the one after it can be the AVE
+  assert.deepEqual(rows(reg), ['R15 663 big', 'AV 720 ']);  // the one after it can be the AVE
   assert.equal(reg.light, 663);
 });
 
@@ -251,9 +251,9 @@ test('a late train still to reach your station stays the next one after its time
   assert.equal(s.rows[0].gone, false);
   assert.equal(train(atLive('10:10', { ...HOME, useNow: false, minute: 603 }, live({ '15005': LATE(25) }))).rows[0].gone, false);
   // once past Sants (its next stop is further on), it has gone: the next one is the 11:03
-  assert.deepEqual(rows(train(atLive('10:10', HOME, live({ '15005': LATE(25, '71700') })))), ['R15 663 big53 min', 'AVE 720 ']);
+  assert.deepEqual(rows(train(atLive('10:10', HOME, live({ '15005': LATE(25, '71700') })))), ['R15 663 big53 min', 'AV 720 ']);
   // and without live data the timetable decides, as before
-  assert.deepEqual(rows(train(atLive('10:10', HOME, live({})))), ['R15 663 big53 min', 'AVE 720 ']);
+  assert.deepEqual(rows(train(atLive('10:10', HOME, live({})))), ['R15 663 big53 min', 'AV 720 ']);
 });
 
 test('the screen reader hears it once when a delay appears, not at every new minute of it', () => {
@@ -312,7 +312,7 @@ test('«Recorda» writes the train shown, with its stations as the sheet names t
   const s = train(at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 663 }));
   assert.equal(s.trip.remind, s.remind);                         // the phone's sheet has the same
   // the AVE ends at Camp de Tarragona; tomorrow's first train is tomorrow's
-  assert.deepEqual(reminded(at('2026-10-01', '21:30', BACK)), { d: '2026-10-01', s: '1337', a: '1379', l: 'AVE', o: 'Camp de Tarragona', x: 'Sants' });
+  assert.deepEqual(reminded(at('2026-10-01', '21:30', BACK)), { d: '2026-10-01', s: '1337', a: '1379', l: 'AV', o: 'Camp de Tarragona', x: 'Sants' });
   assert.equal(reminded(at('2026-10-01', '23:10', BACK))?.d, '2026-10-02');
 });
 

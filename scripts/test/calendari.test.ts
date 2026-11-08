@@ -39,11 +39,16 @@ test('a train not shaped like one is a 400, never an event: the address is anyon
   }
 });
 
-test('an AVE and a train after midnight: DTEND the next day', async () => {
-  const text = await (await ask({ d: '2026-11-06', s: 1430, a: 1475, l: 'AVE', o: 'Sants', x: 'Camp de Tarragona' })).text();
+test('a fast train (AV) and a train after midnight: DTEND the next day', async () => {
+  const text = await (await ask({ d: '2026-11-06', s: 1430, a: 1475, l: 'AV', o: 'Sants', x: 'Camp de Tarragona' })).text();
   assert.equal(field(text, 'DTSTART'), '20261106T225000Z');
   assert.equal(field(text, 'DTEND'), '20261106T233500Z');
-  assert.equal(field(text, 'SUMMARY'), 'AVE Sants → Camp de Tarragona');
+  assert.equal(field(text, 'SUMMARY'), 'AV Sants → Camp de Tarragona');
+});
+
+test('a page from before the fast trains, still open, writes the AVE: still a train', async () => {
+  const res = await ask({ d: '2026-11-06', s: 1430, a: 1475, l: 'AVE', o: 'Sants', x: 'Camp de Tarragona' });
+  assert.equal(res.status, 200);
 });
 
 // the link, as the page writes it (src/calendar.ts)
@@ -57,10 +62,10 @@ test('on the iPhone, the Mac or a PC the link asks the function for the file; th
 });
 
 test('on Android the link opens Google Calendar with the train written, in Madrid time, the next day past midnight', () => {
-  const u = new URL(remindUrl({ d: '2026-11-06', s: 1430, a: 1475, l: 'AVE', o: 'Sants', x: 'Camp de Tarragona' }, true));
+  const u = new URL(remindUrl({ d: '2026-11-06', s: 1430, a: 1475, l: 'AV', o: 'Sants', x: 'Camp de Tarragona' }, true));
   assert.equal(u.origin + u.pathname, 'https://calendar.google.com/calendar/render');
   assert.equal(u.searchParams.get('action'), 'TEMPLATE');
-  assert.equal(u.searchParams.get('text'), 'AVE Sants → Camp de Tarragona');
+  assert.equal(u.searchParams.get('text'), 'AV Sants → Camp de Tarragona');
   assert.equal(u.searchParams.get('dates'), '20261106T235000/20261107T003500');
   assert.equal(u.searchParams.get('ctz'), 'Europe/Madrid');
 });

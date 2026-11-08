@@ -47,7 +47,7 @@ class FastTrip(unittest.TestCase):
         # the Alvia to Córdoba: Cambrils and L'Aldea, the R16's own stations
         self.assertEqual([s for s, _a, _e in trip(ALVIA_00697, "ALVIA")[1]], ["71801", "04104", "65422", "65402"])
 
-    def test_one_line_for_them_all_but_the_ave_keeps_its_name_until_the_web_shows_them(self):
+    def test_the_ave_is_told_apart_only_to_keep_its_number_when_trains_merge(self):
         self.assertEqual(trip(AVANT_34062, "AVANT")[0], "AV")
         self.assertEqual(trip(ALVIA_00697, "ALVIA")[0], "AV")
         self.assertEqual(trip(ALVIA_00697, "INTERCITY")[0], "AV")
@@ -73,7 +73,12 @@ class OneFastTrain(unittest.TestCase):
         for order in ((0, 1), (1, 0)):
             pair = [("03062", "AVE", AVE_03062, "AVE"), ("34062", "AV", AVANT_34062, "AVANT")]
             out = merged(*(pair[i] for i in order))
-            self.assertEqual([(t["n"], t["p"]) for t in out], [("03062", "AVE")])
+            self.assertEqual([(t["n"], t["p"]) for t in out], [("03062", "AV")])
+
+    def test_every_fast_train_is_published_as_av(self):
+        out = merged(("03062", "AVE", AVE_03062, "AVE"), ("09737", "AVE", AVE_INT_09737, "AVE INT"),
+                     ("00697", "AV", ALVIA_00697, "ALVIA"))
+        self.assertEqual(sorted((t["n"], t["p"]) for t in out), [("00697", "AV"), ("03062", "AV"), ("09737", "AV")])
 
     def test_an_avant_not_sold_to_camp_de_tarragona_does_not_take_camp_from_the_train(self):
         out = merged(("34823", "AV", AVANT_34823, "AVANT"), ("03123", "AVE", AVE_03123, "AVE"))
@@ -94,26 +99,29 @@ class Contract(unittest.TestCase):
 
     def test_line_av_and_any_catalan_station(self):
         d = red(("34609", "AV", [["71801", 400, 400], ["79300", 443, 443], ["04307", 458, 458]]),
-                ("03062", "AVE", [["71801", 350, 350], ["04104", 382, 384], ["78400", 411, 413]]))
+                ("03062", "AV", [["71801", 350, 350], ["04104", 382, 384], ["78400", 411, 413]]))
         d["estaciones"] = {sid: {"nombre": sid} for sid in ("71801", "79300", "04307", "04104", "78400")}
         self.assertEqual([e for e in check_datos.check_trenes(d) if "p=" in e], [])
         self.assertEqual(check_datos.check_alta_velocidad_paradas(d), [])
 
+    def test_the_web_shows_every_fast_train_as_av_so_ave_is_no_line_any_more(self):
+        d = red(("03062", "AVE", [["71801", 350, 350], ["04104", 382, 384]]))
+        d["estaciones"] = {sid: {"nombre": sid} for sid in ("71801", "04104")}
+        self.assertEqual(len([e for e in check_datos.check_trenes(d) if "p=" in e]), 1)
+
     def test_a_fast_train_that_only_calls_in_barcelona_is_not_a_trip(self):
-        d = red(("03080", "AVE", [["71801", 505, 505], ["71802", 510, 510]]))
+        d = red(("03080", "AV", [["71801", 505, 505], ["71802", 510, 510]]))
         self.assertEqual(len(check_datos.check_alta_velocidad_paradas(d)), 1)
 
-    def test_a_day_half_empty_of_fast_trains_counts_as_one_line(self):
-        fast = lambda n, p, dep: (n, p, [["71801", dep, dep], ["79300", dep + 40, dep + 40]])
-        trains = [fast(f"{i}", "AV" if i % 2 else "AVE", 300 + 30 * i) for i in range(10)]
+    def test_a_day_half_empty_of_fast_trains_is_one_line_short(self):
+        fast = lambda n, dep: (n, "AV", [["71801", dep, dep], ["79300", dep + 40, dep + 40]])
+        trains = [fast(f"{i}", 300 + 30 * i) for i in range(10)]
         d = {"trenes": [{"n": n, "p": p, "s": s} for n, p, s in trains],
              "dias": {"2026-11-10": list(range(10)), "2026-11-11": list(range(10)), "2026-11-12": [0, 1, 2]}}
-        # AV and AVE together are one line short (published with a warning), not two (held back)
         self.assertEqual(check_datos.check_dia_incompleto(d), [])
         warns = check_datos.avisos_dia_incompleto(d)
         self.assertEqual(len(warns), 1, warns)
         self.assertIn("2026-11-12: AV runs 3", warns[0])
-
 
 if __name__ == "__main__":
     unittest.main()
