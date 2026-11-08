@@ -1225,7 +1225,7 @@ async def no_notices(route):
 
 def _on_time_answer():
     """/api/retards for every check but check_retards: every train of both timetables running on time, which says
-    nothing, so no other check meets the live delay. (No answer at all would read «sense dades en directe encara».)
+    nothing, so no other check meets the live delay. (No answer at all would read «sense dades».)
     Read far in the future, so it is fresh at whatever time a check fixes the clock to."""
     import json, re
     numbers, aves = set(), set()
@@ -1648,7 +1648,7 @@ async def check_retards(browser):
         if r["nova"]: errs.append(f"{kind}: a new time shows («{r['nova']}»)")
         if kind == "ontime" and (r["tach"] or "el pròxim, en 3 min" not in r["text"] or "sense dades" in r["text"]):
             errs.append(f"on time: the big row changed: «{r['text']}»")
-        if kind in ("notyet", "503") and "sense dades en directe encara" not in r["text"]:
+        if kind in ("notyet", "503") and "· sense dades" not in r["text"]:
             errs.append(f"{kind}: the big row does not say there is no live data yet: «{r['text']}»")
         if kind == "cancel" and (not r["tach"] or "cancel·lat" not in r["text"] or "en 3 min" in r["text"]):
             errs.append(f"cancelled: the big row reads «{r['text']}» (struck: {r['tach']})")
@@ -2605,7 +2605,7 @@ JOURNEY = """(() => { const rec = document.querySelector('#board .trip.big .rec'
           bare: [...rec.querySelectorAll('i')].map(i => i.hidden), full: [...rec.querySelectorAll('i')].map(i => i.dataset.n),
           tram: getComputedStyle(rec.querySelector('.tram')).display,
           shown: shown.map(s => ({text: s.textContent, side: s.classList.contains('up') ? 'up' : s.classList.contains('down') ? 'down' : '', ...box(s)})),
-          titles: [...rec.querySelectorAll('i')].map(i => i.title), rec: box(rec), off: rec.classList.contains('off'), hidden: rec.getAttribute('aria-hidden'),
+          titles: [...rec.querySelectorAll('i')].map(i => i.title), rec: box(rec), rem: parseFloat(getComputedStyle(document.documentElement).fontSize), off: rec.classList.contains('off'), hidden: rec.getAttribute('aria-hidden'),
           win: box(document.getElementById('win')), lead: box(document.querySelector('#board .big .lead')), arr: box(document.querySelector('#board .big .arr'))}; })()"""
 
 async def check_journey(browser):
@@ -2613,9 +2613,16 @@ async def check_journey(browser):
     arrival, a line with a dot per stop placed by the time the train reaches it, and each stop's name above or below
     its dot, without its time (Àlex 09-10: the dot's place already says it). When not every name fits, the line folds (Àlex 08-10, option B): the first two stops and the
     last two keep their names, the stops between lose their dots under a dotted stretch with «· N parades ·» over it
-    (the folded stops as its tooltip). Labels never overlap each other, the board's words, the arrival or the window.
-    No route for the AVE (no stops) nor on a phone."""
+    (the folded stops as its tooltip). Labels never overlap each other, the board's words, the arrival or the window,
+    and two names on the same side keep .8rem apart, so they never read as one (Àlex 08-11, 4A: «Torredembarra» and
+    «Tarragona» stood 8 px apart). No route for the AVE (no stops) nor on a phone."""
     errs, net, day = [], _net(), "2026-09-28"
+    def apart(when, j):
+        for i, p in enumerate(j["shown"]):
+            for q in j["shown"][i + 1:]:
+                gap = max(p["l"], q["l"]) - min(p["r"], q["r"])
+                if p["side"] == q["side"] and 0 <= gap < .8 * j["rem"] - .5:
+                    errs.append(f"{when}: «{p['text']}» and «{q['text']}» stand {gap:.1f} px apart on the same side, expected .8rem ({.8 * j['rem']:.1f} px)")
     def judge(when, j, want, folded):
         if j is None: errs.append(f"{when}: the big train has no route (.rec)"); return
         names, mins, d0, a0 = want
@@ -2646,9 +2653,16 @@ async def check_journey(browser):
                 if cut(p, j[name]): errs.append(f"{when}: «{p['text']}» overlaps {name}")
             for q in j["shown"][i + 1:]:
                 if cut(p, q): errs.append(f"{when}: «{p['text']}» overlaps «{q['text']}»")
+        apart(when, j)
     # at 10:00, Sants → Reus: the R15 at 10:03, every stop labelled
     page = await hero_page(browser)
     judge("Sants → Reus at 10:00", await page.evaluate(JOURNEY), _stops(net, day, SANTS_ID, REUS_TOWN, 603), False)
+    await page.close()
+    # with no live data yet, «· sense dades» takes some of the line: at 1440, the R15's names crowd the most there
+    page = await retards_page(browser, "503", 1440, 900)
+    apart("Sants → Reus at 10:00 with no live data", await page.evaluate(JOURNEY))
+    await page.close()
+    page = await hero_page(browser)
     # Reus → Sants: the AVE from Camp de Tarragona is the big train, and has no stops
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     if await page.evaluate(JOURNEY) is not None: errs.append("the AVE (no stops between Camp de Tarragona and Sants) has a route")
