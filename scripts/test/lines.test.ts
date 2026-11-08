@@ -24,3 +24,8 @@ test('R17 keeps Rodalies’ orange, in ink', () => {
 test('the fast trains (AV), like any line the site does not know, take the ink colour with paper letters', () => {
   assert.deepEqual(parts(lineStyle('AV')), { '--c': 'var(--shadow)', '--t': '#FFFFFF' });
 });
+test('every Rodalies line the site shows has its colour: R2 Nord’s lime and R4’s yellow in ink (08-11)', () => {
+  for(const line of ['R1', 'R2', 'R2N', 'R2S', 'R4']) assert.ok(line in LINE, line);
+  assert.equal(parts(lineStyle('R2N'))['--t'], '#2D241C');
+  assert.equal(parts(lineStyle('R4'))['--t'], '#2D241C');
+});

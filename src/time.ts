@@ -1,4 +1,6 @@
 import red from '../data/red.json';
+import index from 'virtual:rodalies';
+import type { Part, RodaliesIndex } from './split';
 
 // the network timetable (scripts/extract_red.py, contract in docs/referencias/datos-red-contrato.md): every train
 // once, with its stops as [stop_id, arrival, departure], and the trains that run each day
@@ -12,13 +14,44 @@ export interface Network {
 
   dias: Record<string, number[]>;
 }
-export const SANTS = '71801', REUS = '71400', CAMP = '04104', VILAFANT = '04307';
-// exported so towns.ts can build the chooser's groups from the same parsed network, without reading red.json twice
-export const NET = red as unknown as Network;
+export const SANTS = '71801', REUS = '71400', CAMP = '04104', VILAFANT = '04307', CATALUNYA = '78805';
+// exported so towns.ts can build the chooser's groups from the same parsed network, without reading red.json twice.
+// The other Rodalies lines (R1, R2, R2N, R2S, R4…; Àlex 08-11: the site serves anyone who lives in Catalonia) come in
+// two parts (split.ts): their stations and stopping patterns with the page, joined here to red.json's, and each
+// town's trains when it is chosen (addPart)
+const RED = red as unknown as Network;
+// `f`: each town's file of trains, by stop_id
+const rodalies = index as RodaliesIndex & { f: Record<string, string> };
+const stations: Network['estaciones'] = { ...RED.estaciones };
+for(const [id, st] of Object.entries(rodalies.estaciones)){
+  const was = stations[id];
+  stations[id] = was ? { ...was, lineas: [...new Set([...was.lineas ?? [], ...st.lineas ?? []])].sort(), barcelona: was.barcelona || st.barcelona || undefined } : st;
+}
+export const NET: Network = { ...RED, estaciones: stations };
+// one train per stopping pattern of those lines, with no days: what the chooser needs to know their towns and order
+export const PATTERNS: NetTrain[] = rodalies.patrons;
+// the file with a town's Rodalies trains (rodalies.ts fetches it), by stop_id; none for a town without them
+export const RODALIES_FILES: Record<string, string> = rodalies.f;
+
+// a town's Rodalies trains join the network: each train once (two towns share most of theirs), on the days the
+// timetable has. True if anything was added
+const trainKey = (t: NetTrain): string => t.n + '|' + t.p + '|' + t.s.map(x => x.join('.')).join(',');
+let known: Set<string> | null = null;
+export function addPart(part: Part): boolean {
+  known ??= new Set(NET.trenes.map(trainKey));
+  const at = part.t.map(t => { const k = trainKey(t); if(known!.has(k)) return -1; known!.add(k); return NET.trenes.push(t) - 1; });
+  for(const [day, ids] of Object.entries(part.dias)){
+    const list = NET.dias[day]; if(!list) continue;
+    for(const j of ids) if(at[j] >= 0) list.push(at[j]);
+  }
+  return at.some(i => i >= 0);
+}
 // the Barcelona end of the trip (3.5): Sants first, the default. El Clot left out (Àlex, 05-10: nobody asks for it)
 // `short` is the name on the ticket, where «Passeig de Gràcia» does not fit (Àlex, 06-10); everywhere else, `name`
 export const BCN: {id: string, name: string, short: string}[] = [{id:SANTS, name:'Sants', short:'Sants'},
-  {id:'71802', name:'Passeig de Gràcia', short:'Gràcia'}, {id:'79400', name:'França', short:'França'}];
+  {id:'71802', name:'Passeig de Gràcia', short:'Gràcia'}, {id:'79400', name:'França', short:'França'},
+  // Plaça de Catalunya (Àlex, 08-11, B of three): the R1 and the R4 call neither at Passeig de Gràcia nor at França
+  {id:CATALUNYA, name:'Plaça de Catalunya', short:'Catalunya'}];
 export const bcnName = (id: string): string => BCN.find(s => s.id === id)?.name ?? 'Sants';
 export const bcnShort = (id: string): string => BCN.find(s => s.id === id)?.short ?? 'Sants';
 // the fast trains (line AV: AVE, Avant, Alvia, Euromed, Intercity; Àlex, 08-11) are direct trains like any other where
@@ -79,11 +112,20 @@ export function busLeg(iso: string, id: string, from: string, to: string): Bus |
   if(x.a < i0 && x.b > i0 && x.b <= i1) return change(i0, false);
   return null;
 }
-// a stop's name on the big train's route, where room is short: without «Barcelona» before the city's stations, only
-// the first of a double name («Altafulla-Tamarit» → «Altafulla»; a hyphen inside a name stays: «Vila-seca»,
-// «Riba-roja d’Ebre») and, past 16 letters, without its «de …» («Sant Vicenç de Calders» → «Sant Vicenç»)
+// a stop's name on the big train's route, where room is short: Barcelona's own stations as on the ticket («Catalunya»),
+// the others without «Barcelona» before them, only the first of a double name («Altafulla-Tamarit» → «Altafulla»; a
+// hyphen inside a name stays: «Vila-seca», «Riba-roja d’Ebre») and, past 16 letters, without its «de …» («Sant
+// Vicenç de Calders» → «Sant Vicenç»). A double name whose first half is another stop's name keeps both halves
+// (08-11: «Montgat-Nord» is not Montgat, nor the two Montcada i Reixac each other)
+const plain = (n: string): string => n.replace(/^Barcelona[- ](Estació de )?/, '');
+const firstHalf = (n: string): string => n.replace(/\s*-\s*(?=\p{Lu}).*$/u, '');
+let halves: Map<string, number> | null = null;
 export function stopName(id: string): string {
-  const n = (NET.estaciones[id]?.nombre ?? id).replace(/^Barcelona[- ](Estació de )?/, '').replace(/\s*-\s*(?=\p{Lu}).*$/u, '');
+  const bcn = BCN.find(s => s.id === id);
+  if(bcn) return bcn.short;
+  halves ??= Object.values(NET.estaciones).reduce((m, st) => { const h = firstHalf(plain(st.nombre)); return m.set(h, (m.get(h) ?? 0) + 1); }, new Map<string, number>());
+  const whole = plain(NET.estaciones[id]?.nombre ?? id), half = firstHalf(whole);
+  const n = half !== whole && (halves.get(half) ?? 0) > 1 ? whole : half;
   return n.length > 16 ? n.replace(/ de .*$/, '') : n;
 }
 

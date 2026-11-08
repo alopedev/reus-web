@@ -53,16 +53,56 @@ dialog.sale.pas .sheet:not(.va){ animation:retira var(--sale-ms) var(--sale) for
 .ln:hover{ background:rgba(45,36,28,.07); }
 .pills{ display:flex; flex-direction:column; gap:.2rem; min-width:2.9rem; }
 
+/* step 1 starts with a line to write the town on (option B, Àlex 08-11): the town in Young Serif on a ruled line of
+   ink, a pencil at its end; below it, the towns found, or the lines. Every row at least 44 px */
+.cerca{ display:block; margin:0 0 .4rem; }
+.cerca .lbl{ display:block; font:700 .95rem var(--texto); margin-bottom:.1rem; }
+.cerca .camp{ display:flex; align-items:center; gap:.5rem; border-bottom:2px solid var(--shadow); }
+.cerca input{ all:unset; flex:1; min-width:0; min-height:max(2.75rem, 44px); font:400 1.55rem var(--serif); color:var(--shadow); caret-color:#C2410C; }
+.cerca input::placeholder{ color:rgba(45,36,28,.45); opacity:1; }
+.cerca .camp:focus-within{ border-bottom-color:#C2410C; }
+.cerca .llapis{ width:1.4rem; height:1.4rem; flex:none; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linejoin:round; opacity:.7; }
+.sheet .o{ font:500 .9rem var(--texto); opacity:.75; margin:1rem 0 .2rem; }
+/* how many were found is for the screen reader; that none was found is said to everyone */
+.quants{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); margin:0; }
+.quants.cap{ position:static; width:auto; height:auto; overflow:visible; clip:auto; font:500 .95rem/1.4 var(--texto); margin:.8rem 0 0; }
+.hits{ list-style:none; margin:.3rem 0 0; padding:0; }
+.hits li{ border-bottom:1.5px dashed rgba(45,36,28,.35); }
+.hit{ all:unset; box-sizing:border-box; position:relative; display:grid; grid-template-columns:1fr auto; align-items:center; column-gap:.8rem;
+  width:100%; min-height:max(2.75rem, 44px); padding:.5rem .3rem; cursor:pointer; }
+.hit:hover, .hits li:first-child .hit{ background:rgba(45,36,28,.07); }
+.hit .nm{ font:500 1.1rem var(--texto); }
+.hit .nm b{ font-weight:700; }
+.hit .cm{ grid-column:1; grid-row:2; font:500 .82rem var(--texto); opacity:.75; }
+.hit .pills{ grid-column:2; grid-row:1 / span 2; flex-direction:row; flex-wrap:wrap; justify-content:flex-end; gap:.25rem; min-width:0; }
+.hit:focus-visible{ outline:2px solid var(--shadow); outline-offset:2px; border-radius:.2rem; }
+/* the field shows its focus on its own line, which turns orange and thicker: no box around a line meant to be written on */
+.cerca input:focus-visible{ outline:none; }
+.cerca .camp:focus-within{ box-shadow:0 1px 0 #C2410C; }
+.hit[aria-current="true"] .nm{ position:relative; display:inline-block; font-weight:700; }
+.hit[aria-current="true"] .nm::after{ content:""; position:absolute; inset:-.1em -.25em; border:3px solid #6E2A1C; border-radius:.25em; transform:rotate(-1deg);
+  -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:160px; mask-size:160px; pointer-events:none; }
+/* on a phone, while the field is written in (chooser.ts, fit), the sheet goes up to the top of what can be seen and
+   fits above the keyboard: --vv and --vvt are the visual viewport's height and top */
+dialog#selp.escriu{ inset:auto 0 auto; top:calc(var(--vvt, 0px) + max(.6rem, env(safe-area-inset-top))); margin:0 auto; }
+dialog#selp.escriu .sheet .pp{ max-height:calc(var(--vv, 100dvh) - 1.6rem - env(safe-area-inset-top)); }
+
 /* step 2: the line as a strip map, a coloured rail with one stop per town; the branch keeps its own colour */
 /* three columns, on a sheet a little wider, so a whole corridor fits on a desktop: nothing hides below the fold, where
    macOS's hidden scrollbars give no hint (12-10, option C of three) */
 .strip{ list-style:none; margin:.3rem 0 0; padding:0 0 0 1.6rem; columns:3 11rem; column-gap:1.6rem; }
 .sheet:has(.strip){ width:min(52rem, 92vw); }
+/* a long line (the R4, 34 towns, 08-11) takes a fourth column on a wider sheet, so it still fits 1280 × 720 */
+.strip.llarga{ columns:4 10rem; }
+.sheet:has(.strip.llarga){ width:min(62rem, 94vw); }
 /* each stop carries its own piece of rail, so the line runs on in the second column and the branch keeps its colour */
 .strip li{ position:relative; break-inside:avoid; }
 .strip li::after{ content:""; position:absolute; left:-1.1rem; top:0; bottom:0; width:5px; background:var(--c); }
 .strip li:first-child::after{ top:50%; }
-.strip li:last-child::after{ bottom:50%; }
+.strip li:last-child::after, .strip li.fi::after{ bottom:50%; }
+/* a line that crosses Barcelona (the R4): its other side starts a rail of its own, a little apart */
+.strip li.costat{ margin-top:1.1rem; }
+.strip li.costat::after{ top:50%; }
 .strip li::before{ content:""; position:absolute; left:-1.32rem; top:50%; width:.7rem; height:.7rem; margin-top:-.35rem;
   border-radius:50%; background:#EFE6D2; border:3px solid var(--c); z-index:1; }
 .strip li.branch::before{ background:var(--c); }
@@ -90,6 +130,6 @@ dialog.sale.pas .sheet:not(.va){ animation:retira var(--sale-ms) var(--sale) for
 /* an upright phone (UPRIGHT in phone.ts): one column. Held sideways it keeps three, which fit a low screen (Àlex 21-10) */
 @media (max-width:700px), (max-aspect-ratio:4/5){
   .sheet .pp{ padding:1.2rem 1.1rem 1.1rem; max-height:min(88vh, 42rem); }
-  .strip{ columns:1; }
-  .sheet:has(.strip){ width:min(44rem, 92vw); }
+  .strip, .strip.llarga{ columns:1; }
+  .sheet:has(.strip), .sheet:has(.strip.llarga){ width:min(44rem, 92vw); }
 }
