@@ -6,13 +6,13 @@ Rules checked:
      Operadora», actualizado (an ISO date), estaciones, trenes and dias.
   2. dias covers at least 14 consecutive days from actualizado; every index it lists
      points to an existing train.
-  3. Every train: n is non-empty, p is one of R11/R13/R14/R15/R16/R17/AVE/AVLO, it has
+  3. Every train: n is non-empty, p is one of R11/R13/R14/R15/R16/R17/AV/AVE/AVLO, it has
      at least 2 stops, every stop's stop_id is in estaciones, arrival <= departure at
      each stop, and times never go backwards along s.
   4. Every train touches at least one Barcelona station (71801, 71802, 79009, 79400) —
      the site is Barcelona <-> your town.
-  5. AVE/AVLO trains only stop, among the saved stations, at Sants (71801) and Camp de
-     Tarragona (04104).
+  5. Fast trains (AV, and AVE/AVLO until the web shows them all) take you from Barcelona to a
+     Catalan station or back: besides Barcelona, they stop somewhere else.
   6. No duplicates: within the same day, no two trains share n, and no two trains are the same
      physical train under another number: two trains that stop at the same two or more stations,
      in the same order, leaving each within a minute of the other (the two Renfe feeds often
@@ -29,7 +29,7 @@ Rules checked:
   10. There is an AVE Sants -> Camp de Tarragona every day (at least 5 a day), and the
       same in the opposite direction.
   11. Size: red.json is <= 150 KB gzip-compressed.
-  12. No day lost most of a line: every day, each line (R11, R13-R17, and AVE/AVLO together)
+  12. No day lost most of a line: every day, each line (R11, R13-R17, and the fast trains together)
       runs at least half its median number of trains a day over the file. A feed that comes
       back with a day or a line half empty is held back, not published.
 
@@ -43,8 +43,8 @@ SANTS, PDG, CLOT, FRANCA = "71801", "71802", "79009", "79400"
 BARCELONA_IDS = {SANTS, PDG, CLOT, FRANCA}
 REUS = "71400"
 CAMP_TARRAGONA = "04104"
-PRODUCTOS = {"R11", "R13", "R14", "R15", "R16", "R17", "AVE", "AVLO"}
-ALTA_VELOCIDAD = {"AVE", "AVLO"}
+PRODUCTOS = {"R11", "R13", "R14", "R15", "R16", "R17", "AV", "AVE", "AVLO"}
+ALTA_VELOCIDAD = {"AV", "AVE", "AVLO"}
 MAX_BYTES_GZIP = 150 * 1024
 
 # the 59 towns with a direct train to Barcelona (by stops.txt name), sorted.
@@ -208,16 +208,14 @@ def check_toca_barcelona(d):
 
 
 def check_alta_velocidad_paradas(d):
-    """Rule 5: AVE/AVLO only stop at Sants and Camp de Tarragona."""
+    """Rule 5: a fast train stops somewhere besides Barcelona."""
     bad = []
-    allowed = {SANTS, CAMP_TARRAGONA}
     for t in d.get("trenes", []):
         if t.get("p") not in ALTA_VELOCIDAD:
             continue
         ids = {stop[0] for stop in t.get("s", []) if isinstance(stop, list) and stop}
-        extra = ids - allowed
-        if extra:
-            bad.append(f"{t.get('p')} train n={t.get('n')!r} stops at {sorted(extra)}, only Sants/Camp de Tarragona allowed")
+        if not ids - BARCELONA_IDS:
+            bad.append(f"{t.get('p')} train n={t.get('n')!r} only stops in Barcelona: it takes nobody home")
     return capped(bad)
 
 
@@ -369,7 +367,7 @@ def check_paridad(d, trains_path):
 
 
 def check_ave_camp_tarragona(d):
-    """Rule 10: at least 5 AVE/AVLO Sants->Camp de Tarragona every day, and the reverse."""
+    """Rule 10: at least 5 fast trains Sants->Camp de Tarragona every day, and the reverse."""
     trenes = d.get("trenes", [])
     dias = d.get("dias", {})
     errs = []
@@ -391,9 +389,9 @@ def check_ave_camp_tarragona(d):
                 elif pos[CAMP_TARRAGONA] < pos[SANTS]:
                     counts["vuelta"] += 1
         if counts["ida"] < 5:
-            errs.append(f"{day}: only {counts['ida']} AVE/AVLO Sants->Camp de Tarragona (need >= 5)")
+            errs.append(f"{day}: only {counts['ida']} fast trains Sants->Camp de Tarragona (need >= 5)")
         if counts["vuelta"] < 5:
-            errs.append(f"{day}: only {counts['vuelta']} AVE/AVLO Camp de Tarragona->Sants (need >= 5)")
+            errs.append(f"{day}: only {counts['vuelta']} fast trains Camp de Tarragona->Sants (need >= 5)")
     return capped(errs)
 
 
@@ -403,7 +401,7 @@ def check_dia_incompleto(d):
     dias = d.get("dias", {})
     if not isinstance(dias, dict) or not dias:
         return []
-    linea = lambda p: "AVE/AVLO" if p in ALTA_VELOCIDAD else p
+    linea = lambda p: "AV" if p in ALTA_VELOCIDAD else p
     lineas = sorted({linea(t.get("p")) for t in trenes if t.get("p") in PRODUCTOS})
     por_dia = {}
     for day, indices in dias.items():

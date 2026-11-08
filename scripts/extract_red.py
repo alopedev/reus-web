@@ -1,5 +1,6 @@
 """Genera data/red.json: la red de Rodalies/regionales de Catalunya con tren directo
-a Barcelona (R11, R13-R17) mas AVE/Avlo Barcelona-Sants <-> Camp de Tarragona.
+a Barcelona (R11, R13-R17) mas los trenes rapidos (AVE, Avant, Alvia, Euromed, Intercity) entre
+Barcelona y cualquier estacion catalana, en los dos sentidos.
 
 Sigue la regla final de la investigacion (docs/referencias/datos-red.md, seccion 5) y
 el contrato de docs/referencias/datos-red-contrato.md (formato, tests en check_datos.py).
@@ -11,7 +12,7 @@ Fuentes GTFS de Renfe:
     end_date), asi que un trip_id de fom identifica un tren en un dia concreto.
   - "av"  = Fichero_AV_LD (Alta Velocidad/Larga Distancia, nacional): completa los
     regionales que fom no trae completos o no trae en absoluto (producto REGIONAL,
-    REG.EXP. o MD que toca Barcelona) y aporta el AVE/Avlo Sants <-> Camp de Tarragona.
+    REG.EXP. o MD que toca Barcelona) y aporta los trenes rapidos.
 
 Regla de fusion (docs/referencias/datos-red.md #5):
   1. Base: todos los trips de fom en R11/R13-R17 que tocan una estacion de Barcelona
@@ -49,14 +50,20 @@ Regla de fusion (docs/referencias/datos-red.md #5):
        - Si no coincide en ningun dia -> se anade completo desde av, con la linea
          de la heuristica del punto 4 (los REG.EXP./MD que fom no tiene en
          absoluto: Ribera d'Ebre, Tortosa-Ulldecona, Girona-Portbou...).
-  3. AVE/Avlo: de av, producto cuyo route_short_name empieza por AVE (incluye
-     "AVE INT") o es AVLO, solo paradas Sants y Camp de Tarragona.
+  3. Trenes rapidos (desde el 08-11-2026; antes, solo el AVE/Avlo Sants <-> Camp de Tarragona):
+     de av, los productos de PRODUCTOS_RAPIDOS (AVE, AVE INT, AVLO, AVANT, AVANT EXP, ALVIA,
+     EUROMED, INTERCITY) que van de una estacion de Barcelona a otra parada catalana o al reves,
+     con todas sus paradas en Catalunya (fast_trip; Girona, Figueres-Vilafant, Lleida, Camp de
+     Tarragona, la costa del Ebre...). Linea AV para todos (Alex, 08-11-2026); mientras la web
+     solo ensena el AVE de Camp de Tarragona, el AVE y el Avlo se quedan AVE y AVLO (fast_p) y la
+     web deja fuera el resto (asBefore en src/time.ts). Renfe vende muchos dos veces (AVE 03062 y
+     Avant 34062 son el mismo tren): one_per_train los une y se queda el AVE.
   4. `p` de los regionales que vienen de av sin coincidir con fom (REGIONAL/REG.EXP./
      MD no es un codigo de linea valido en el contrato): se asigna la linea R11-R17
      de fom con la que el tren comparte mas paradas (todas las paradas de todos los
      trips de fom de esa linea en el rango, toquen o no Barcelona). Empate -> orden
      R11,R13,R14,R15,R16,R17.
-  5. Deduplicar av (regionales y AVE/Avlo) por numero de tren y horario: un mismo
+  5. Deduplicar av (regionales y rapidos) por numero de tren y horario: un mismo
      trip_short_name puede tener varios trip_id/service_id (reexportaciones con
      rangos solapados, o simplemente periodos de calendario consecutivos) -- los que
      tienen el mismo horario se agrupan y se unen los dias en que circula cualquiera
@@ -95,6 +102,8 @@ FUERA = {
     "Alcalá de Chivert", "Benicarló-Peñíscola", "Benicàssim", "Castelló de la Plana", "Nules la Villavella", "Orpesa",
     "Sagunt", "Torreblanca", "València-Cabanyal", "València-Estació del Nord", "Vila-Real", "Vinaròs",
     "Barcelona Sant Andreu",
+    # Francia: Perpinya cae dentro de la caja de Catalunya de fast_stops (los trenes rapidos que van a Lyon o Paris)
+    "Perpignan",
 }
 BARCELONA = {
     SANTS: "Barcelona-Sants", PDG: "Barcelona-Passeig de Gracia",
@@ -103,6 +112,12 @@ BARCELONA = {
 CAMP_TARRAGONA = "04104"
 LINEAS_FOM = ["R11", "R13", "R14", "R15", "R16", "R17"]
 PRODUCTOS_REGIONALES_AV = {"REGIONAL", "REG.EXP.", "MD"}
+# los trenes rapidos de av (route_short_name en mayusculas): todos con la misma etiqueta, AV (Alex, 08-11-2026)
+PRODUCTOS_RAPIDOS = {"AVE", "AVE INT", "AVLO", "AVANT", "AVANT EXP", "ALVIA", "EUROMED", "INTERCITY"}
+# Catalunya, a grandes rasgos: una parada rapida sin comarca dentro de esta caja hace fallar el script (Renfe ha abierto
+# una estacion catalana); fuera, se descarta sin mas (Madrid, Valencia, Lyon...). Lo que cae dentro y no es catalan va en FUERA
+FAST_P = {"AV", "AVE", "AVLO"}   # las lineas de los trenes rapidos en red.json (fast_p)
+CATALUNYA = (40.5, 42.9, 0.15, 3.4)   # latitud min y max, longitud min y max
 DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 NDIAS = 14
 
@@ -152,6 +167,8 @@ COMARCA = {
     "Les Borges Blanques": "Garrigues",
     "L'Espluga de Francolí": "Conca de Barberà",
     "Montblanc": "Conca de Barberà",
+    # solo trenes rapidos: la estacion del AVE de Figueres, a 2 km de la de la R11
+    "Figueres-Vilafant": "Alt Empordà",
 }
 
 
@@ -318,15 +335,15 @@ def load_fom(gtfs, day_range):
     return fom_trains, line_stops
 
 
-# ---------- av: completar regionales + AVE/Avlo ----------
+# ---------- av: completar regionales + trenes rapidos ----------
 
 def load_av_candidates(gtfs):
-    """route_id -> producto en mayusculas (REGIONAL/REG.EXP./MD/AVE.../AVLO), solo
+    """route_id -> producto en mayusculas (REGIONAL/REG.EXP./MD y los rapidos de PRODUCTOS_RAPIDOS), solo
     los productos que nos interesan."""
     route_product = {}
     for r in gtfs.rows("routes.txt"):
         prod = r["route_short_name"].strip().upper()
-        if prod in PRODUCTOS_REGIONALES_AV or prod.startswith("AVE") or prod == "AVLO":
+        if prod in PRODUCTOS_REGIONALES_AV or prod in PRODUCTOS_RAPIDOS:
             route_product[r["route_id"]] = prod
     return route_product
 
@@ -445,6 +462,44 @@ def filter_catalunya(stops, stop_names, dropped):
     return kept
 
 
+def fast_stops(stops, stop_names, stop_geo, dropped):
+    """Las paradas catalanas de un tren rapido, en orden: Barcelona, Camp de Tarragona y las que tienen comarca. Las
+    de FUERA y las que caen fuera de Catalunya (CATALUNYA) se descartan; una sin comarca dentro de Catalunya (Renfe ha
+    abierto una estacion) hace fallar el script, como en filter_catalunya."""
+    kept = []
+    for seq, stop_id, arr, dep in stops:
+        name = stop_names.get(stop_id, stop_id)
+        if stop_id in BARCELONA or stop_id == CAMP_TARRAGONA or name in COMARCA:
+            kept.append((seq, stop_id, arr, dep))
+        elif name in FUERA:
+            dropped.add(name)
+        else:
+            lat, lon = stop_geo.get(stop_id, (None, None))
+            la0, la1, lo0, lo1 = CATALUNYA
+            if lat is None or (la0 < lat < la1 and lo0 < lon < lo1):
+                raise SystemExit(f"Parada {stop_id} ({name!r}) de un tren rapido, desconocida: anadela a COMARCA (si es "
+                                 f"catalana) o a FUERA en scripts/extract_red.py. data/red.json no se ha tocado.")
+    return kept
+
+
+def fast_p(prod):
+    """La linea de un tren rapido en red.json: AV para todos. Mientras la web solo ensena el AVE de Camp de Tarragona,
+    el AVE (y AVE INT) y el Avlo guardan la suya, AVE y AVLO, para que la web los siga reconociendo."""
+    if prod.startswith("AVE"):
+        return "AVE"
+    return "AVLO" if prod == "AVLO" else "AV"
+
+
+def fast_trip(stops, prod, stop_names, stop_geo, dropped):
+    """(linea, paradas) de un tren rapido de av, con las paradas como (stop_id, llegada, salida), o None si no lleva de
+    Barcelona a un pueblo catalan (o al reves): necesita una estacion de Barcelona y otra parada catalana."""
+    kept = fast_stops(stops, stop_names, stop_geo, dropped)
+    ids = {sid for _q, sid, _a, _e in kept}
+    if not ids & BARCELONA.keys() or not ids - BARCELONA.keys():
+        return None
+    return fast_p(prod), tuple((sid, a, e) for _q, sid, a, e in kept)
+
+
 def best_line(stop_ids, line_stops):
     """Linea de fom (R11/R13-R17) con la que `stop_ids` comparte mas paradas.
     Empate -> la primera en el orden fijo LINEAS_FOM. None si no hay ningun
@@ -477,7 +532,8 @@ def one_per_train(trenes, dias):
     """El mismo tren fisico dos veces en un dia (los feeds difieren a veces en un minuto en
     una estacion, p. ej. Passeig de Gracia, o Renfe da dos numeros al mismo tren: el R16 que
     sale de Franca a las 19:15 es el 18055 hasta Tortosa y el 18189 hasta Ulldecona y Vinaros,
-    que no deja bajar antes de Tortosa ni para en Camp-redo). Mismo criterio que la regla 6 de
+    que no deja bajar antes de Tortosa ni para en Camp-redo; o el rapido que se vende como AVE y
+    como Avant, 03062 y 34062: se queda el AVE). Un rapido y un regional nunca son el mismo tren. Mismo criterio que la regla 6 de
     check_datos.py: dos o mas estaciones comunes, en el mismo orden, saliendo con un minuto de
     diferencia como mucho (llegando, donde uno de los dos acaba). Se unen en uno: el que para
     en mas estaciones del tramo comun (si empatan, el de mas paradas y luego el que tiene numero
@@ -498,18 +554,22 @@ def one_per_train(trenes, dias):
         if ia.index(last) == len(ia) - 1 and ib.index(last) < len(ib) - 1:   # el otro sigue
             tail = [list(x) for x in b["s"][ib.index(last) + 1:]]
             s[-1][2] = b["s"][ib.index(last)][2]
-        return {**a, "s": head + s + tail}
+        out = {**a, "s": head + s + tail}
+        if a["p"] == "AV" and b["p"] in ("AVE", "AVLO"):
+            out.update(n=b["n"], p=b["p"])   # el AVE vendido tambien como Avant: lo que la web ya ensena, con su numero
+        return out
 
     trenes = list(trenes)
     key = lambda t: (t["n"], t["p"], json.dumps(t["s"]), tuple(t.get("b", ())))
     index = {key(t): i for i, t in enumerate(trenes)}
-    rank = lambda i: (len(trenes[i]["s"]), trenes[i]["n"].isdigit())
+    rank = lambda i: (len(trenes[i]["s"]), trenes[i]["p"] in ("AVE", "AVLO"), trenes[i]["n"].isdigit())
+    fast = lambda t: t["p"] in FAST_P
     out = {}
     for date, idxs in dias.items():
         kept = []
         for i in sorted(idxs, key=rank, reverse=True):
             for j, k in enumerate(kept):
-                if same_train(trenes[i]["s"], k["s"]):
+                if fast(trenes[i]) == fast(k) and same_train(trenes[i]["s"], k["s"]):
                     kept[j] = merge(k, trenes[i])
                     break
             else:
@@ -550,11 +610,13 @@ def main():
 
     stop_names = {}
     stop_ll = {}   # where each town is, for its weather in the window: [lat, lon] to 3 decimals (~100 m)
+    stop_geo = {}  # (lat, lon) de cada parada de los dos feeds: si una parada rapida esta en Catalunya (fast_stops)
     for r in fom_gtfs.rows("stops.txt"):
         if r["stop_name"]:
             stop_names[r["stop_id"]] = r["stop_name"]
         try:
             stop_ll[r["stop_id"]] = [round(float(r["stop_lat"]), 3), round(float(r["stop_lon"]), 3)]
+            stop_geo[r["stop_id"]] = (float(r["stop_lat"]), float(r["stop_lon"]))
         except (KeyError, TypeError, ValueError):
             pass
 
@@ -563,6 +625,11 @@ def main():
     for r in av_gtfs.rows("stops.txt"):
         if r["stop_id"] not in stop_names and r["stop_name"]:
             stop_names[r["stop_id"]] = r["stop_name"]
+        try:
+            stop_geo.setdefault(r["stop_id"], (float(r["stop_lat"]), float(r["stop_lon"])))
+            stop_ll.setdefault(r["stop_id"], [round(float(r["stop_lat"]), 3), round(float(r["stop_lon"]), 3)])
+        except (KeyError, TypeError, ValueError):
+            pass
 
     route_product = load_av_candidates(av_gtfs)
     av_trips = load_av_trips(av_gtfs, route_product)
@@ -647,8 +714,8 @@ def main():
     # fisico podria acabar repartido en varias entradas de `trenes` con `p` distinto
     # segun que dias coincidieran con fom y cuales no (visto en la practica). Un numero
     # cuyo horario cambia a mitad del rango da dos grupos, cada uno con sus dias. --
-    # -- av: candidatos regionales/REG.EXP./MD y AVE/Avlo, uno por numero y horario --
-    ave_ocurrencias = []      # [(date, p, tuple(stops filtrados), numero, tramo en autobus o None)]
+    # -- av: candidatos regionales/REG.EXP./MD y rapidos, uno por numero y horario --
+    ave_ocurrencias = []      # los trenes rapidos: [(date, p, tuple(stops filtrados), numero, tramo en autobus o None)]
     regional_ocurrencias = []  # idem
 
     for trip_ids in av_groups(av_trips, av_stops_by_trip):
@@ -667,14 +734,11 @@ def main():
             continue
         stop_ids = {s[1] for s in stops}
 
-        if prod.startswith("AVE") or prod == "AVLO":
-            if SANTS not in stop_ids or CAMP_TARRAGONA not in stop_ids:
-                continue
-            p = "AVE" if prod.startswith("AVE") else "AVLO"
-            kept = [s for s in stops if s[1] in (SANTS, CAMP_TARRAGONA)]
-            seq = tuple((sid, a, e) for _sq, sid, a, e in kept)
-            for d in dias_numero:
-                ave_ocurrencias.append((d, p, seq, numero, None))
+        if prod in PRODUCTOS_RAPIDOS:
+            fast = fast_trip(stops, prod, stop_names, stop_geo, dropped)
+            if fast:
+                for d in dias_numero:
+                    ave_ocurrencias.append((d, *fast, numero, None))
             continue
 
         # REGIONAL / REG.EXP. / MD
