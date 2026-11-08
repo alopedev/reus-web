@@ -79,6 +79,8 @@ function lineOrder(line: string): string[] {
 }
 
 export interface Town { id: string; name: string; line: string }
+// a town as the search finds it (find.ts): every line that serves it and its comarca, said under its name
+export interface Place { id: string; name: string; lines: string[]; comarca: string }
 export interface Group { key: string; label: string; lines: string[]; towns: Town[] }
 
 const name = (id: string): string => NET.estaciones[id].nombre;
@@ -96,3 +98,8 @@ export const GROUPS: Group[] = [
   group('R14', 'Tarragona · Reus · Falset · Móra la Nova', 'R15', 'R14'),
   group('R16', 'Tarragona · Salou · Cambrils · Tortosa', 'R16', 'R17'),
 ];
+
+// every town the chooser offers, once, for the search: its lines in number order (R13 before R17) and its comarca
+export const TOWNS: Place[] = [...new Map(GROUPS.flatMap(g => g.towns).map(t => [t.id, t])).values()].map(t => ({
+  id: t.id, name: t.name, comarca: NET.estaciones[t.id].comarca ?? '',
+  lines: (NET.estaciones[t.id].lineas ?? []).filter(l => l in LINE).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)) || a.localeCompare(b)) }));

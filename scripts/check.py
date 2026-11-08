@@ -2027,6 +2027,7 @@ async def check_hero(browser):
     # 3.3 · the town selector: opening, its two steps, choosing a town (with and without AVE), closing without
     # choosing, and fitting the sheet with the longest eligible name
     errs += [f"town: {e}" for e in await check_town_dialog(browser)]
+    errs += [f"search: {e}" for e in await check_town_search(browser)]
     errs += [f"town: {e}" for e in await check_town_step1(browser)]
     errs += [f"town: {e}" for e in await check_town_groups(browser)]
     errs += [f"town: {e}" for e in await check_town_choose_girona(browser)]
@@ -2735,15 +2736,62 @@ async def choose_town(page, group, town, timeout=CLICK_MS):
     except Exception: return [f"'.opt[data-town={town}]' is not clickable"]
     return []
 
+SEARCH = """() => { const d = document.getElementById('selp');
+  return {hits: [...d.querySelectorAll('.hits:not([hidden]) .hit')].map(b => ({name: b.querySelector('.nm').textContent,
+            bold: [...b.querySelectorAll('.nm b')].map(x => x.textContent).join('|'), comarca: b.querySelector('.cm')?.textContent,
+            lines: [...b.querySelectorAll('.pill')].map(p => p.textContent), h: b.getBoundingClientRect().height})),
+          lines: !d.querySelector('.linies')?.hidden, none: d.querySelector('.quants.cap')?.textContent ?? '',
+          raised: d.classList.contains('escriu'), focus: document.activeElement?.id || document.activeElement?.className}; }"""
+
+async def check_town_search(browser):
+    """Step 1 starts with a line to write the town on (option B, Àlex 08-11): «gir» finds Girona with its comarca and
+    its line, the typed part in bold, every row a 44 px target, and Enter takes it; a word that finds nothing says so
+    and gives the lines back; an empty field shows the lines. On a phone the focus starts on the first line (no
+    keyboard over them) and, once the field is written in, the sheet goes up to the top (.escriu)."""
+    errs = []
+    for name, opts in {"desktop": dict(viewport={"width": 1440, "height": 900}),
+                       "phone": dict(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)}.items():
+        page = await open_page(browser, reduced_motion="reduce", **opts)
+        await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
+        await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1200)
+        e = await open_town(page)
+        if e: errs += [f"{name}: {x}" for x in e]; await page.close(); continue
+        got = await page.evaluate(SEARCH)
+        if not got["lines"] or got["hits"]: errs.append(f"{name}: with nothing written, step 1 shows {len(got['hits'])} towns and lines={got['lines']}")
+        if name == "phone" and got["focus"] != "ln": errs.append(f"{name}: the focus starts on «{got['focus']}», expected the first .ln (no keyboard over the lines)")
+        await page.click("#cercaP"); await page.keyboard.type("gir"); await page.wait_for_timeout(200)
+        got = await page.evaluate(SEARCH)
+        girona = [h for h in got["hits"] if h["name"] == "Girona"]
+        if not girona: errs.append(f"{name}: «gir» finds {[h['name'] for h in got['hits']]}, no Girona")
+        else:
+            g = girona[0]
+            if g["bold"] != "Gir": errs.append(f"{name}: Girona shows «{g['bold']}» in bold, expected «Gir»")
+            if g["comarca"] != "Gironès" or g["lines"] != ["R11"]: errs.append(f"{name}: Girona reads {g['comarca']} {g['lines']}, expected Gironès [R11]")
+        if got["lines"]: errs.append(f"{name}: the lines stay on show beside the towns found")
+        short = [h["name"] for h in got["hits"] if h["h"] < 43.5]
+        if short: errs.append(f"{name}: towns found under 44 px: {short}")
+        if (name == "phone") != got["raised"]: errs.append(f"{name}: written in, the sheet raised={got['raised']}")
+        await page.fill("#cercaP", "matadepera"); await page.wait_for_timeout(200)
+        got = await page.evaluate(SEARCH)
+        if got["hits"] or not got["none"].startswith("Cap poble") or not got["lines"]:
+            errs.append(f"{name}: «matadepera» finds {len(got['hits'])}, says «{got['none']}», lines={got['lines']}")
+        await page.fill("#cercaP", "gir"); await page.wait_for_timeout(200)
+        await page.keyboard.press("Enter"); await page.wait_for_timeout(1500)
+        town = await page.evaluate("document.querySelector('.tk .town')?.textContent.trim()")
+        if town != "Girona": errs.append(f"{name}: Enter after «gir» left the ticket on «{town}», expected Girona")
+        if await page.evaluate("document.getElementById('selp').open"): errs.append(f"{name}: #selp is still open after Enter")
+        await page.close()
+    return errs
+
 async def check_town_dialog(browser):
-    """Opening the selector: a native <dialog> labelled by its own question, focus on the first group; the
-    question changes with the direction."""
+    """Opening the selector: a native <dialog> labelled by its own question, focus on the field to write the town
+    (a desktop: whoever opens it can start typing; option B, Àlex 08-11); the question changes with the direction."""
     errs = []
     page = await hero_page(browser)
     e = await open_town(page)
     if e: await page.close(); return e
     got = await page.evaluate("""() => { const d = document.getElementById('selp'); if(!d) return null;
-      const h = d.querySelector('h3'), first = d.querySelector('.ln');
+      const h = d.querySelector('h3'), first = d.querySelector('#cercaP');
       return {tag: d.tagName, open: d.open, labelledby: d.getAttribute('aria-labelledby'), h3id: h?.id,
               h3: h?.textContent.trim(), focusedFirst: !!first && document.activeElement === first}; }""")
     if not got: errs.append("#selp is missing")
@@ -2752,7 +2800,7 @@ async def check_town_dialog(browser):
         if not got["open"]: errs.append("#selp is not open after clicking .tk .town")
         if not got["labelledby"] or got["labelledby"] != got["h3id"]: errs.append(f"#selp's aria-labelledby ({got['labelledby']}) does not point at its h3 ({got['h3id']})")
         if got["h3"] != "On vas?": errs.append(f"#selp's question reads «{got['h3']}», expected «On vas?»")
-        if not got["focusedFirst"]: errs.append("the focus is not on the first .ln when the selector opens")
+        if not got["focusedFirst"]: errs.append("the focus is not on the field #cercaP when the selector opens on a desktop")
     await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     e = await open_town(page)
