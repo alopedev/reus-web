@@ -12,9 +12,32 @@ export interface Network {
 
   dias: Record<string, number[]>;
 }
-// exported so towns.ts can build the chooser's groups from the same parsed network, without reading red.json twice
-export const NET = red as unknown as Network;
 export const SANTS = '71801', REUS = '71400', CAMP = '04104';
+// red.json carries every fast train between Barcelona and a Catalan station (line AV; the AVE keeps AVE for now,
+// scripts/extract_red.py fast_p). Until the web shows them (Àlex picks how they look first), it sees what it saw
+// before: only the AVE (and Avlo) between Sants and Camp de Tarragona, with just those two stops, and only the
+// stations some remaining train calls at, each with the lines that still call there
+export function asBefore(net: Network): Network {
+  const keep = net.trenes.map((t): NetTrain | null => {
+    if(t.p === 'AV') return null;
+    if(t.p !== 'AVE' && t.p !== 'AVLO') return t;
+    const s = t.s.filter(x => x[0] === SANTS || x[0] === CAMP);
+    return s.length === 2 ? { ...t, s } : null;
+  });
+  const index = new Map<number, number>(), trenes: NetTrain[] = [];
+  keep.forEach((t, i) => { if(t){ index.set(i, trenes.length); trenes.push(t); } });
+  const dias = Object.fromEntries(Object.entries(net.dias).map(([d, xs]) => [d, xs.flatMap(i => index.has(i) ? [index.get(i)!] : [])]));
+  const lines = new Map<string, Set<string>>();
+  for(const t of trenes) for(const [id] of t.s){ let l = lines.get(id); if(!l) lines.set(id, l = new Set()); l.add(t.p); }
+  const estaciones: Network['estaciones'] = {};
+  for(const [id, st] of Object.entries(net.estaciones)){
+    if(!lines.has(id)) continue;
+    estaciones[id] = id === CAMP || !st.lineas ? st : { ...st, lineas: [...lines.get(id)!].sort() };
+  }
+  return { ...net, estaciones, trenes, dias };
+}
+// exported so towns.ts can build the chooser's groups from the same parsed network, without reading red.json twice
+export const NET = asBefore(red as unknown as Network);
 // the Barcelona end of the trip (3.5): Sants first, the default. El Clot left out (Àlex, 05-10: nobody asks for it)
 // `short` is the name on the ticket, where «Passeig de Gràcia» does not fit (Àlex, 06-10); everywhere else, `name`
 export const BCN: {id: string, name: string, short: string}[] = [{id:SANTS, name:'Sants', short:'Sants'},
