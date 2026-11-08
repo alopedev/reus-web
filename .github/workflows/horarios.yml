@@ -26,9 +26,17 @@ jobs:
       - run: python scripts/extract_trains.py
       - run: python scripts/extract_red.py
       - run: python scripts/check_datos.py
+      # every other Rodalies line (data/rodalies.json, 08-11-2026): the web does not read it yet, so a file that fails its
+      # checks never holds red.json back: it stays as it was, with a warning in the run
+      - name: check rodalies.json
+        run: |
+          python scripts/check_datos.py --rodalies || {
+            echo "::warning title=rodalies.json sin actualizar::no pasa check_datos.py --rodalies; se queda el de ayer"
+            git checkout -- data/rodalies.json
+          }
       - name: did the timetable change?
         id: diff
-        run: git diff --quiet data/trains.json data/red.json && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
+        run: git diff --quiet data/trains.json data/red.json data/rodalies.json && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
       - if: steps.diff.outputs.changed == 'true'
         uses: actions/setup-node@v4
         with:
@@ -48,12 +56,13 @@ jobs:
         run: |
           git config user.name "Àlex Olivé"
           git config user.email "136198470+alopedev@users.noreply.github.com"
-          git add data/trains.json data/red.json
+          git add data/trains.json data/red.json data/rodalies.json
           git commit -m "chore: refresh the timetable" -m "Automatic: .github/workflows/horarios.yml"
           # the checks take minutes: if a PR was merged meanwhile, a bare push is rejected and nothing is published.
           # Rebase onto it (only data/ changes here) and check the data again against its check_datos.py
           git pull --rebase origin main
           python scripts/check_datos.py
+          python scripts/check_datos.py --rodalies
           git push
       - if: always()
         uses: actions/upload-artifact@v4
