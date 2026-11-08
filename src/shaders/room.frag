@@ -3,7 +3,7 @@
 // then strokes along it with a darker rim where they dry), and the paper's tooth with the wall's broad washes
 // (PAPER_PASS). The watercolour pass (watercolor.frag) lays both like the rest of the wall.
 precision highp float;
-uniform sampler2D tRoom, tRoomN; uniform vec2 sres; uniform float aspect; uniform vec4 win;
+uniform sampler2D tRoom, tRoomN; uniform vec2 sres; uniform float aspect; uniform vec4 win; uniform float papel; uniform vec3 sunS;
 varying vec2 vUv;
 // the same noise as watercolor.frag's
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
@@ -19,11 +19,13 @@ float tooth(vec2 q){
   mat2 r1 = mat2(.8, .6, -.6, .8), r2 = mat2(.38, -.92, .92, .38);
   return .5 + 2.*(.4*noise(q*55.) + .3*noise(r1*q*110. + 7.) + .15*noise(r2*q*220. + 1.) + .15*noise(r2*q*14. + 3.) - .5);   // spread like a scanned sheet's
 }
+// PROTOTYPE idea 2, c: the sheet cockled by the water, a few broad soft waves
+float waves(vec2 P){ return fbm(P*vec2(.9, 1.3) + 4.) + .4*fbm(P*vec2(2.2, 1.7) + 11.); }
 void main(){
-  vec2 uv = vUv, P = uv*vec2(aspect, 1.), q = P*1.7;
+  vec2 uv = vUv, P = uv*vec2(aspect, 1.), q = P*(papel > 1.5 && papel < 2.5 ? .7 : 1.7);   // b: a rough sheet, its tooth twice as big
   float e = 1.5/1024., h = tooth(q);
   float hx = tooth(q + vec2(e, 0.)) - tooth(q - vec2(e, 0.)), hy = tooth(q + vec2(0., e)) - tooth(q - vec2(0., e));
-  float k = 1. - (.5 - h)*.26;                                      // pigment settles in the tooth's pits
+  float k = 1. - (.5 - h)*(papel > 1.5 && papel < 2.5 ? .7 : .26);   // pigment settles in the tooth's pits
   // broad washes across the wall, as if laid in six strokes from the top, darker where two overlap, with back-runs
   float yy = uv.y + (fbm(vec2(uv.x*2.5, uv.y*3.) + 2.) - .5)*.05;
   float band = floor(yy*6.), fb = fract(yy*6.);
@@ -37,7 +39,22 @@ void main(){
   vec2 wc = (win.xy + win.zw)*.5;
   vec2 L = normalize((wc - uv)*vec2(aspect, 1.) + vec2(0., .2));
   float lit = -(hx*L.x + hy*L.y)*3.;
-  gl_FragColor = vec4(k*(1. + clamp(lit, -.6, .6)*.14) - .5, 0., 0., 1.);
+  if(papel < .5){ gl_FragColor = vec4(k*(1. + clamp(lit, -.6, .6)*.14) - .5, .5, 0., 1.); return; }
+  // PROTOTYPE idea 2: the light comes the way the sun is, from where it is painted in the window, parallel across the
+  // whole wall; stronger the lower the sun (sunS.z), faint by moonlight
+  vec2 sp = vec2(mix(win.x, win.z, sunS.x), mix(win.y, win.w, sunS.y));
+  vec2 Ls = normalize((sp - wc)*vec2(aspect, 1.) + vec2(.0001));
+  lit = -(hx*Ls.x + hy*Ls.y)*3.;
+  lit = clamp(lit, -1., 1.);
+  float f = k*(1. + lit*.45*sunS.z), add = lit*(papel < 1.5 ? .09 : .12)*sunS.z;   // the bumps' sunny faces catch light even where the paint is dark
+  if(papel > 2.5){
+    float E = 3./1024., wv = waves(P);
+    vec2 g = vec2(waves(P + vec2(E, 0.)) - waves(P - vec2(E, 0.)), waves(P + vec2(0., E)) - waves(P - vec2(0., E)))/(2.*E);
+    float sl = clamp(-dot(g, Ls)*.4, -1., 1.);                      // a wave's face toward the sun, lit; the far one, in shade
+    f = k*(1. + lit*.2*sunS.z)*(1. + sl*.55*sunS.z) * (1. - (wv - .75)*.25);   // and the paint pools in its troughs
+    add = (lit*.04 + sl*.16)*sunS.z;
+  }
+  gl_FragColor = vec4(f - .5, .5 + add, 0., 1.);
 }
 #else
 // which way the brush runs at each point: along the edges of the carriage's colours (their structure tensor) where
