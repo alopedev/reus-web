@@ -14,11 +14,12 @@ test('every town of the lines is there to be found, once, with all its lines and
   assert.deepEqual(new Set(TOWNS.map(t => t.id)), ids);
   assert.equal(TOWNS.length, ids.size);
   const vicenc = TOWNS.find(t => t.name === 'Sant Vicenç de Calders')!;
-  assert.deepEqual(vicenc.lines, ['R13', 'R14', 'R15', 'R16', 'R17']);
+  assert.deepEqual(vicenc.lines, ['R2', 'R2S', 'R4', 'R13', 'R14', 'R15', 'R16', 'R17']);
   assert.equal(vicenc.comarca, 'Baix Penedès');
 });
 test('the start of a name finds it, in alphabetical order', () => {
-  assert.deepEqual(names('vila'), ['Vila-seca', 'Vilabella', 'Vilajuïga', 'Vilamalla', 'Vilanova i la Geltrú']);
+  assert.deepEqual(names('vila'), ['Vila-seca', 'Vilabella', 'Viladecans', 'Viladecavalls', 'Vilafranca del Penedès', 'Vilajuïga',
+    'Vilamalla', 'Vilanova i la Geltrú', 'Vilassar de Mar', 'Cabrera de Mar-Vilassar de Mar', 'Castellbell i el Vilar-Monist Montserrat']);
 });
 test('no accents and no capitals are needed', () => {
   assert.deepEqual(names('MORA'), ['Móra la Nova']);
@@ -26,9 +27,9 @@ test('no accents and no capitals are needed', () => {
   assert.deepEqual(names('Ascó'), names('asco'));
 });
 test('any word of the name finds it, the names that start with it first', () => {
-  assert.deepEqual(names('hospitalet'), ['L\'Hospitalet de l\'Infant']);
+  assert.deepEqual(names('hospitalet'), ['L\'Hospitalet de l\'Infant', 'L\'Hospitalet de Llobregat']);
   assert.deepEqual(names('tortosa'), ['Tortosa', 'L\'Aldea-Amposta-Tortosa']);
-  assert.deepEqual(names('l’hosp'), ['L\'Hospitalet de l\'Infant']);
+  assert.deepEqual(names('l’hosp'), ['L\'Hospitalet de l\'Infant', 'L\'Hospitalet de Llobregat']);
 });
 test('several words narrow it down', () => {
   assert.deepEqual(names('sant cel'), ['Sant Celoni']);

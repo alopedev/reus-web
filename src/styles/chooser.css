@@ -92,11 +92,17 @@ dialog#selp.escriu .sheet .pp{ max-height:calc(var(--vv, 100dvh) - 1.6rem - env(
    macOS's hidden scrollbars give no hint (12-10, option C of three) */
 .strip{ list-style:none; margin:.3rem 0 0; padding:0 0 0 1.6rem; columns:3 11rem; column-gap:1.6rem; }
 .sheet:has(.strip){ width:min(52rem, 92vw); }
+/* a long line (the R4, 34 towns, 08-11) takes a fourth column on a wider sheet, so it still fits 1280 × 720 */
+.strip.llarga{ columns:4 10rem; }
+.sheet:has(.strip.llarga){ width:min(62rem, 94vw); }
 /* each stop carries its own piece of rail, so the line runs on in the second column and the branch keeps its colour */
 .strip li{ position:relative; break-inside:avoid; }
 .strip li::after{ content:""; position:absolute; left:-1.1rem; top:0; bottom:0; width:5px; background:var(--c); }
 .strip li:first-child::after{ top:50%; }
-.strip li:last-child::after{ bottom:50%; }
+.strip li:last-child::after, .strip li.fi::after{ bottom:50%; }
+/* a line that crosses Barcelona (the R4): its other side starts a rail of its own, a little apart */
+.strip li.costat{ margin-top:1.1rem; }
+.strip li.costat::after{ top:50%; }
 .strip li::before{ content:""; position:absolute; left:-1.32rem; top:50%; width:.7rem; height:.7rem; margin-top:-.35rem;
   border-radius:50%; background:#EFE6D2; border:3px solid var(--c); z-index:1; }
 .strip li.branch::before{ background:var(--c); }
@@ -124,6 +130,6 @@ dialog#selp.escriu .sheet .pp{ max-height:calc(var(--vv, 100dvh) - 1.6rem - env(
 /* an upright phone (UPRIGHT in phone.ts): one column. Held sideways it keeps three, which fit a low screen (Àlex 21-10) */
 @media (max-width:700px), (max-aspect-ratio:4/5){
   .sheet .pp{ padding:1.2rem 1.1rem 1.1rem; max-height:min(88vh, 42rem); }
-  .strip{ columns:1; }
-  .sheet:has(.strip){ width:min(44rem, 92vw); }
+  .strip, .strip.llarga{ columns:1; }
+  .sheet:has(.strip), .sheet:has(.strip.llarga){ width:min(44rem, 92vw); }
 }

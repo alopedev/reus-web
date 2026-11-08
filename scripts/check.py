@@ -2474,19 +2474,35 @@ async def check_hero_ticket(page):
 # --- 3.3 · the town selector ---------------------------------------------------------------------------------
 # eligible network stations (spec-3.3.md, decision 2): everything in the frozen timetable except Barcelona's own
 # stops, Camp de Tarragona (AVE only) and the three Barcelona-area stations the selector leaves out
-EXCLUDED_TOWNS = {"71707", "72400", "71708", "04104"}
+EXCLUDED_TOWNS = {"72400", "04104"}   # El Prat de Llobregat and Bellvitge are towns since every Rodalies line (08-11)
 SANTS_ID, CAMP_ID, REUS_TOWN, GIRONA_TOWN, TARRAGONA_TOWN, LLEIDA_TOWN = "71801", "04104", "71400", "79300", "71500", "78400"
 
 def _net():
     import json
     return json.loads((root / "scripts/baseline/red.json").read_text())
 
+_TOWN_NET = None
+def _town_net():
+    """The network the town chooser reads: the frozen regionals and the frozen other Rodalies lines (08-11), their
+    stations' lines joined (Vilanova i la Geltrú: R15, R16, R17 and R2, R2S)."""
+    global _TOWN_NET
+    if _TOWN_NET is None:
+        import json
+        net, rod = _net(), json.loads((root / "scripts/baseline/rodalies.json").read_text())
+        for sid, info in rod["estaciones"].items():
+            was = net["estaciones"].get(sid)
+            if was: was["lineas"] = sorted(set(was.get("lineas", [])) | set(info.get("lineas", []))); was["barcelona"] = was.get("barcelona") or info.get("barcelona")
+            else: net["estaciones"][sid] = info
+        net["trenes"] += rod["trenes"]
+        _TOWN_NET = net
+    return _TOWN_NET
+
 _BOTH_WAYS = None
 def _both_ways():
     """Stations with a direct train from a Barcelona station and one back (12-10: Cerbère only had trains out)."""
     global _BOTH_WAYS
     if _BOTH_WAYS is None:
-        net = _net()
+        net = _town_net()
         bcn = {sid for sid, info in net["estaciones"].items() if info.get("barcelona")}
         out, back = set(), set()
         for t in net["trenes"]:
@@ -2515,6 +2531,10 @@ GROUPS = {
     "R13": ("Valls · Montblanc · Lleida", "R13", None),
     "R14": ("Tarragona · Reus · Falset · Móra la Nova", "R15", "R14"),
     "R16": ("Tarragona · Salou · Cambrils · Tortosa", "R16", "R17"),
+    "R1": ("Maresme · Mataró · Blanes", "R1", None),
+    "R2": ("Granollers · Castelldefels · Vilanova", "R2", "R2N"),
+    "R2S": ("Garraf · Sitges · Sant Vicenç", "R2S", None),
+    "R4": ("Terrassa · Manresa · Martorell", "R4", None),
 }
 
 def group_towns(net, group):
@@ -2530,6 +2550,10 @@ KNOWN_ORDER = {
     "R13": {"main": ["71600", "76004", "73008", "78400"], "ramal": None},           # Sant Vicenç de Calders, Valls, Montblanc, Lleida-Pirineus
     "R14": {"main": ["71500", "71400", "71303", "71300"], "ramal": ["73101", "73008", "78400"]},  # Tarragona, Reus, Marçà-Falset, Móra la Nova · ramal Alcover, Montblanc, Lleida-Pirineus
     "R16": {"main": ["71500", "65422", "65405"], "ramal": None},                    # Tarragona, Cambrils, L'Ametlla de Mar · ramal is Salou-Port Aventura alone
+    "R1": {"main": ["79404", "79500", "79606"], "ramal": None},                     # Badalona, Mataró, Blanes
+    "R2": {"main": ["79100", "79101"], "ramal": None},                              # Granollers Centre, Cardedeu (and, after that side, Castelldefels, Sitges)
+    "R2S": {"main": ["71705", "71701", "71601"], "ramal": None},                    # Castelldefels, Sitges, Calafell
+    "R4": {"main": ["78704", "78710", "78600"], "ramal": None},                     # Sabadell Centre, Terrassa Est, Manresa (the side with more towns first)
 }
 
 def _stops(net, day, frm, to, dep):
@@ -2812,7 +2836,8 @@ async def check_town_dialog(browser):
     return errs
 
 async def check_town_step1(browser):
-    """Step 1: exactly 4 corridor groups, in order, with their exact labels and line pills."""
+    """Step 1: the corridor groups, in order (the four regional ones, then R1, R2, R2 Sud and R4 since 08-11), with
+    their exact labels and line pills."""
     page = await hero_page(browser)
     e = await open_town(page)
     if e: await page.close(); return e
@@ -2821,7 +2846,7 @@ async def check_town_step1(browser):
       pills: [...b.querySelectorAll('.pill')].map(p => p.textContent.trim())}))""")
     await page.close()
     errs = []
-    order = ["R11", "R13", "R14", "R16"]
+    order = list(GROUPS)
     groups = [o["group"] for o in got]
     if groups != order: errs.append(f".ln groups are {groups}, expected {order}")
     for o in got:
@@ -2836,12 +2861,12 @@ async def check_town_groups(browser):
     """Step 2, per corridor group: the exact set of eligible stops, the ramal placed after the main ones, the
     known relative order of real stops, no excluded station anywhere, .back returning to step 1, and the current
     town (Reus) marked and focused when its own group (R14) is entered."""
-    net = _net()
+    net = _town_net()
     errs = []
     page = await hero_page(browser)
     e = await open_town(page)
     if e: await page.close(); return e
-    for group in ("R11", "R13", "R14", "R16"):
+    for group in GROUPS:
         try: await page.click(f'.ln[data-group="{group}"]', timeout=CLICK_MS)
         except Exception: errs.append(f"{group}: '.ln[data-group={group}]' is not clickable"); continue
         await page.wait_for_timeout(200)
@@ -2879,7 +2904,7 @@ async def check_town_groups(browser):
         except Exception: errs.append(f"{group}: '.back' is not clickable"); continue
         await page.wait_for_timeout(200)
         step1 = await page.evaluate("document.querySelectorAll('#selp .ln').length")
-        if step1 != 4: errs.append(f"{group}: .back did not return to step 1 (4 .ln expected, {step1} found)")
+        if step1 != len(GROUPS): errs.append(f"{group}: .back did not return to step 1 ({len(GROUPS)} .ln expected, {step1} found)")
     await page.close()
     return errs
 
@@ -3522,8 +3547,8 @@ async def check_phone_board(browser):
     return errs
 
 # --- 3.5 · the Barcelona station ------------------------------------------------------------------------------
-PDG_ID, FRANCA_ID = "71802", "79400"
-STATIONS = [SANTS_ID, PDG_ID, FRANCA_ID]
+PDG_ID, FRANCA_ID, CATALUNYA_ID = "71802", "79400", "78805"
+STATIONS = [SANTS_ID, PDG_ID, FRANCA_ID, CATALUNYA_ID]
 ROUTE = "[...(document.querySelector('.tk .route')?.children ?? [])].map(b => b.matches('.swap') ? '→' : b.textContent.trim()).join(' ')"
 
 async def choose_station(page, station, timeout=CLICK_MS):
@@ -3537,7 +3562,8 @@ async def choose_station(page, station, timeout=CLICK_MS):
 
 async def check_station(browser):
     """3.5. Barcelona's end of the ticket is a raised button that opens the same sheet with the three stations
-    (Sants, Passeig de Gràcia, França), the chosen one stamped and focused, each saying which lines it misses; the
+    (Sants, Passeig de Gràcia, França, Plaça de Catalunya), the chosen one stamped and focused, each saying which
+    lines go from there to the town; the
     sheet's paper is cut ragged like the ticket. Choosing one rebuilds the route, the board and the buy link from
     that station; Esc changes nothing; França has no R11, so to Girona the board names the stations that have one."""
     errs = []
@@ -3563,8 +3589,11 @@ async def check_station(browser):
     if ids != STATIONS: errs.append(f"the station sheet lists {ids}, expected {STATIONS}")
     else:
         if got["rows"][0]["current"] != "true" or not got["rows"][0]["focused"]: errs.append("Sants is not marked as the current station and focused")
-        if "R11" not in (got["rows"][2]["d"] or ""): errs.append(f"França does not say it misses the R11 («{got['rows'][2]['d']}»)")
-        if "R11" in (got["rows"][1]["d"] or ""): errs.append(f"Passeig de Gràcia says it misses the R11 («{got['rows'][1]['d']}»)")
+        # each station says which lines go to the town (08-11): to Reus, the R14 and the R15 everywhere but Plaça de
+        # Catalunya, and the fast trains to Camp de Tarragona from Sants only
+        want = ["L’R14, l’R15 i l’AV", "L’R14 i l’R15", "L’R14 i l’R15", "Cap tren directe"]
+        said = [r["d"] for r in got["rows"]]
+        if said != want: errs.append(f"the station sheet says {said} under its stations, expected {want}")
     await page.keyboard.press("Escape"); await page.wait_for_timeout(300)
     if await page.evaluate(ROUTE) != "Sants → Reus": errs.append("Esc in the station sheet changed the route")
     if not await page.evaluate("document.activeElement === document.querySelector('.tk .bcn')"): errs.append("after Esc the focus is not back on .tk .bcn")

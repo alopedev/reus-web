@@ -23,11 +23,14 @@ test('a running regional: its delay in whole minutes, under its train number, th
   assert.deepEqual(a.trens['17505'], { estat: 'circula', retard: 25, parada: '71503' });
 });
 
-test('only the regionals Capacasa shows: R11 and R13 to R17, not the R4 nor a Madrid C5', () => {
+test('every Rodalies line Capacasa shows (since 08-11 the R1, R2, R2 Nord, R2 Sud and R4 too), not a Madrid C5', () => {
   const [trips, vehicles] = feeds(
-    [update('5181S15918R11', 120), update('5181S77644R4', 60), update('1081S12345C5', 60)],
-    [vehicle('5181S15918R11', 'R11-15918'), vehicle('5181S77644R4', 'R4-77644'), vehicle('1081S12345C5', 'C5-12345')]);
-  assert.deepEqual(Object.keys(read(trips, vehicles).trens), ['15918']);
+    [update('5181S15918R11', 120), update('5181S77644R4', 60), update('5181S28370R2S', 180), update('5181S28444R2N', 0), update('1081S12345C5', 60)],
+    [vehicle('5181S15918R11', 'R11-15918'), vehicle('5181S77644R4', 'R4-77644'), vehicle('5181S28370R2S', 'R2S-28370'),
+      vehicle('5181S28444R2N', 'R2N-28444-PLATF.(2)'), vehicle('1081S12345C5', 'C5-12345')]);
+  const a = read(trips, vehicles);
+  assert.deepEqual(Object.keys(a.trens).sort(), ['15918', '28370', '28444', '77644']);
+  assert.deepEqual(a.trens['28444'], { estat: 'circula', retard: 0, parada: '71503', andana: '2' });
 });
 
 test('a train running early says so: a delay below zero', () => {
@@ -58,11 +61,11 @@ test('a cancelled train is cancelled, never on time: with its position, under it
 
 // a cancelled train does not run, so Renfe gives no position for it (02-11: 11 cancelled, none with a position). Its
 // tripId is the Rodalies feed's trip_id, whose middle number is Rodalies' own: the page knows which train that is
-test('a cancelled train without a position: by its Rodalies number, only the regionals and only today\'s', () => {
-  const [trips, vehicles] = feeds([cancel('5181S16001R15'), cancel('5181S25468R11'), cancel('5105L25468R2N'),
+test('a cancelled train without a position: by its Rodalies number, only Catalonia\'s lines and only today\'s', () => {
+  const [trips, vehicles] = feeds([cancel('5181S16001R15'), cancel('5181S25468R11'), cancel('5105L25469R2N'), cancel('5181S28371R2S'),
     cancel('5182D15918R11'), cancel('SPECIAL_40_94297C1')], []);
-  const a = read(trips, vehicles, 'S');   // Saturday's trips are «S»: tomorrow's (D) are not today's trains
-  assert.deepEqual(a.cancelats, ['16001', '25468']);
+  const a = read(trips, vehicles, 'S');   // Saturday's trips are «S»: Monday's (L) and Sunday's (D) are not today's trains
+  assert.deepEqual(a.cancelats, ['16001', '25468', '28371']);
   assert.deepEqual(a.trens, {});
 });
 
@@ -107,6 +110,13 @@ test('the CDN keeps the last delays for 2 minutes when Renfe fails', async () =>
 test('the CDN keeps the last notices for 10 minutes when the Generalitat fails', async () => {
   const { res } = await invoke(avisos, () => new Response('<rss><channel></channel></rss>'));
   assert.equal(staleIfError(res), 600);
+});
+
+test('the notices of every line Capacasa shows, the R2 Nord and R2 Sud under the Generalitat\'s own names (08-11)', async () => {
+  const { res, asked } = await invoke(avisos, () => new Response('<rss><channel></channel></rss>'));
+  const feeds = [...asked.keys()].map(u => u.match(/rss_(\w+?)_ca_ES/)?.[1]).sort();
+  assert.deepEqual(feeds, ['r1', 'r11', 'r13', 'r14', 'r15', 'r16', 'r17', 'r2', 'r2_nord', 'r2_sud', 'r4']);
+  assert.deepEqual(Object.keys((await res.json()).linies).sort(), ['R1', 'R11', 'R13', 'R14', 'R15', 'R16', 'R17', 'R2', 'R2N', 'R2S', 'R4']);
 });
 
 // the AVE (04-11, Àlex: option A): Renfe gives its delay in another feed, the long-distance one, whose tripId is the

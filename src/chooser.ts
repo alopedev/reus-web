@@ -1,5 +1,5 @@
 import './styles/chooser.css';
-import { GROUPS, LINE, TOWNS, lineStyle, type Group, type Place } from './towns';
+import { GROUPS, LINE, TOWNS, lineStyle, stationLines, type Group, type Place, type Town } from './towns';
 import { find, marks } from './find';
 import { PHONE } from './phone';
 import { state } from './state';
@@ -12,19 +12,16 @@ import { esc } from './html';
 export interface Chooser { open(): void; openStation(): void }
 
 
-// what each Barcelona station misses, read from the data: França has no R11 (named by its corridor's first town).
-// The fast trains (AV) are said only where one of them leaves for the town, or for its other station (altOf)
+// which lines go from each Barcelona station to the town (08-11: with every Rodalies line, «Totes menys…» named a
+// dozen of them): «L’R14 i l’R15», read from the data, or «Cap tren directe». The fast trains (AV) are said only where
+// one of them leaves for the town, or for its other station (altOf)
 function reach(id: string): string {
-  const regional = (id: string) => (NET.estaciones[id]?.lineas ?? []).filter(l => l.startsWith('R'));
-  const all = [...new Set(BCN.flatMap(s => regional(s.id)))].sort();
-  const has = new Set(regional(id));
-  const miss = all.filter(l => !has.has(l)).map(l => {
-    const where = GROUPS.find(g => g.lines.includes(l))?.label.split(' · ')[0];
-    return where ? `l’${l} (${where})` : `l’${l}`;
-  });
   const ends = new Set([state.town, altOf(state.town)]);
-  const ave = NET.trenes.some(t => t.p === FAST && t.s.some(x => x[0] === id) && t.s.some(x => ends.has(x[0]))) ? ' i l’AV' : '';
-  return (miss.length ? `Totes menys ${miss.join(' i ')}` : 'Totes les línies') + ave;
+  const ave = NET.trenes.some(t => t.p === FAST && t.s.some(x => x[0] === id) && t.s.some(x => ends.has(x[0])));
+  const lines = [...stationLines(id, state.town), ...(ave ? [FAST] : [])].map(l => `l’${l}`);
+  if(!lines.length) return 'Cap tren directe';
+  const said = lines.length > 1 ? `${lines.slice(0, -1).join(', ')} i ${lines[lines.length - 1]}` : lines[0];
+  return said[0].toUpperCase() + said.slice(1);
 }
 
 // the pueblo chooser: a paper sheet over the darkened scene (native <dialog>, so Esc, focus-trapping and the
@@ -70,9 +67,12 @@ export function setupChooser(onPick: (id: string) => void, onStation: (id: strin
     said.classList.toggle('cap', !!q.trim() && !found.length);
   }
   function stepTowns(g: Group): string {
-    const rows = g.towns.map(t => `<li class="${t.line !== g.lines[0] ? 'branch' : ''}" style="--c:${LINE[t.line]}">
+    // a line that crosses Barcelona (the R4) has two sides: the rail stops after the first and starts again
+    const cls = (t: Town, i: number) => [t.line !== g.lines[0] ? 'branch' : '', g.towns[i - 1] && g.towns[i - 1].line === t.line && g.towns[i - 1].side !== t.side ? 'costat' : '',
+      g.towns[i + 1] && g.towns[i + 1].line === t.line && g.towns[i + 1].side !== t.side ? 'fi' : ''].filter(Boolean).join(' ');
+    const rows = g.towns.map((t, i) => `<li class="${cls(t, i)}" style="--c:${LINE[t.line]}">
       <button type="button" class="opt" data-town="${t.id}"${t.id === state.town ? ' aria-current="true"' : ''}>${esc(t.name)}</button></li>`).join('');
-    return `<button type="button" class="back">‹ Línies</button><h3 id="selpH">${question()}</h3><ol class="strip" style="--c:${LINE[g.lines[0]]}">${rows}</ol>`;
+    return `<button type="button" class="back">‹ Línies</button><h3 id="selpH">${question()}</h3><ol class="strip${g.towns.length > 28 ? ' llarga' : ''}" style="--c:${LINE[g.lines[0]]}">${rows}</ol>`;
   }
   function stepStations(): string {
     const q = state.dir === 'casa' ? 'De quina estació surts?' : 'A quina estació arribes?';

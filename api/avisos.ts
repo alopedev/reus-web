@@ -1,9 +1,11 @@
 // the lines' notices (09-10, Àlex: «que la web reflecteixi els avisos d'incidències»): the Generalitat publishes one
-// RSS feed per regional line, but without CORS, so the page cannot read it itself. This function reads the six lines
+// RSS feed per line, but without CORS, so the page cannot read it itself. This function reads the lines
 // Capacasa shows and answers in one small JSON. Vercel's CDN keeps the answer 2 minutes, so however many visitors
 // come, the Generalitat is asked at most once every 2 minutes per CDN region. The only place that knows the URL
-const LINES = ['R11', 'R13', 'R14', 'R15', 'R16', 'R17'];
-const feed = (line: string) => `https://www.gencat.cat/rodalies/incidencies_rodalies_rss_${line.toLowerCase()}_ca_ES.xml`;
+// since 08-11 every other Rodalies line the site shows too; the Generalitat names R2 Nord and R2 Sud «r2_nord», «r2_sud»
+const LINES = ['R1', 'R2', 'R2N', 'R2S', 'R4', 'R11', 'R13', 'R14', 'R15', 'R16', 'R17'];
+const FEED_NAME: Record<string, string> = { R2N: 'r2_nord', R2S: 'r2_sud' };
+const feed = (line: string) => `https://www.gencat.cat/rodalies/incidencies_rodalies_rss_${FEED_NAME[line] ?? line.toLowerCase()}_ca_ES.xml`;
 // the feed also publishes the normal service as an item: those are not notices. A sentence not in this list is
 // shown, better one notice too many than one too few
 const NORMAL = ['servei ferroviari a tot el recorregut', 'normalitat al servei'];
