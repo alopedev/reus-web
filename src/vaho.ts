@@ -8,7 +8,7 @@
 import { CanvasTexture, LinearFilter } from 'three';
 import { byId } from './dom';
 import { browserStore } from './remember';
-import { HINT, hintDue } from './vidre';
+import { HANDS, type Hand, handwriting, hintDue, written } from './vidre';
 
 const N = 512;            // the canvas: white where the glass is wiped
 const R = 5*N/256;        // a fingertip's radius
@@ -75,23 +75,32 @@ export function createVaho(): Vaho {
     if(tex.image !== out) tex.image = out;
   }
   const stage = byId('stage');
-  const go = () => setTimeout(() => { if(hintDue(browserStore())) void write(); }, 900);
+  const go = () => setTimeout(() => { if(hintDue(browserStore())) write(); }, 900);
   if(stage.classList.contains('in')) go();
   else new MutationObserver((_, ob) => { if(stage.classList.contains('in')){ ob.disconnect(); go(); } }).observe(stage, {attributes: true, attributeFilter: ['class']});
-  async function write(){
-    const font = `700 ${Math.round(N*.17)}px Literata`;
-    await document.fonts.load(font).catch(() => null);
-    const r = glass.getBoundingClientRect(), k = r.height/Math.max(1, r.width);   // the canvas is stretched to the glass: write squeezed
-    const t = performance.now(), dur = 1400;
+  // the word written as a finger writes it, stroke after stroke at a hand's pace (Àlex 08-11: «escrit a mà amb el
+  // dit»), with a fingertip's soft edge. The canvas is stretched to the glass, so the word is fitted in screen units
+  function write(){
+    const r = glass.getBoundingClientRect(), k = .74*r.width/Math.max(1, r.height);
+    const hand = (new URLSearchParams(location.search).get('mano') ?? 'lligada') as Hand;
+    const word = handwriting(HANDS.includes(hand) ? hand : 'lligada');
+    const top = Math.min(...word.flatMap(s => s.map(p => p[1]))), base = N*(.36 - top*k/2);
+    const tip = Math.min(R, Math.max(4, -top*k*N*.055));
+    const to = (p: [number, number]) => [N*(.13 + .74*p[0]), base + p[1]*k*N] as const;
+    const t = performance.now(), dur = 2600;
     hintA = 1; breath.v = 1;   // breathed on, so the word reads
     const step = () => {
-      const f = Math.min(1, (performance.now() - t)/dur), W = N/k;
-      h.save(); h.setTransform(k, 0, 0, 1, 0, 0);
-      h.beginPath(); h.rect(0, 0, W*(.1 + .82*f), N); h.clip();
-      h.fillStyle = h.strokeStyle = '#fff'; h.font = `${font}, Georgia, serif`; h.textAlign = 'center'; h.textBaseline = 'middle';
-      h.lineJoin = 'round'; h.lineWidth = N*.008;
-      h.fillText(HINT, W/2, N*.4); h.strokeText(HINT, W/2, N*.4);
-      h.restore(); compose(); tex.needsUpdate = true;
+      const f = Math.min(1, (performance.now() - t)/dur);
+      h.clearRect(0, 0, N, N); h.lineCap = h.lineJoin = 'round';
+      for(const [w, a] of [[2*tip, .45], [1.1*tip, 1]] as const){
+        h.lineWidth = w; h.strokeStyle = `rgba(255,255,255,${a})`;
+        for(const s of written(word, f)){
+          h.beginPath(); const [x0, y0] = to(s[0]); h.moveTo(x0, y0 - .01);   // a dot is a stroke too
+          for(const p of s){ const [x, y] = to(p); h.lineTo(x, y); }
+          h.stroke();
+        }
+      }
+      compose(); tex.needsUpdate = true;
       if(f < 1) requestAnimationFrame(step); else hintDone = true;
     };
     step();
