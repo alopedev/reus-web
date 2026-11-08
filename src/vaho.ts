@@ -42,7 +42,8 @@ export function createVaho(){
   addEventListener('pointerup', e => { if(e.pointerType === 'mouse') last = null; });
   // a finger on the glass (?gesto=): ahora (sideways draws, up/down scrolls, held still draws), a (one finger draws, two
   // fingers move the page, as the maps do), b (a tap breathes on the glass: from then on one finger draws, until 4 s
-  // without touching it or a touch outside), c (the glass takes the finger: the page moves from the wall)
+  // without touching it or a touch outside), c (a finger held still for half a second breathes on the glass and draws
+  // in any direction until it lifts; one that moves sooner scrolls)
   const GESTO = new URLSearchParams(location.search).get('gesto') || 'ahora';
   const glass = document.getElementById('win')!;
   glass.style.setProperty('-webkit-user-select', 'none'); glass.style.setProperty('-webkit-touch-callout', 'none'); glass.style.userSelect = 'none';
@@ -53,11 +54,11 @@ export function createVaho(){
   glass.appendChild(hint);
   let hintT = 0;
   const say = (words: string, ms = 2200) => { hint.textContent = words; hint.style.opacity = '1'; clearTimeout(hintT); hintT = window.setTimeout(() => hint.style.opacity = '0', ms); };
-  if(GESTO === 'a' || GESTO === 'c'){
+  if(GESTO === 'a'){
     glass.style.touchAction = 'none';
     let two: number | null = null, v = 0, lastT2 = 0, travel = 0, vert = 0, told = false;
     glass.addEventListener('touchstart', e => {
-      if(e.touches.length > 1 && GESTO === 'a'){ two = (e.touches[0].clientY + e.touches[1].clientY)/2; last = null; v = 0; lastT2 = performance.now(); return; }
+      if(e.touches.length > 1){ two = (e.touches[0].clientY + e.touches[1].clientY)/2; last = null; v = 0; lastT2 = performance.now(); return; }
       two = null; last = null; travel = 0; vert = 0; move(pt(e.touches[0]));
     }, {passive: false});
     glass.addEventListener('touchmove', e => {
@@ -70,7 +71,7 @@ export function createVaho(){
       const t = e.touches[0];
       if(last){ const r = glass.getBoundingClientRect(); travel += Math.abs(t.clientX - (last[0]/N*r.width + r.left)); vert += Math.abs(t.clientY - (last[1]/N*r.height + r.top)); }
       move(pt(t));
-      if(GESTO === 'a' && !told && vert > 90 && vert > 2*travel){ told = true; say('Amb dos dits, la pàgina es mou'); }
+      if(!told && vert > 90 && vert > 2*travel){ told = true; say('Amb dos dits, la pàgina es mou'); }
     }, {passive: false});
     glass.addEventListener('touchend', e => {
       if(two !== null && e.touches.length === 0){
@@ -98,6 +99,26 @@ export function createVaho(){
       if(on) later();
     });
     addEventListener('touchstart', e => { if(on && !glass.contains(e.target as Node)) stop(); }, {passive: true});
+  } else if(GESTO === 'c'){
+    glass.style.touchAction = 'pan-y';
+    let t0: {x: number, y: number} | null = null, drawing = false, hold = 0, cur: PointerEvent | null = null;
+    glass.addEventListener('touchstart', e => {
+      clearTimeout(hold); drawing = false; last = null;
+      if(e.touches.length > 1){ t0 = null; return; }
+      const t = e.touches[0]; t0 = {x: t.clientX, y: t.clientY}; cur = pt(t);
+      breath.v = .5;   // the breath gathers while the finger waits
+      hold = window.setTimeout(() => { if(t0 && cur){ drawing = true; breath.v = 1; move(cur); } }, 500);
+    }, {passive: false});
+    glass.addEventListener('touchmove', e => {
+      const t = e.touches[0]; cur = pt(t);
+      if(drawing){ e.preventDefault(); move(cur); return; }
+      if(t0 && Math.hypot(t.clientX - t0.x, t.clientY - t0.y) > 10){ clearTimeout(hold); t0 = null; breath.v = 0; }   // moved: the page scrolls
+    }, {passive: false});
+    const end = () => { clearTimeout(hold); drawing = false; t0 = null; last = null; breath.v = 0; };
+    glass.addEventListener('touchend', end); glass.addEventListener('touchcancel', end);
+    glass.addEventListener('contextmenu', e => e.preventDefault());
+    const giveUp = () => { if(!drawing){ clearTimeout(hold); t0 = null; breath.v = 0; } };   // the browser took the finger to scroll
+    glass.addEventListener('pointercancel', giveUp); addEventListener('scroll', giveUp, {passive: true});
   } else {
     glass.style.touchAction = 'pan-y';
     let t0: {x: number, y: number} | null = null, mode: 'wait' | 'draw' | 'scroll' = 'wait', hold = 0;
