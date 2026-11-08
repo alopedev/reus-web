@@ -75,9 +75,9 @@ test('a cancelled train: struck and «cancel·lat», no countdown', () => {
   assert.equal(label(atLive({ estat: 'cancelat' }, true)[0]), 'R15 de les 10:03, cancel·lat. Veure el detall i comprar');
 });
 
-test('no live data yet: said in full on a desktop, in two words on a phone, never as «on time»', () => {
+test('no live data yet: in two words on a desktop and a phone (3A, Àlex 08-11), never as «on time»', () => {
   for(const k of [{ estat: 'sense' }, { estat: 'error' }] as Known[]){
-    assert.equal(read(atLive(k, false)[0]), 'R15 10:03 el pròxim, en 3 min · sense dades en directe encara → 11:33');
+    assert.equal(read(atLive(k, false)[0]), 'R15 10:03 el pròxim, en 3 min · sense dades → 11:33');
     assert.equal(read(atLive(k, true)[0]), 'R15 10:03 en 3 min sense dades → 11:33 ›');
   }
 });
