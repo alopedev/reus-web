@@ -1,5 +1,5 @@
 import type { BufferGeometry } from 'three';
-import { BoxGeometry, Color, ColorManagement, ConeGeometry, CylinderGeometry, DirectionalLight, Float32BufferAttribute, Group, HemisphereLight, IcosahedronGeometry, InstancedMesh, LinearFilter, LinearSRGBColorSpace, NearestFilter, Mesh, MeshPhongMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, RGBAFormat, Scene, ShaderMaterial, TextureLoader, Vector2, InstancedBufferAttribute, Vector3, Vector4, WebGLRenderTarget, WebGLRenderer } from 'three';
+import { BoxGeometry, Color, ColorManagement, ConeGeometry, CylinderGeometry, DirectionalLight, Float32BufferAttribute, Group, HemisphereLight, IcosahedronGeometry, Light, InstancedMesh, LinearFilter, LinearSRGBColorSpace, NearestFilter, Mesh, MeshPhongMaterial, Object3D, OrthographicCamera, PerspectiveCamera, PlaneGeometry, RGBAFormat, Scene, ShaderMaterial, TextureLoader, Vector2, InstancedBufferAttribute, Vector3, Vector4, WebGLRenderTarget, WebGLRenderer } from 'three';
 import { daylight, type Hour } from './light';
 import { PHONE } from './phone';
 import type { Weather } from './weather';
@@ -161,6 +161,9 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     });
   });
   twin(sea, 3); headlands.forEach(h => twin(h, 0));
+  // the lights shine in the twins' layer too: they do nothing to a direction, but a program is keyed on how many
+  // lights the pass sees, and compile() (below) sees layer 0's; without them every twin linked again mid-animation
+  scene.traverse(o => { if(o instanceof Light) o.layers.enable(1); });
 
 
   const rt = new WebGLRenderTarget(2, 2, {format:RGBAFormat, minFilter:LinearFilter, magFilter:LinearFilter});
@@ -170,7 +173,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
       skyTop:{value:new Vector3()}, skyHor:{value:new Vector3()}, sunCol:{value:new Vector3()}, sunPos:{value:new Vector2()}, sunA:{value:.85},
       aspect:{value:1}, waspect:{value:1}, hor:{value:.42}, win:{value:new Vector4(.2,.3,.8,.8)}, wrad:{value:.04}, seats:{value:1},
       wallA:{value:new Vector3()}, wallB:{value:new Vector3()}, wood:{value:new Vector3()}, seat:{value:new Vector3()},
-      foldY:{value:0}, shade:{value:0}, wx:{value:0}, brd:{value:new Vector4(0,0,0,0)}, txt:{value:[0,1,2,3].map(() => new Vector4(0,0,0,0))}, washAll:{value:0},
+      foldY:{value:0}, shade:{value:0}, wx:{value:0}, brd:{value:new Vector4(0,0,0,0)}, txt:{value:[0,1,2,3,4].map(() => new Vector4(0,0,0,0))}, washAll:{value:0},
       tRoom:{value:null as unknown}, tRoomP:{value:null as unknown}, tPaper:{value:null as unknown}, overWin:{value:0},
       tDir:{value:dirRT.texture}, flowOff:{value:0}, fpx:{value:1}, flowP:{value:L},
       tPoster:{value:null as unknown}, posterOn:{value:0}, tWipe:{value:null as unknown}, vaho:{value:0}, aliento:{value:0} },
@@ -227,12 +230,12 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     // the board cancels their rise with a transform of its own, so it never moves on the wall
     const b = document.querySelector('.tauler')?.getBoundingClientRect();
     if(b) U.brd.value.set(b.left/cw, 1-b.bottom/ch, b.right/cw, 1-b.top/ch);
-    // where small text sits on the wall (the subtitle, the board's rows, the phone's day tabs): the shader keeps the
+    // where small text sits on the wall (the subtitle, the board's rows, the phone's day tabs, the ruler's hours): the shader keeps the
     // sunlit paint behind it from going pale, so the cream letters still read (Àlex 08-11: the sun's white patch hid
     // «el pròxim» and the subtitle in the afternoon). Measured without the texts' own entrance rise
     const rise = [...document.querySelectorAll<HTMLElement>('.top, .info')].map(e => [e, e.style.transform, e.style.transition] as const);
     rise.forEach(([e]) => { e.style.transition = 'none'; e.style.transform = 'none'; });
-    const texts = [...document.querySelectorAll('.sub, #cap, #board .trip')].map(e => e.getBoundingClientRect()).filter(t => t.width > 0 && t.height > 0);
+    const texts = [...document.querySelectorAll('.sub, #cap, #board .trip, .hours')].map(e => e.getBoundingClientRect()).filter(t => t.width > 0 && t.height > 0);
     rise.forEach(([e, t]) => { e.style.transform = t; }); void hero.offsetWidth; rise.forEach(([e, , tr]) => { e.style.transition = tr; });
     U.txt.value.forEach((v: Vector4, i: number) => { const t = texts[i]; if(t) v.set(t.left/cw, 1-t.bottom/ch, t.right/cw, 1-t.top/ch); else v.set(0, 0, 0, 0); });
     hero.style.transform = tilt;

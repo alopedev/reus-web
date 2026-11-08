@@ -1,6 +1,6 @@
 precision highp float;
 uniform sampler2D tScene; uniform vec2 res, sres; uniform float tq, reveal, aspect, waspect, hor, wrad, foldY, shade;
-uniform vec3 skyTop, skyHor, sunCol, wood; uniform vec2 sunPos; uniform float sunA; uniform vec4 win; uniform float wx; uniform vec4 brd; uniform vec4 txt[4]; uniform float washAll;
+uniform vec3 skyTop, skyHor, sunCol, wood; uniform vec2 sunPos; uniform float sunA; uniform vec4 win; uniform float wx; uniform vec4 brd; uniform vec4 txt[5]; uniform float washAll;
 // the carriage (room.ts): as rendered (its alpha), painted (room.frag), and the paper's factor; overWin: a seat over the window
 uniform sampler2D tRoom, tRoomP, tPaper; uniform float overWin;
 // the brush's direction rendered from the landscape (tDir, world.ts), how far the land has moved (flowOff, over a
@@ -193,7 +193,7 @@ void main(){
   vec2 wc = (win.xy+win.zw)*.5, wh = (win.zw-win.xy)*.5;
   vec2 wobble = (vec2(fbm(uv*vec2(16.,11.)+3.), fbm(uv*vec2(12.,17.)-5.))-.5)*.006;   // hand-painted edges
   float sdW = sdRR((uv+wobble-wc)*vec2(aspect,1.), wh*vec2(aspect,1.), wrad);
-  vec3 col; float edge = 0., pen = 0., order;
+  vec3 col; float edge = 0., pen = 0., order, behind = 0.;
 
   // on a phone our seat stands in front of the window's lower-left corner (overWin): there the carriage is painted
   bool ahead = overWin > .5 && texture2D(tRoom, uv).a > .95;
@@ -251,15 +251,14 @@ void main(){
     col = mix(col, vec3(.98,.95,.88), smoothstep(.62, .9, lum)*.7);
     // behind small text (txt, world.ts) the sunlit paint keeps a shade, so the cream letters read: a soft glaze over
     // what is pale only, nothing over what is already dark enough
-    float behind = 0.;
-    for(int i = 0; i < 4; i++){
+    for(int i = 0; i < 5; i++){
       vec4 t = txt[i];
       if(t.z <= t.x) continue;
       vec2 c = (t.xy + t.zw)*.5, h = (t.zw - t.xy)*.5 + vec2(.012/aspect, .012);
       behind = max(behind, 1. - smoothstep(0., .025, sdRR((uv - c)*vec2(aspect, 1.), h*vec2(aspect, 1.), .01)));
     }
     lum = dot(col, vec3(.3,.55,.15));
-    col = mix(col, col*min(1., .42/max(lum, .01)), behind);
+    col = mix(col, col*min(1., .4/max(lum, .01)), behind);
     // the name's split-flap board (.tauler), painted on the wall like the window and the seats (Àlex, 10-10): a dark
     // panel with a soft shadow, and eight cells with their hinge. Its geometry in em, as hero.css lays it out:
     // 8.58 × 1.58 em overall, the cells 0.97 × 1.32 em every 1.05 em, starting 0.13 em in (padding + border)
@@ -304,7 +303,8 @@ void main(){
   vec3 paper = vec3(.94,.93,.90) * (.965 + .06*fbm(uv*sres*.09));
   vec3 c = paper * (1. - clamp(A,0.,1.));
   // the paper's tooth and the wall's broad washes, and the light its relief catches from the sun (room.frag)
-  if(sdW >= 0. || ahead){ vec4 pp = texture2D(tPaper, uv); c = c*(pp.r + .5) + (pp.g - .5)*vec3(1., .97, .9); }
+  // (behind small text the relief is kept low: its sunny bumps would sparkle round the letters)
+  if(sdW >= 0. || ahead){ vec4 pp = texture2D(tPaper, uv); c = c*(1. + (pp.r - .5)*(1. - .7*behind)) + (pp.g - .5)*(1. - behind)*vec3(1., .97, .9); }
   c *= 1. - pen*wet*vec3(.62,.6,.55);
   if(posterOn > .5) c = mix(texture2D(tPoster, vUv).rgb, c, clamp((wet + front)*1.4, 0., 1.));   // the sketch, until the paint reaches it
   gl_FragColor = vec4(c, 1.);
