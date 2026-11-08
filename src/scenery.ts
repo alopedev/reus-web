@@ -4,7 +4,7 @@ import type { World } from './world';
 
 // still(): whoever changes what the window shows (the time, the weather, its size) asks for the still frame again;
 // while the landscape moves, its own loop paints it and still() does nothing
-export interface Scenery { repaint(): void; kick(): void; still(): void; isPlaying(): boolean }
+export interface Scenery { repaint(): void; kick(): void; still(): void; isPlaying(): boolean; reveal(): number }
 
 // the landscape's loop: it paints itself in, then the train sets off; it rests when the hero is out of view
 // or the tab is hidden. R repaints and P pauses, for recording only: with ?grabar in the URL (one-key shortcuts
@@ -14,17 +14,21 @@ export interface Scenery { repaint(): void; kick(): void; still(): void; isPlayi
 // 30-10, opción B: with 4.6 s the texts waited 3.45 s, more than half of a first visit on a phone with 4G)
 export function createScenery(world: World | null, onIn: () => void = () => {}): Scenery {
   const PAINT = 3, SPEED = 22;
-  let t0 = performance.now(), lastT = t0, rafId = 0, acc = 0, v = 0, playing = !reduce;
+  // t0: when the painting began, on its first frame (-1: not yet). Counted from when the page asked, a phone whose
+  // first frame comes a second late (the 3D carriage, the programs) opened on the wall already painted, and the pencil
+  // sketch showed only in the window (Àlex 08-11)
+  let t0 = -1, shown = 0, lastT = performance.now(), rafId = 0, acc = 0, v = 0, playing = !reduce;
   const stage = byId('stage');
   function show(){ if(stage.classList.contains('in')) return; stage.classList.add('in'); onIn(); }
   function repaint(){
-    t0 = performance.now(); v = 0; stage.classList.remove('in');
+    t0 = -1; v = 0; stage.classList.remove('in');
     if(reduce || !world){ show(); still(); return; }
     playing = true; kick();
   }
   function loop(t: number){
     const dt = Math.min(.05, (t-lastT)/1000); lastT = t;
-    const el = (t - t0)/1000, reveal = Math.min(1, el/PAINT);
+    if(t0 < 0) t0 = t;
+    const el = (t - t0)/1000, reveal = Math.min(1, el/PAINT); shown = reveal;
     if(el > PAINT*.75) show();
     const target = el > PAINT ? SPEED * (state.dir==='bcn' ? -1 : 1) : 0;
     v += (target - v) * Math.min(1, dt*.45);
@@ -49,5 +53,5 @@ export function createScenery(world: World | null, onIn: () => void = () => {}):
     if(e.key==='r' || e.key==='R') repaint();
     if(e.key==='p' || e.key==='P'){ playing=!playing; if(playing) kick(); }   // space is left to scroll the page
   });
-  return { repaint, kick, still, isPlaying: () => playing };
+  return { repaint, kick, still, isPlaying: () => playing, reveal: () => world && !reduce ? shown : 1 };
 }

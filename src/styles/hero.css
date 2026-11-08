@@ -64,7 +64,7 @@
 
 /* the window: an empty frame; the painting shows through from the canvas behind */
 .winCell{ display:grid; place-items:center; min-height:0; container-type:size; }
-#win{ width:min(60vw, 100cqw, 100cqh * 1.62); aspect-ratio:1.62; border-radius:2.7rem; }
+#win{ width:min(60vw, 100cqw, 100cqh * 1.62); aspect-ratio:1.62; border-radius:2.7rem; position:relative; user-select:none; }
 
 /* the departures, on the lower panel of the carriage: a painted board, one row per trip, the train shown big */
 .info{ display:grid; grid-template-columns:minmax(0,1fr); align-items:end; row-gap:.6rem; }

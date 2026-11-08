@@ -1,6 +1,14 @@
 <!doctype html>
 <html lang="ca">
 <head>
+<script>/* the pencil sketch the page opens on, before the paint (Àlex 08-11, idea 5 B): for a wide or a tall screen, by
+  day or by night in Madrid; world.ts keeps it under the paint until the paint reaches it, main.ts drops it without WebGL */
+(function(){ var d = document.documentElement, h = +new Intl.DateTimeFormat('en-GB', {hour:'numeric', hourCycle:'h23', timeZone:'Europe/Madrid'}).format(new Date());
+  d.dataset.poster = '/poster/lapiz-' + (innerWidth/innerHeight < 1 ? 'mov' : 'esc') + '-' + (h >= 8 && h < 18 ? 'dia' : 'noche') + '.webp';
+  var st = document.createElement('style');
+  st.textContent = 'html[data-poster] body{background:#ECE6D8 url(' + d.dataset.poster + ') center/100% 100% no-repeat fixed}';
+  document.head.appendChild(st);
+})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#7d6650">
@@ -161,7 +169,7 @@
 <dialog id="privacitat" aria-labelledby="privH"><div class="sheet"><div class="pp"><button type="button" class="x" aria-label="Tancar">✕</button>
   <h3 id="privH">Privacitat</h3>
   <p class="txt">Sense cookies i sense registre.</p>
-  <p class="txt">El poble, l’estació i el sentit que tries es guarden només en aquest navegador, per a la pròxima visita.</p>
+  <p class="txt">El poble, l’estació i el sentit que tries, i si ja has vist que es pot dibuixar al vidre de la finestra, es guarden només en aquest navegador, per a la pròxima visita.</p>
   <p class="txt">La web s’allotja a Vercel, que compta les visites de manera anònima, i el temps de la finestra arriba d’Open-Meteo.</p>
   <p class="qui">Àlex Olivé · <a class="mes" href="https://alope.dev" target="_blank" rel="noopener">alope.dev ↗<span class="sr"> (s’obre en una altra pestanya)</span></a></p>
 </div></div></dialog>

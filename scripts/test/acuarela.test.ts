@@ -39,3 +39,15 @@ test('the watercolour paints itself in 3 s, and the texts come in at three quart
   until(3.1);
   assert.equal(reveals.at(-1), 1, 'at 3.1 s the painting is finished');
 });
+
+// the painting starts on its first frame, not when the page asked for it: on a phone the first frame can come a second
+// or more later (the 3D carriage, the programs), and the clock had run on, so the wall came in already painted and
+// the pencil sketch only showed in the window (Àlex 08-11: «el boceto debe ser de toda la portada»)
+test('a first frame that comes late still starts the painting from nothing', async () => {
+  const { createScenery } = await import('../../src/scenery.ts');
+  reveals.length = 0; entered = false; next = null;
+  createScenery(world).repaint();
+  now += 1500;
+  until(now/1000 + .05);
+  assert.ok(reveals[0] < .03, `the first frame paints at reveal ${reveals[0]}`);
+});

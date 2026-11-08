@@ -3,7 +3,7 @@
 // then strokes along it with a darker rim where they dry), and the paper's tooth with the wall's broad washes
 // (PAPER_PASS). The watercolour pass (watercolor.frag) lays both like the rest of the wall.
 precision highp float;
-uniform sampler2D tRoom, tRoomN; uniform vec2 sres; uniform float aspect; uniform vec4 win;
+uniform sampler2D tRoom, tRoomN; uniform vec2 sres; uniform float aspect; uniform vec4 win; uniform vec3 sunS;
 varying vec2 vUv;
 // the same noise as watercolor.frag's
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
@@ -33,11 +33,14 @@ void main(){
   dens += -.08*smoothstep(.56, .6, bl) + .14*ring(bl - .58, .012);
   dens += .1*(fbm(q*4. + 5.) - .5);                                 // the paper's own mottling
   k *= 1. - dens;
-  // the tooth lit from the window
+  // the tooth lit: the light comes the way the sun is, from where it is painted in the window (sunS.xy), parallel across the whole
+  // wall; stronger the lower the sun (sunS.z), faint by moonlight (Àlex 08-11, idea 2 A). r: the factor the paint is
+  // multiplied by, less .5; g: the light the bumps' sunny faces catch even where the paint is dark, plus .5
   vec2 wc = (win.xy + win.zw)*.5;
-  vec2 L = normalize((wc - uv)*vec2(aspect, 1.) + vec2(0., .2));
-  float lit = -(hx*L.x + hy*L.y)*3.;
-  gl_FragColor = vec4(k*(1. + clamp(lit, -.6, .6)*.14) - .5, 0., 0., 1.);
+  vec2 sp = vec2(mix(win.x, win.z, sunS.x), mix(win.y, win.w, sunS.y));
+  vec2 Ls = normalize((sp - wc)*vec2(aspect, 1.) + vec2(.0001));
+  float lit = clamp(-(hx*Ls.x + hy*Ls.y)*3., -1., 1.);
+  gl_FragColor = vec4(k*(1. + lit*.45*sunS.z) - .5, .5 + lit*.09*sunS.z, 0., 1.);
 }
 #else
 // which way the brush runs at each point: along the edges of the carriage's colours (their structure tensor) where
