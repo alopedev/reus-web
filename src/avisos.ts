@@ -43,7 +43,7 @@ export function createAvisos(onChange: () => void, o: Omit<Partial<LiveOptions<A
 }
 export type Avisos = ReturnType<typeof createAvisos>;
 
-// what the train's sheet says of its line: the AVE has no notices; before the first answer, it is being asked
+// what the train's sheet says of its line: a fast train (AV) has no notices; before the first answer, it is being asked
 export function lineNews(avisos: Pick<Avisos, 'line' | 'read'>, line: string, isAve: boolean): LineNews {
   if(isAve) return { kind: 'ave' };
   const n = avisos.line(line), read = avisos.read();

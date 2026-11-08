@@ -13,7 +13,7 @@ export const MORE = 'https://rodalies.gencat.cat/ca/';
 const FROM = 'Avisos: Generalitat de Catalunya. No substitueix la informació oficial.';
 
 export type Notice = { line: string, text: string };
-// what the train's sheet says of its line: pending until the first answer, «ave» for the AVE, which has no notices
+// what the train's sheet says of its line: pending until the first answer, «ave» for a fast train (AV), which has no notices
 export type LineNews = { kind: 'avis', line: string, text: string, read: string } | { kind: 'normal', line: string, read: string }
   | { kind: 'error' | 'pending', line: string } | { kind: 'ave' };
 
@@ -47,7 +47,7 @@ export function news(n: LineNews): string {
   const link = `<a class="mes" href="${MORE}" target="_blank" rel="noopener">Més a rodalies.gencat.cat ↗<span class="sr"> (s’obre en una altra pestanya)</span></a>`;
   if(n.kind === 'avis') return `<div class="avisos avis"><p class="k">${pill(n.line)} Avís de la Generalitat</p><p class="txt">${esc(n.text)}</p>`
     + `<p class="qui">Consultat a les ${at(n.read)}. ${link}</p><p class="qui">${FROM}</p></div>`;
-  const say = n.kind === 'ave' ? 'De l’AVE no tenim avisos.'
+  const say = n.kind === 'ave' ? 'De l’AV no tenim avisos.'
     : n.kind === 'normal' ? `Sense avisos a l’${esc(n.line)} (consultat a les ${at(n.read)}).`
     : n.kind === 'error' ? `No hem pogut consultar els avisos de l’${esc(n.line)}.`
     : `Consultant els avisos de l’${esc(n.line)}…`;

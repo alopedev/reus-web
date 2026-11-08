@@ -54,10 +54,9 @@ Regla de fusion (docs/referencias/datos-red.md #5):
      de av, los productos de PRODUCTOS_RAPIDOS (AVE, AVE INT, AVLO, AVANT, AVANT EXP, ALVIA,
      EUROMED, INTERCITY) que van de una estacion de Barcelona a otra parada catalana o al reves,
      con todas sus paradas en Catalunya (fast_trip; Girona, Figueres-Vilafant, Lleida, Camp de
-     Tarragona, la costa del Ebre...). Linea AV para todos (Alex, 08-11-2026); mientras la web
-     solo ensena el AVE de Camp de Tarragona, el AVE y el Avlo se quedan AVE y AVLO (fast_p) y la
-     web deja fuera el resto (asBefore en src/time.ts). Renfe vende muchos dos veces (AVE 03062 y
-     Avant 34062 son el mismo tren): one_per_train los une y se queda el AVE.
+     Tarragona, la costa del Ebre...). Linea AV para todos (Alex, 08-11-2026). Renfe vende muchos
+     dos veces (AVE 03062 y Avant 34062 son el mismo tren): one_per_train los une y se queda el
+     numero del AVE (fast_p los distingue hasta entonces).
   4. `p` de los regionales que vienen de av sin coincidir con fom (REGIONAL/REG.EXP./
      MD no es un codigo de linea valido en el contrato): se asigna la linea R11-R17
      de fom con la que el tren comparte mas paradas (todas las paradas de todos los
@@ -116,7 +115,7 @@ PRODUCTOS_REGIONALES_AV = {"REGIONAL", "REG.EXP.", "MD"}
 PRODUCTOS_RAPIDOS = {"AVE", "AVE INT", "AVLO", "AVANT", "AVANT EXP", "ALVIA", "EUROMED", "INTERCITY"}
 # Catalunya, a grandes rasgos: una parada rapida sin comarca dentro de esta caja hace fallar el script (Renfe ha abierto
 # una estacion catalana); fuera, se descarta sin mas (Madrid, Valencia, Lyon...). Lo que cae dentro y no es catalan va en FUERA
-FAST_P = {"AV", "AVE", "AVLO"}   # las lineas de los trenes rapidos en red.json (fast_p)
+FAST_P = {"AV", "AVE", "AVLO"}   # las lineas de los trenes rapidos mientras se extraen (fast_p); en red.json, AV
 CATALUNYA = (40.5, 42.9, 0.15, 3.4)   # latitud min y max, longitud min y max
 DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 NDIAS = 14
@@ -512,8 +511,9 @@ def fast_stops(stops, stop_names, stop_geo, dropped):
 
 
 def fast_p(prod):
-    """La linea de un tren rapido en red.json: AV para todos. Mientras la web solo ensena el AVE de Camp de Tarragona,
-    el AVE (y AVE INT) y el Avlo guardan la suya, AVE y AVLO, para que la web los siga reconociendo."""
+    """La linea de un tren rapido mientras se extrae: AV, salvo el AVE (y AVE INT) y el Avlo, que guardan AVE y AVLO
+    para que one_per_train se quede con su numero (el tiempo real de larga distancia trae el del AVE, 03062, y casi
+    nunca el del Avant, 34062). En red.json salen todos como AV (one_per_train)."""
     if prod.startswith("AVE"):
         return "AVE"
     return "AVLO" if prod == "AVLO" else "AV"
@@ -562,7 +562,7 @@ def one_per_train(trenes, dias):
     una estacion, p. ej. Passeig de Gracia, o Renfe da dos numeros al mismo tren: el R16 que
     sale de Franca a las 19:15 es el 18055 hasta Tortosa y el 18189 hasta Ulldecona y Vinaros,
     que no deja bajar antes de Tortosa ni para en Camp-redo; o el rapido que se vende como AVE y
-    como Avant, 03062 y 34062: se queda el AVE). Un rapido y un regional nunca son el mismo tren. Mismo criterio que la regla 6 de
+    como Avant, 03062 y 34062: se queda el numero del AVE; despues, todos los rapidos salen como AV). Un rapido y un regional nunca son el mismo tren. Mismo criterio que la regla 6 de
     check_datos.py: dos o mas estaciones comunes, en el mismo orden, saliendo con un minuto de
     diferencia como mucho (llegando, donde uno de los dos acaba). Se unen en uno: el que para
     en mas estaciones del tramo comun (si empatan, el de mas paradas y luego el que tiene numero
@@ -585,7 +585,7 @@ def one_per_train(trenes, dias):
             s[-1][2] = b["s"][ib.index(last)][2]
         out = {**a, "s": head + s + tail}
         if a["p"] == "AV" and b["p"] in ("AVE", "AVLO"):
-            out.update(n=b["n"], p=b["p"])   # el AVE vendido tambien como Avant: lo que la web ya ensena, con su numero
+            out.update(n=b["n"], p=b["p"])   # el AVE vendido tambien como Avant: con el numero del AVE
         return out
 
     trenes = list(trenes)
@@ -611,7 +611,8 @@ def one_per_train(trenes, dias):
             out[date].add(index[key(t)])
     used = sorted({i for idxs in out.values() for i in idxs})
     remap = {old: new for new, old in enumerate(used)}
-    trenes = [trenes[i] for i in used]
+    # every fast train under one line, AV (Àlex, 08-11), once each has kept the AVE's number
+    trenes = [{**trenes[i], "p": "AV"} if fast(trenes[i]) else trenes[i] for i in used]
     dias = {d: {remap[i] for i in idxs} for d, idxs in out.items()}
     return trenes, dias
 
@@ -900,7 +901,7 @@ def main():
             estaciones[sid] = {"nombre": stop_names.get(sid, BARCELONA[sid]), "barcelona": True}
             continue
         if sid == CAMP_TARRAGONA:
-            estaciones[sid] = {"nombre": stop_names.get(sid, "Camp de Tarragona"), "lineas": ["AVE"]}
+            estaciones[sid] = {"nombre": stop_names.get(sid, "Camp de Tarragona"), "lineas": ["AV"]}
             continue
         name = stop_names.get(sid)
         comarca = COMARCA.get(name)
@@ -916,7 +917,7 @@ def main():
     for t in trenes:
         for sid, _a, _e in t["s"]:
             if sid == CAMP_TARRAGONA:
-                continue  # ya fijado a ["AVE"]
+                continue  # ya fijado a ["AV"]
             if sid in BARCELONA:
                 estaciones[sid].setdefault("lineas", set()).add(t["p"])
             else:
