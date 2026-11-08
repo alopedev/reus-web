@@ -4,7 +4,7 @@ import { daylight, type Hour } from './light';
 import { PHONE } from './phone';
 import type { Weather } from './weather';
 import watercolorFrag from './shaders/watercolor.frag?raw';
-import { createRoom, LUZ } from './room';
+import { CALIDO, createRoom, LUZ } from './room';
 import { createVaho, VAHO } from './vaho';
 
 export interface World {
@@ -173,7 +173,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
       foldY:{value:0}, shade:{value:0}, wx:{value:0}, brd:{value:new Vector4(0,0,0,0)}, washAll:{value:0},
       tRoom:{value:null as unknown}, tRoomP:{value:null as unknown}, tPaper:{value:null as unknown}, overWin:{value:0},
       tDir:{value:dirRT.texture}, pincel:{value:PINCEL}, luz:{value:LUZ}, flowOff:{value:0}, fpx:{value:1}, flowP:{value:L},
-      tPoster:{value:null as unknown}, posterOn:{value:0}, tWipe:{value:null as unknown}, vaho:{value:VAHO}, aliento:{value:0} },
+      tPoster:{value:null as unknown}, posterOn:{value:0}, tWipe:{value:null as unknown}, vaho:{value:VAHO}, aliento:{value:0}, calido:{value:CALIDO} },
     vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`,
     fragmentShader: watercolorFrag,
   });

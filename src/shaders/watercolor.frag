@@ -7,7 +7,7 @@ uniform sampler2D tRoom, tRoomP, tPaper; uniform float overWin;
 // how far the land has moved (flowOff, over a period flowP) and the camera's focal length in the target's pixels (fpx)
 uniform sampler2D tDir; uniform float pincel, flowOff, flowP, fpx;
 // PROTOTYPE idea 3: the light in the carriage (luz: 0 none, 1 a, 2 b, 3 c)
-uniform float luz; uniform sampler2D tPoster; uniform float posterOn; uniform sampler2D tWipe; uniform float vaho; uniform float aliento;
+uniform float luz; uniform sampler2D tPoster; uniform float posterOn; uniform sampler2D tWipe; uniform float vaho; uniform float aliento; uniform float calido;
 varying vec2 vUv;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
@@ -247,7 +247,7 @@ void main(){
     if(vaho > .5){                                                  // any day (Àlex, 08-11); thicker with rain or fog
       float wp = texture2D(tWipe, w).r;
       vec2 m = vec2(w.x*waspect, w.y);
-      float d = mix(wx > 1.5 ? .78 : .5, .92, aliento)*(.82 + .36*fbm(m*7. + 2.));
+      float d = mix(wx > 1.5 ? .78 : .64, .92, aliento)*(.82 + .36*fbm(m*7. + 2.));
       if(vaho > 2.5){                                               // c: it condenses at the edges and the bottom
         float ed = min(min(w.x, 1.-w.x)*waspect, min(w.y, 1.-w.y));
         d *= clamp(1. - smoothstep(.02, .2 + .1*fbm(m*5.), ed) + (1. - smoothstep(0., .45, w.y))*.8, 0., 1.);
@@ -275,8 +275,9 @@ void main(){
       edge *= soft; pen *= luz > 1.5 ? .25 : .5;
       // the strongest light left as paper, the way a watercolourist leaves the white of the sheet
       float lum = dot(col, vec3(.3,.55,.15));
-      if(luz > 1.5) col = mix(col, vec3(.98,.95,.88), smoothstep(.62, .9, lum)*.7);
+      if(luz > 1.5) col = mix(col, calido > 2.5 ? vec3(1.,.94,.82) : vec3(.98,.95,.88), smoothstep(.62, .9, lum)*.7);
     }
+    if(calido > 2.5) col *= vec3(1.17, 1., .7);   // PROTOTYPE c: a warm glaze (raw sienna) over the whole carriage
     // the name's split-flap board (.tauler), painted on the wall like the window and the seats (Àlex, 10-10): a dark
     // panel with a soft shadow, and eight cells with their hinge. Its geometry in em, as hero.css lays it out:
     // 8.58 × 1.58 em overall, the cells 0.97 × 1.32 em every 1.05 em, starting 0.13 em in (padding + border)

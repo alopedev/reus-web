@@ -13,6 +13,8 @@ const LUX = Math.PI;   // lights as in r128 (see world.ts)
 export interface Light { sun: number[]; hor: number[]; wallA: number[]; sunUV?: number[] }
 // PROTOTYPE idea 3 (?luz=a|b|c): the light that rules the carriage
 export const PAPEL = typeof location === 'undefined' ? 0 : ' abc'.indexOf(new URLSearchParams(location.search).get('papel') || ' ');   // PROTOTYPE idea 2
+// PROTOTYPE (08-11): warmer colours, ?calido=a (a warm wall), b (warm light), c (a warm glaze over the painting)
+export const CALIDO = typeof location === 'undefined' ? 0 : ' abc'.indexOf(new URLSearchParams(location.search).get('calido') || ' ');
 export const LUZ = typeof location === 'undefined' ? 0 : ' abc'.indexOf(new URLSearchParams(location.search).get('luz') || ' ');
 export interface Room {
   raw: WebGLRenderTarget;      // the carriage as rendered: its alpha, where there is something in front of the wall
@@ -49,6 +51,7 @@ export function createRoom(renderer: WebGLRenderer): Room {
     alu: M(0xc9cdd1), glass: M(0xcfe0e6, .35), case: M(0x4f6478), pack: M(0xa8492c),
     dark: M(0x1c1c1e), mapW: M(0xeeece6), line: M(0x8a6a4a),
   };
+  if(CALIDO === 1){ mats.wall.color.set(0xcaa478); mats.wallLow.color.set(0x8c6e4e); mats.lining.color.set(0xe2cfac); }   // a: the older Rodalies' beige
   mats.wall.side = DoubleSide;
   const add = (geo: BufferGeometry, mat: MeshLambertMaterial, x: number, y: number, z: number, parent: Object3D = group, cast = true) => {
     const m = new Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = cast; m.receiveShadow = true; parent.add(m); return m;
@@ -162,7 +165,15 @@ export function createRoom(renderer: WebGLRenderer): Room {
       sun.color.lerp(new Color(.66, .76, 1), night);
       amb.color.setRGB(.62, .68, .92).lerp(new Color(p.wallA[0], p.wallA[1], p.wallA[2]), .35); amb.intensity = (.5 - .25*night)*LUX;
       ceil.color.setRGB(.8, .86, 1); ceil.intensity = (.22 + .2*night)*LUX;
-    } else if(LUZ === 3){   // c: by day only the window lights the carriage (the ceiling off), chiaroscuro
+    }
+    if(CALIDO === 2){   // b: by day the sun golden and the shade only a little blue: the room takes the warmth of the hour
+      const day = 1 - night;
+      sun.color.lerp(new Color(1, .78, .5), .7*day);
+      amb.color.lerp(new Color(1, .8, .58), .75*day);
+      ceil.color.lerp(new Color(1, .86, .68), .7*day);
+      glow.color.lerp(new Color(1, .9, .75), .4*day);
+    }
+    if(LUZ === 3){   // c: by day only the window lights the carriage (the ceiling off), chiaroscuro
       sunBase = 3*(1 - night)*LUX; sun.shadow.radius = 3;
       glow.intensity = (1.3*(1 - night) + .1)*LUX; glow.distance = 0; glow.decay = 1.6;
       ceil.intensity = (.05 + .4*night)*LUX; amb.intensity = (.22 - .05*night)*LUX;

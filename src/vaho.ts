@@ -2,11 +2,12 @@
 // cursor over the window, and coming back slowly. ?vaho=a (a hand: a wide band, back in ~15 s), b (a fingertip: thin
 // lines that run, back in ~40 s), c (the mist only round the edges and along the bottom, as it condenses; back in ~20 s)
 import { CanvasTexture, LinearFilter } from 'three';
+import { tear } from './paper';
 
 export const VAHO = typeof location === 'undefined' ? 0 : ' abc'.indexOf(new URLSearchParams(location.search).get('vaho') || ' ');
 
 export function createVaho(){
-  const N = 256;
+  const N = 512, S = N/256;   // S: the sizes below were set on a 256 px canvas
   const cv = document.createElement('canvas'); cv.width = cv.height = N;
   const g = cv.getContext('2d')!;
   g.fillStyle = '#000'; g.fillRect(0, 0, N, N);
@@ -21,13 +22,13 @@ export function createVaho(){
   }
   function stroke(a: [number, number], b: [number, number]){
     const ax = (r: number) => r*N/256;
-    const d = Math.hypot(b[0]-a[0], b[1]-a[1]), n = Math.max(1, Math.ceil(d/(R*.3)));
+    const d = Math.hypot(b[0]-a[0], b[1]-a[1]), n = Math.max(1, Math.ceil(d/(R*S*.3)));
     for(let i = 0; i <= n; i++){
       const x = a[0] + (b[0]-a[0])*i/n, y = a[1] + (b[1]-a[1])*i/n, r = ax(R);
       const gr = g.createRadialGradient(x, y, 0, x, y, r);
       gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(VAHO === 2 ? .55 : .35, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
       g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
-      if(VAHO === 2 && Math.random() < .025) drips.push({x, y, len: 0, v: 3 + Math.random()*6});   // water gathers and runs down
+      if(VAHO === 2 && Math.random() < .025) drips.push({x, y, len: 0, v: (3 + Math.random()*6)*S});   // water gathers and runs down
     }
     tex.needsUpdate = true;
   }
@@ -53,6 +54,7 @@ export function createVaho(){
   if(getComputedStyle(glass).position === 'static') glass.style.position = 'relative';
   glass.appendChild(hint);
   let hintT = 0;
+  let enter = () => {};   // ?gesto=b: what a tap on the glass does, also from the label (?pista=b)
   const say = (words: string, ms = 2200) => { hint.textContent = words; hint.style.opacity = '1'; clearTimeout(hintT); hintT = window.setTimeout(() => hint.style.opacity = '0', ms); };
   if(GESTO === 'a'){
     glass.style.touchAction = 'none';
@@ -94,10 +96,11 @@ export function createVaho(){
       last = null;
       const t = e.changedTouches[0];
       if(!on && t0 && performance.now() - t0.t < 350 && Math.hypot(t.clientX - t0.x, t.clientY - t0.y) < 10){
-        on = true; glass.style.touchAction = 'none'; breath.v = 1; say('Dibuixa al vidre', 1800);   // a breath on the glass
+        enter();
       }
       if(on) later();
     });
+    enter = () => { on = true; glass.style.touchAction = 'none'; breath.v = 1; say('Dibuixa al vidre', 1800); later(); };   // a breath on the glass
     addEventListener('touchstart', e => { if(on && !glass.contains(e.target as Node)) stop(); }, {passive: true});
   } else if(GESTO === 'c'){
     glass.style.touchAction = 'pan-y';
@@ -142,6 +145,56 @@ export function createVaho(){
     const end = () => { clearTimeout(hold); mode = 'wait'; t0 = null; last = null; };
     glass.addEventListener('touchend', end); glass.addEventListener('touchcancel', end);
   }
+  // PROTOTYPE (08-11): what tells a first visitor they can draw (?pista=): a (words wiped in the mist, as if someone
+  // had written them), b (a paper stub stuck on the glass, like the others on the wall), c (a fingertip that wipes once)
+  const PISTA = new URLSearchParams(location.search).get('pista');
+  const touchy = matchMedia('(hover: none)').matches, slow = new URLSearchParams(location.search).has('lento') ? 6 : 1;   // ?lento: for the captures
+  const fingerSvg = '<svg viewBox="0 0 28 18" aria-hidden="true"><path d="M3 13c4-8 8 2 12-4s5-4 8-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="24" cy="4" r="2.4" fill="#E07A1F"/></svg>';
+  function show(){
+    const r = glass.getBoundingClientRect(), k = r.height/r.width;   // canvas pixels are stretched to the glass: draw squeezed
+    if(PISTA === 'a'){
+      const lines = touchy ? ['toca el vidre', 'i dibuixa'] : ['passa-hi', 'el ratolí'];
+      const t0 = performance.now(), dur = 1600*slow; breath.v = 1; setTimeout(() => breath.v = 0, 7000*slow);   // the glass breathed on, so the words read
+      const write = () => {
+        const f = Math.min(1, (performance.now() - t0)/dur);
+        g.save(); g.setTransform(k, 0, 0, 1, 0, 0);
+        const W = N/k; g.beginPath(); g.rect(0, 0, W*(.12 + .8*f), N); g.clip();
+        g.font = `700 ${Math.round(N*.095)}px Literata, Georgia, serif`; g.textAlign = 'center'; g.lineJoin = g.lineCap = 'round';
+        g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = N*.013;
+        lines.forEach((l, i) => g.strokeText(l, W/2, N*(.3 + .16*i)));
+        g.restore(); tex.needsUpdate = true;
+        if(f < 1) requestAnimationFrame(write);
+      };
+      write();
+    } else if(PISTA === 'b'){
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'talo pista';
+      b.innerHTML = `<span class="in" style="clip-path:${tear(9)}"><i>${fingerSvg}</i><span>Dibuixa al vidre</span></span>`;
+      b.style.cssText = 'position:absolute;left:1rem;bottom:1rem;z-index:3;transform:rotate(-2deg);opacity:0;transition:opacity .5s';
+      glass.appendChild(b); requestAnimationFrame(() => b.style.opacity = '1');
+      b.addEventListener('click', () => { b.style.opacity = '0'; setTimeout(() => b.remove(), 500); if(touchy) enter(); else say('Passa el ratolí pel vidre', 2400); });
+      glass.addEventListener('mousemove', () => { b.style.opacity = '0'; setTimeout(() => b.remove(), 500); }, {once: true});
+    } else if(PISTA === 'c'){
+      const tip = document.createElement('i');
+      tip.style.cssText = 'display:block;position:absolute;left:0;top:0;width:2.6rem;height:2.6rem;margin:-1.3rem 0 0 -1.3rem;border-radius:50%;border:.2rem solid #F1EADC;box-shadow:.2rem .2rem 0 rgba(14,9,6,.85), inset 0 0 0 .5rem rgba(241,234,220,.25);pointer-events:none;opacity:0;transition:opacity .3s;z-index:3';
+      glass.appendChild(tip);
+      const t0 = performance.now() + 400, dur = 1800*slow; let prev: [number, number] | null = null;
+      requestAnimationFrame(() => tip.style.opacity = '1');
+      const run = () => {
+        const f = Math.min(1, Math.max(0, (performance.now() - t0)/dur)), e = f < .5 ? 2*f*f : 1 - (-2*f + 2)**2/2;
+        const u = .18 + .64*e, v = .55 + .14*Math.sin(e*Math.PI*2);
+        tip.style.transform = `translate(${u*r.width}px, ${v*r.height}px)`;
+        if(f > 0){ const p: [number, number] = [u*N, v*N]; stroke(prev ?? p, p); prev = p; }
+        if(f < 1) requestAnimationFrame(run);
+        else { tip.style.opacity = '0'; setTimeout(() => tip.remove(), 400); say(touchy ? 'Toca el vidre per dibuixar' : 'Passa el ratolí pel vidre', 2600); }
+      };
+      run();
+    }
+  }
+  if(PISTA){   // when the hero has come in (the real one: only the first visit)
+    const hero = document.getElementById('stage')!;
+    const go = () => setTimeout(show, 900);
+    if(hero.classList.contains('in')) go(); else new MutationObserver((_, o) => { if(hero.classList.contains('in')){ o.disconnect(); go(); } }).observe(hero, {attributes: true, attributeFilter: ['class']});
+  }
   (window as unknown as {__vaho: () => number}).__vaho = () => { const d = g.getImageData(0, 0, N, N).data; let s = 0; for(let i = 0; i < d.length; i += 4) s += d[i]; return s/255; };
   // the mist coming back, and the runs
   function tick(){
@@ -149,11 +202,11 @@ export function createVaho(){
     g.globalCompositeOperation = 'source-over';
     g.fillStyle = `rgba(0,0,0,${Math.min(1, 3*dt/back)})`; g.fillRect(0, 0, N, N);
     for(const d of drips){
-      const l0 = d.len; d.len = Math.min(34, d.len + d.v*dt);
-      g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = .9; g.beginPath(); g.moveTo(d.x, d.y + l0); g.lineTo(d.x + Math.sin((d.y + d.len)*.4)*.8, d.y + d.len); g.stroke();
-      g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(d.x, d.y + d.len, 1.1, 0, 7); g.fill();
+      const l0 = d.len; d.len = Math.min(34*S, d.len + d.v*dt);
+      g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = .9*S; g.beginPath(); g.moveTo(d.x, d.y + l0); g.lineTo(d.x + Math.sin((d.y + d.len)/S*.4)*.8*S, d.y + d.len); g.stroke();
+      g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(d.x, d.y + d.len, 1.1*S, 0, 7); g.fill();
     }
-    drips = drips.filter(d => d.len < 34);
+    drips = drips.filter(d => d.len < 34*S);
     tex.needsUpdate = true;
   }
   setInterval(tick, 120);
