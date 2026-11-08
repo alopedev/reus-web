@@ -12,6 +12,7 @@ export function createVaho(){
   g.fillStyle = '#000'; g.fillRect(0, 0, N, N);
   const tex = new CanvasTexture(cv); tex.minFilter = tex.magFilter = LinearFilter;
   const R = [0, 18, 5, 14][VAHO], back = [1, 15, 40, 20][VAHO];
+  const breath = {v: 0};
   let last: [number, number] | null = null, lastT = performance.now(), drips: {x: number, y: number, len: number, v: number}[] = [];
   function at(e: PointerEvent): [number, number] | null {
     const r = document.getElementById('win')!.getBoundingClientRect();
@@ -39,33 +40,87 @@ export function createVaho(){
   const press = new URLSearchParams(location.search).get('raton') === 'press';
   addEventListener('pointermove', e => { if(e.pointerType === 'mouse' && (!press || e.buttons)) move(e); else if(e.pointerType === 'mouse') last = null; }, {passive: true});
   addEventListener('pointerup', e => { if(e.pointerType === 'mouse') last = null; });
-  // a finger, without taking the page's scroll: the glass lets the browser scroll up and down (touch-action: pan-y), so
-  // a stroke that starts sideways draws at once and one that starts up or down scrolls; a finger held still for a moment
-  // draws in any direction (from then on its moves are ours: preventDefault before any scroll has begun)
+  // a finger on the glass (?gesto=): ahora (sideways draws, up/down scrolls, held still draws), a (one finger draws, two
+  // fingers move the page, as the maps do), b (a tap breathes on the glass: from then on one finger draws, until 4 s
+  // without touching it or a touch outside), c (the glass takes the finger: the page moves from the wall)
+  const GESTO = new URLSearchParams(location.search).get('gesto') || 'ahora';
   const glass = document.getElementById('win')!;
-  glass.style.touchAction = 'pan-y';
   glass.style.setProperty('-webkit-user-select', 'none'); glass.style.setProperty('-webkit-touch-callout', 'none'); glass.style.userSelect = 'none';
-  let t0: {x: number, y: number} | null = null, mode: 'wait' | 'draw' | 'scroll' = 'wait', hold = 0;
-  const pt = (t: Touch) => ({clientX: t.clientX, clientY: t.clientY} as PointerEvent);
-  glass.addEventListener('touchstart', e => {
-    if(e.touches.length > 1){ mode = 'scroll'; return; }
-    const t = e.touches[0]; t0 = {x: t.clientX, y: t.clientY}; mode = 'wait'; last = null;
-    clearTimeout(hold);
-    hold = window.setTimeout(() => { if(mode === 'wait'){ mode = 'draw'; move(pt(t)); } }, 260);   // held still: a breath on the glass
-  }, {passive: false});
-  glass.addEventListener('touchmove', e => {
-    const t = e.touches[0];
-    if(mode === 'wait' && t0){
-      const dx = t.clientX - t0.x, dy = t.clientY - t0.y;
-      if(Math.hypot(dx, dy) < 8) return;
+  const pt = (t: {clientX: number, clientY: number}) => ({clientX: t.clientX, clientY: t.clientY} as PointerEvent);
+  const hint = document.createElement('p');   // a word on the glass, in the window's own ink
+  hint.style.cssText = 'position:absolute;left:0;right:0;bottom:12%;margin:0;text-align:center;font:700 .95rem/1.2 var(--texto);color:#F1EADC;text-shadow:0 1px 3px rgba(45,36,28,.8);pointer-events:none;opacity:0;transition:opacity .4s';
+  if(getComputedStyle(glass).position === 'static') glass.style.position = 'relative';
+  glass.appendChild(hint);
+  let hintT = 0;
+  const say = (words: string, ms = 2200) => { hint.textContent = words; hint.style.opacity = '1'; clearTimeout(hintT); hintT = window.setTimeout(() => hint.style.opacity = '0', ms); };
+  if(GESTO === 'a' || GESTO === 'c'){
+    glass.style.touchAction = 'none';
+    let two: number | null = null, v = 0, lastT2 = 0, travel = 0, vert = 0, told = false;
+    glass.addEventListener('touchstart', e => {
+      if(e.touches.length > 1 && GESTO === 'a'){ two = (e.touches[0].clientY + e.touches[1].clientY)/2; last = null; v = 0; lastT2 = performance.now(); return; }
+      two = null; last = null; travel = 0; vert = 0; move(pt(e.touches[0]));
+    }, {passive: false});
+    glass.addEventListener('touchmove', e => {
+      e.preventDefault();
+      if(two !== null && e.touches.length > 1){   // two fingers: the page follows them, with a little momentum after
+        const y = (e.touches[0].clientY + e.touches[1].clientY)/2, now = performance.now();
+        scrollBy({top: two - y, behavior: 'instant'}); v = (two - y)/Math.max(8, now - lastT2); two = y; lastT2 = now; return;
+      }
+      if(two !== null) return;
+      const t = e.touches[0];
+      if(last){ const r = glass.getBoundingClientRect(); travel += Math.abs(t.clientX - (last[0]/N*r.width + r.left)); vert += Math.abs(t.clientY - (last[1]/N*r.height + r.top)); }
+      move(pt(t));
+      if(GESTO === 'a' && !told && vert > 90 && vert > 2*travel){ told = true; say('Amb dos dits, la pàgina es mou'); }
+    }, {passive: false});
+    glass.addEventListener('touchend', e => {
+      if(two !== null && e.touches.length === 0){
+        let s = v*16; const glide = () => { if(Math.abs(s) < .5) return; scrollBy({top: s, behavior: 'instant'}); s *= .94; requestAnimationFrame(glide); };
+        requestAnimationFrame(glide); two = null;
+      }
+      if(e.touches.length === 0) last = null;
+    });
+    glass.addEventListener('touchcancel', () => { two = null; last = null; });
+  } else if(GESTO === 'b'){
+    let on = false, off = 0, t0: {x: number, y: number, t: number} | null = null;
+    const stop = () => { on = false; glass.style.touchAction = ''; breath.v = 0; say('', 1); };
+    const later = () => { clearTimeout(off); off = window.setTimeout(stop, 4000); };
+    glass.addEventListener('touchstart', e => {
+      const t = e.touches[0]; t0 = {x: t.clientX, y: t.clientY, t: performance.now()}; last = null;
+      if(on){ clearTimeout(off); move(pt(t)); }
+    }, {passive: false});
+    glass.addEventListener('touchmove', e => { if(on){ e.preventDefault(); move(pt(e.touches[0])); } }, {passive: false});
+    glass.addEventListener('touchend', e => {
+      last = null;
+      const t = e.changedTouches[0];
+      if(!on && t0 && performance.now() - t0.t < 350 && Math.hypot(t.clientX - t0.x, t.clientY - t0.y) < 10){
+        on = true; glass.style.touchAction = 'none'; breath.v = 1; say('Dibuixa al vidre', 1800);   // a breath on the glass
+      }
+      if(on) later();
+    });
+    addEventListener('touchstart', e => { if(on && !glass.contains(e.target as Node)) stop(); }, {passive: true});
+  } else {
+    glass.style.touchAction = 'pan-y';
+    let t0: {x: number, y: number} | null = null, mode: 'wait' | 'draw' | 'scroll' = 'wait', hold = 0;
+    glass.addEventListener('touchstart', e => {
+      if(e.touches.length > 1){ mode = 'scroll'; return; }
+      const t = e.touches[0]; t0 = {x: t.clientX, y: t.clientY}; mode = 'wait'; last = null;
       clearTimeout(hold);
-      mode = Math.abs(dx) > Math.abs(dy) ? 'draw' : 'scroll';
-      if(mode === 'draw') move(pt({clientX: t0.x, clientY: t0.y} as Touch));
-    }
-    if(mode === 'draw'){ e.preventDefault(); move(pt(t)); }
-  }, {passive: false});
-  const end = () => { clearTimeout(hold); mode = 'wait'; t0 = null; last = null; };
-  glass.addEventListener('touchend', end); glass.addEventListener('touchcancel', end);
+      hold = window.setTimeout(() => { if(mode === 'wait'){ mode = 'draw'; move(pt(t)); } }, 260);
+    }, {passive: false});
+    glass.addEventListener('touchmove', e => {
+      const t = e.touches[0];
+      if(mode === 'wait' && t0){
+        const dx = t.clientX - t0.x, dy = t.clientY - t0.y;
+        if(Math.hypot(dx, dy) < 8) return;
+        clearTimeout(hold);
+        mode = Math.abs(dx) > Math.abs(dy) ? 'draw' : 'scroll';
+        if(mode === 'draw') move(pt({clientX: t0.x, clientY: t0.y}));
+      }
+      if(mode === 'draw'){ e.preventDefault(); move(pt(t)); }
+    }, {passive: false});
+    const end = () => { clearTimeout(hold); mode = 'wait'; t0 = null; last = null; };
+    glass.addEventListener('touchend', end); glass.addEventListener('touchcancel', end);
+  }
   (window as unknown as {__vaho: () => number}).__vaho = () => { const d = g.getImageData(0, 0, N, N).data; let s = 0; for(let i = 0; i < d.length; i += 4) s += d[i]; return s/255; };
   // the mist coming back, and the runs
   function tick(){
@@ -81,5 +136,5 @@ export function createVaho(){
     tex.needsUpdate = true;
   }
   setInterval(tick, 120);
-  return { tex };
+  return { tex, breath };
 }

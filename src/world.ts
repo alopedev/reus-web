@@ -173,14 +173,14 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
       foldY:{value:0}, shade:{value:0}, wx:{value:0}, brd:{value:new Vector4(0,0,0,0)}, washAll:{value:0},
       tRoom:{value:null as unknown}, tRoomP:{value:null as unknown}, tPaper:{value:null as unknown}, overWin:{value:0},
       tDir:{value:dirRT.texture}, pincel:{value:PINCEL}, luz:{value:LUZ}, flowOff:{value:0}, fpx:{value:1}, flowP:{value:L},
-      tPoster:{value:null as unknown}, posterOn:{value:0}, tWipe:{value:null as unknown}, vaho:{value:VAHO} },
+      tPoster:{value:null as unknown}, posterOn:{value:0}, tWipe:{value:null as unknown}, vaho:{value:VAHO}, aliento:{value:0} },
     vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`,
     fragmentShader: watercolorFrag,
   });
   const postScene = new Scene(), postCam = new OrthographicCamera(-1,1,1,-1,0,1);
   postScene.add(new Mesh(new PlaneGeometry(2,2), post));
   const U = post.uniforms;
-  if(VAHO) U.tWipe.value = createVaho().tex;   // PROTOTYPE idea 4
+  const vh = VAHO ? createVaho() : null; if(vh) U.tWipe.value = vh.tex;   // PROTOTYPE idea 4
   // PROTOTYPE idea 5: the poster the page opens on (index.html) stays under the paint until the paint reaches it
   const posterSrc = document.documentElement.dataset.posterSrc;
   if(posterSrc) new TextureLoader().load(posterSrc, t => { U.tPoster.value = t; U.posterOn.value = 1; });
@@ -277,6 +277,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
   }
   let offset = 0, washRaf = 0, washed = true;
   function frame(dx: number, time: number, reveal: number){
+    if(vh) U.aliento.value += (vh.breath.v - U.aliento.value)*.12;   // PROTOTYPE: the breath on the glass (?gesto=b)
     offset += dx;
     const tx = -(((offset % L)+L) % L); tiles[0].position.x = tx - L/2; tiles[1].position.x = tx + L/2;
     const hx = -(((offset % RW)+RW) % RW); headlands[0].position.x = hx - RW/2; headlands[1].position.x = hx + RW/2;

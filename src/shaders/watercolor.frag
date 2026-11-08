@@ -7,7 +7,7 @@ uniform sampler2D tRoom, tRoomP, tPaper; uniform float overWin;
 // how far the land has moved (flowOff, over a period flowP) and the camera's focal length in the target's pixels (fpx)
 uniform sampler2D tDir; uniform float pincel, flowOff, flowP, fpx;
 // PROTOTYPE idea 3: the light in the carriage (luz: 0 none, 1 a, 2 b, 3 c)
-uniform float luz; uniform sampler2D tPoster; uniform float posterOn; uniform sampler2D tWipe; uniform float vaho;
+uniform float luz; uniform sampler2D tPoster; uniform float posterOn; uniform sampler2D tWipe; uniform float vaho; uniform float aliento;
 varying vec2 vUv;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
@@ -247,7 +247,7 @@ void main(){
     if(vaho > .5){                                                  // any day (Àlex, 08-11); thicker with rain or fog
       float wp = texture2D(tWipe, w).r;
       vec2 m = vec2(w.x*waspect, w.y);
-      float d = (wx > 1.5 ? .78 : .5)*(.82 + .36*fbm(m*7. + 2.));
+      float d = mix(wx > 1.5 ? .78 : .5, .92, aliento)*(.82 + .36*fbm(m*7. + 2.));
       if(vaho > 2.5){                                               // c: it condenses at the edges and the bottom
         float ed = min(min(w.x, 1.-w.x)*waspect, min(w.y, 1.-w.y));
         d *= clamp(1. - smoothstep(.02, .2 + .1*fbm(m*5.), ed) + (1. - smoothstep(0., .45, w.y))*.8, 0., 1.);
