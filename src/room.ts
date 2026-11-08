@@ -42,7 +42,7 @@ export function createRoom(renderer: WebGLRenderer): Room {
   const M = (c: number, opacity?: number) => new MeshLambertMaterial({ color: c, transparent: opacity !== undefined, opacity: opacity ?? 1 });
   const mats = {
     wall: M(0xb8b6b0), wallLow: M(0x8e8c88), lining: M(0xd2d0cb), rubber: M(0x1a1a1c),
-    seat: M(0x3a4552), head: M(0x56606c), shell: M(0x8f9194), base: M(0x2a2a2c),
+    seat: M(0x3a4552), cushionShade: M(0x252c35), head: M(0x56606c), shell: M(0x8f9194), base: M(0x2a2a2c),
     alu: M(0xc9cdd1), glass: M(0xcfe0e6, .35), case: M(0x4f6478), pack: M(0xa8492c),
     dark: M(0x1c1c1e), mapW: M(0xeeece6), line: M(0x8a6a4a),
   };
@@ -92,20 +92,21 @@ export function createRoom(renderer: WebGLRenderer): Room {
     }
     // luggage: a cabin case lying on its side, a backpack
     if(P.luggage){
-      add(new RoundedBoxGeometry(.42*m, .17*m, .28*m, 4, .03*m), mats.case, .565*A, rf + .002 + .085*m, .17*m).rotation.y = .06;
-      for(const dy of [-.04, 0, .04]) add(new BoxGeometry(.4*m, .003, .004), mats.dark, .565*A, rf + .085*m + dy*m, .17*m + .14*m + .001, group, false);
-      add(new TorusGeometry(.03*m, .006*m, 8, 16, Math.PI), mats.dark, .565*A, rf + .17*m, .17*m);
-      for(const dz of [-.12, .12]) add(new CylinderGeometry(.022*m, .022*m, .02*m, 16).rotateZ(Math.PI/2), mats.dark, .565*A + .215*m, rf + .026*m, .17*m + dz*m);
-      add(new RoundedBoxGeometry(.3*m, .13*m, .24*m, 5, .055*m), mats.pack, .69*A, rf + .002 + .065*m, .15*m).rotation.y = -.12;
-      add(new RoundedBoxGeometry(.2*m, .07*m, .03*m, 4, .015*m), mats.pack, .69*A, rf + .045*m, .15*m + .125*m);
-      add(new BoxGeometry(.03*m, .14*m, .01*m), mats.dark, .69*A + .06*m, rf - .03*m, depth + .012).rotation.z = .1;
+      add(new RoundedBoxGeometry(.42*m, .17*m, .28*m, 4, .03*m), mats.case, P.bags, rf + .002 + .085*m, .17*m).rotation.y = .06;
+      for(const dy of [-.04, 0, .04]) add(new BoxGeometry(.4*m, .003, .004), mats.dark, P.bags, rf + .085*m + dy*m, .17*m + .14*m + .001, group, false);
+      add(new TorusGeometry(.03*m, .006*m, 8, 16, Math.PI), mats.dark, P.bags, rf + .17*m, .17*m);
+      for(const dz of [-.12, .12]) add(new CylinderGeometry(.022*m, .022*m, .02*m, 16).rotateZ(Math.PI/2), mats.dark, .215*m + P.bags, rf + .026*m, .17*m + dz*m);
+      add(new RoundedBoxGeometry(.3*m, .13*m, .24*m, 5, .055*m), mats.pack, P.bags + .125*A, rf + .002 + .065*m, .15*m).rotation.y = -.12;
+      add(new RoundedBoxGeometry(.2*m, .07*m, .03*m, 4, .015*m), mats.pack, P.bags + .125*A, rf + .045*m, .15*m + .125*m);
+      add(new BoxGeometry(.03*m, .14*m, .01*m), mats.dark, .06*m + P.bags + .125*A, rf - .03*m, depth + .012).rotation.z = .1;
     }
     // the seats, in profile: cushion, a reclined backrest with its plastic shell, headrest, frame, the aisle armrest
     for(const s of P.seats){
       const g = new Group(); g.position.set(s.x, s.y0, 0); g.scale.set(s.dir*s.scale, s.scale, s.scale); group.add(g);
       const w = .48, z0 = .05;
       const at = (geo: BufferGeometry, mat: MeshLambertMaterial, u: number, v: number, rot = 0) => { const k = add(geo, mat, u, v, z0 + w/2, g); k.rotation.z = rot; return k; };
-      at(new RoundedBoxGeometry(.54, .13, w, 4, .05), mats.seat, .31, .45);
+      // on a phone our cushion sits behind the day's ruler: in shade, so its hours read (Àlex, 08-11)
+      at(new RoundedBoxGeometry(.54, .13, w, 4, .05), wide ? mats.seat : mats.cushionShade, .31, .45);
       at(new RoundedBoxGeometry(.13, .74, w, 4, .05), mats.seat, .03, .82, .09);
       at(new RoundedBoxGeometry(.04, .78, w + .01, 2, .015), mats.shell, -.035, .80, .09);
       at(new RoundedBoxGeometry(.17, .22, w - .04, 4, .07), mats.head, -.02, 1.17, .09);

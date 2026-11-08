@@ -19,6 +19,7 @@ export interface Plan {
   lamp: [x: number, y: number, z: number, reach: number] | null;   // a phone's strip light over our seat
   rack: number | null;                        // the luggage rack's height, or none where it would be cut by the top edge
   luggage: boolean;                           // the case and the backpack on it, only where they fit whole too
+  bags: number;                               // the case's centre on the rack (the backpack .125 of the width right of it)
 }
 
 export const ARMREST = .68;   // the armrest's height in a seat's metres (room.ts builds it there)
@@ -44,16 +45,20 @@ export function plan(A: number, win: Win, wide: boolean): Plan {
   if(wide){
     const seats: Seat[] = [];
     for(const s of [-1, 1] as const){
-      seats.push({ x: cx + s*.88*m, y0: floorY, scale: m, dir: (-s) as 1 | -1, handle: true });
-      seats.push({ x: cx + s*1.05*m, y0: floorY, scale: m, dir: s, handle: false });
+      // close to the window and a hair low: where Àlex placed them on the canvas (08-11)
+      seats.push({ x: cx + s*.81*m, y0: floorY - .008*m, scale: m, dir: (-s) as 1 | -1, handle: true });
+      seats.push({ x: cx + s*.98*m, y0: floorY - .008*m, scale: m, dir: s, handle: false });
     }
-    return { m, floorY, cx, seats, eye, lamp: null, ...rack(floorY, m) };
+    return { m, floorY, cx, seats, eye, lamp: null, ...rack(floorY, m), bags: .565*A };
   }
-  // its backrest's back just right of the window's left edge (on a 390 × 844 phone, 7 % of the height from the screen's)
-  const scale = .6, x = win.x*A + .028, y0 = .25 - ARMREST*scale;
+  // its backrest's back just left of the window's left edge and its armrest a fifth up the screen: where Àlex placed
+  // it on the canvas (08-11; on a 390 × 844 phone, 40 px left and 43 px lower than before). Its cushion lands behind
+  // the day's ruler: room.ts keeps it in shade so the ruler's hours read (Àlex, 08-11, check_ruler_foot)
+  const scale = .6, x = win.x*A - .015, y0 = .204 - ARMREST*scale;
   const seats: Seat[] = [
     { x, y0, scale, dir: 1, handle: true },
     { x: x - .17*scale, y0, scale, dir: -1, handle: false },
   ];
-  return { m, floorY, cx, seats, eye, lamp: [win.x*A + .045 - .07*m, floorY + 1.2*m, .7, 1.6*m], ...rack(floorY, m) };
+  // the case 19 px further right than on a desktop (Àlex, 08-11)
+  return { m, floorY, cx, seats, eye, lamp: [win.x*A + .002 - .07*m, floorY + 1.2*m, .7, 1.6*m], ...rack(floorY, m), bags: .565*A + .021 };
 }

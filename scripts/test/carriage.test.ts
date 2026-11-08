@@ -14,9 +14,11 @@ test('on a wide screen, two seats either side of the window, face to face, stand
   const p = plan(A, desk, true);
   const m = (desk.w - desk.y)/.75, cx = (desk.x + desk.z)/2*A;
   assert.equal(p.seats.length, 4);
-  for(const s of p.seats){ assert.ok(near(s.scale, m)); assert.ok(near(s.y0, desk.y - .9*m)); }
+  // a hair under the floor line and close to the window (Àlex placed them on the canvas, 08-11)
+  for(const s of p.seats){ assert.ok(near(s.scale, m)); assert.ok(near(s.y0, desk.y - .908*m)); }
   const xs = p.seats.map(s => s.x - cx).sort((u, v) => u - v);
   assert.ok(near(xs[0], -xs[3]) && near(xs[1], -xs[2]), 'symmetric about the window');
+  assert.ok(near(xs[2], .81*m) && near(xs[3], .98*m), 'the bay\'s backs .81 and .98 of a metre from the window\'s centre');
   // the two in front of the window face it: the left one faces right, the right one left; each has a grab handle
   const front = p.seats.filter(s => s.handle);
   assert.deepEqual(front.map(s => [Math.sign(s.x - cx), s.dir]).sort(), [[-1, 1], [1, -1]]);
@@ -30,9 +32,9 @@ test('on a phone, our seat alone, close up at the left edge, its armrest at a qu
   assert.equal(ours.length, 1);
   const s = ours[0];
   assert.equal(s.dir, 1, 'facing the window, seen in profile');
-  assert.ok(Math.abs(s.x - .07) < .001, 'its back just right of the window\'s left edge');
+  assert.ok(near(s.x, phone.x*a - .015), 'its back just left of the window\'s left edge (Àlex, 08-11)');
   assert.ok(near(s.scale, .6), 'a fixed size on the screen, whatever the window measures');
-  assert.ok(near(s.y0 + ARMREST*s.scale, .25), 'the armrest a quarter up the screen: the bottom edge cuts below it');
+  assert.ok(near(s.y0 + ARMREST*s.scale, .204), 'the armrest a fifth up the screen: the bottom edge cuts below it');
   assert.ok(s.y0 < 0, 'its base off the screen');
   // only the back of the next bay's seat behind it, back to back, partly off the left edge
   const back = p.seats.filter(t => !t.handle);
@@ -52,8 +54,8 @@ test('on a phone, a lamp over our seat (lit only at night, see room.ts); none on
 test('on a screen with no room at the sides but a window away from its edge, our seat stands at the window\'s corner', () => {
   // 900 × 900: a desktop's window in the middle, too close to the edges for a bay of seats
   const win = { x: .2, y: .388, z: .8, w: .758 }, p = plan(1, win, false), s = p.seats.find(t => t.handle)!;
-  assert.ok(Math.abs(s.x - win.x*1 - (.07 - phone.x*a)) < .001, 'as far from the window\'s left edge as on a phone');
-  assert.ok(s.y0 + (ARMREST + .3)*s.scale > win.y, 'its back rises over the window\'s bottom edge');
+  assert.ok(near(s.x - win.x*1, -.015), 'as far from the window\'s left edge as on a phone');
+  assert.ok(s.y0 + 1.19*s.scale > win.y, 'its backrest rises over the window\'s bottom edge');
 });
 
 test('a phone\'s seat stays where it is when the window grows (taller at night with fewer rows)', () => {
@@ -77,4 +79,9 @@ test('the rack and its luggage are drawn only where they fit whole under the scr
   }
   assert.ok(plan(A, desk, true).rack !== null && plan(A, desk, true).luggage, 'a desktop has both');
   assert.equal(plan(667/375, sideways, false).rack, null, 'a phone held sideways has none');
+});
+
+test('the case and the backpack on the rack: over the window\'s right half, a little further right on a phone', () => {
+  assert.ok(near(plan(A, desk, true).bags, .565*A));
+  assert.ok(near(plan(a, phone, false).bags, .565*a + .021), 'moved 19 px right on a 390 × 844 phone (Àlex, 08-11)');
 });
