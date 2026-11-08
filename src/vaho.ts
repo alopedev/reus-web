@@ -1,19 +1,18 @@
 // The mist on the inside of the window, every day (Àlex 08-11, idea 4 B): a fingertip or the cursor wipes thin lines
 // in it, the water they push runs down in drops, and the mist comes back in about 40 s; with rain or fog at home it is
-// thicker (watercolor.frag, tWipe and aliento). On a desk the cursor passing over the glass draws. On a phone a finger
-// on the window scrolls the page like anywhere else until a tap breathes on the glass («Toca y empaña», gesture b):
-// from then on one finger draws there, until 4 s without touching it or a touch outside. The first visit finds a few
-// words wiped in the mist, as if someone had written them (hint A, once per browser: vidre.ts). Not built with
-// reduced motion (world.ts)
+// thicker (watercolor.frag, tWipe and aliento). On a desk the cursor passing over the glass draws. On a phone the glass
+// and the rest of the page work apart (Àlex 08-11): a finger on the glass draws in any direction and never moves the
+// page (touch-action none, there only); anywhere else it scrolls as always. The first visit finds one word wiped in the
+// mist, «Dibuixa», as if someone had written it (once per browser: vidre.ts); it goes as soon as someone draws. Not
+// built with reduced motion (world.ts)
 import { CanvasTexture, LinearFilter } from 'three';
 import { byId } from './dom';
 import { browserStore } from './remember';
-import { hintDue, hintWords, isTap, type Touch } from './vidre';
+import { HINT, hintDue } from './vidre';
 
 const N = 512;            // the canvas: white where the glass is wiped
 const R = 5*N/256;        // a fingertip's radius
 const BACK = 40;          // seconds for the mist to come back
-const IDLE = 4000;        // ms without a finger before the glass is left and a finger scrolls again
 
 export interface Vaho { tex: CanvasTexture; breath: {v: number}; wiped(): number }
 
@@ -42,7 +41,7 @@ export function createVaho(): Vaho {
       dab(x, y);
       if(Math.random() < .025) drips.push({x, y, len: 0, v: (6 + Math.random()*12)});   // water gathers and runs down
     }
-    lastStroke = performance.now(); tex.needsUpdate = true;
+    lastStroke = performance.now(); drew(); compose(); tex.needsUpdate = true;
   }
   function move(x: number, y: number){
     const p = at(x, y);
@@ -51,56 +50,66 @@ export function createVaho(): Vaho {
   }
   // the mouse: drawing as the cursor passes over the glass
   addEventListener('pointermove', e => { if(e.pointerType === 'mouse') move(e.clientX, e.clientY); }, {passive: true});
-  // a finger: a tap breathes on the glass, and then it draws
+  // a finger on the glass is the glass's: it draws, up, down or sideways, and the page stays. touch-action is read when
+  // a touch starts, so it is set here, before any; the touchmove is not passive as well, for a browser that ignores it
+  glass.style.touchAction = 'none';
   glass.style.setProperty('-webkit-user-select', 'none'); glass.style.setProperty('-webkit-touch-callout', 'none');
-  const say = sayer(glass);
-  let on = false, off = 0, t0: Touch | null = null;
-  const stop = () => { on = false; glass.style.touchAction = ''; breath.v = 0; say('', 1); };
-  const later = () => { clearTimeout(off); off = window.setTimeout(stop, IDLE); };
+  let touched = -1e9, down = false;   // a breath on the glass while a finger draws and a little after, so the line reads
   glass.addEventListener('touchstart', e => {
-    const t = e.touches[0]; t0 = {x: t.clientX, y: t.clientY, t: e.timeStamp}; last = null;   // when it happened, not when a busy page got to it
-    if(on){ clearTimeout(off); move(t.clientX, t.clientY); }
+    down = true; breath.v = 1; last = null;
+    move(e.touches[0].clientX, e.touches[0].clientY);
   }, {passive: true});
-  // not passive: while drawing, the finger is the glass's, not the page's (touch-action is read when a touch starts,
-  // so it is set on the tap, for the next one; this covers a browser that read it before)
-  glass.addEventListener('touchmove', e => { if(on){ e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); } }, {passive: false});
-  glass.addEventListener('touchend', e => {
-    last = null;
-    const t = e.changedTouches[0];
-    if(!on && t0 && isTap(t0, {x: t.clientX, y: t.clientY, t: e.timeStamp})){
-      on = true; glass.style.touchAction = 'none'; breath.v = 1; say('Dibuixa al vidre', 1800);
-    }
-    if(on) later();
-  });
-  addEventListener('touchstart', e => { if(on && !glass.contains(e.target as Node)) stop(); }, {passive: true});
-  // the first visit: a few words wiped in the mist, written left to right once the hero has come in
+  glass.addEventListener('touchmove', e => { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
+  glass.addEventListener('touchend', () => { last = null; down = false; touched = performance.now(); });
+  // the first visit: «Dibuixa» wiped in the mist, written left to right once the hero has come in, on a layer of its
+  // own (hint), so that it can go as soon as someone draws without taking their lines with it
+  const hc = document.createElement('canvas'); hc.width = hc.height = N;
+  const h = hc.getContext('2d')!;
+  const out = document.createElement('canvas'); out.width = out.height = N;
+  const o = out.getContext('2d')!;
+  let hintA = 0, hintDone = false, hintGoing = false;
+  function compose(){
+    if(hintA <= 0){ if(tex.image !== cv){ tex.image = cv; } return; }
+    o.globalCompositeOperation = 'source-over'; o.globalAlpha = 1; o.drawImage(cv, 0, 0);
+    o.globalCompositeOperation = 'lighten'; o.globalAlpha = hintA; o.drawImage(hc, 0, 0);
+    if(tex.image !== out) tex.image = out;
+  }
   const stage = byId('stage');
-  const go = () => setTimeout(() => { if(hintDue(browserStore())) void write(hintWords(matchMedia('(hover: none)').matches)); }, 900);
+  const go = () => setTimeout(() => { if(hintDue(browserStore())) void write(); }, 900);
   if(stage.classList.contains('in')) go();
-  else new MutationObserver((_, o) => { if(stage.classList.contains('in')){ o.disconnect(); go(); } }).observe(stage, {attributes: true, attributeFilter: ['class']});
-  async function write(lines: string[]){
-    const font = `700 ${Math.round(N*.095)}px Literata`;
+  else new MutationObserver((_, ob) => { if(stage.classList.contains('in')){ ob.disconnect(); go(); } }).observe(stage, {attributes: true, attributeFilter: ['class']});
+  async function write(){
+    const font = `700 ${Math.round(N*.17)}px Literata`;
     await document.fonts.load(font).catch(() => null);
     const r = glass.getBoundingClientRect(), k = r.height/Math.max(1, r.width);   // the canvas is stretched to the glass: write squeezed
-    const t = performance.now(), dur = 1600;
-    breath.v = 1; setTimeout(() => { if(!on) breath.v = 0; }, 7000);   // breathed on, so the words read
+    const t = performance.now(), dur = 1400;
+    hintA = 1; breath.v = 1;   // breathed on, so the word reads
     const step = () => {
       const f = Math.min(1, (performance.now() - t)/dur), W = N/k;
-      g.save(); g.setTransform(k, 0, 0, 1, 0, 0);
-      g.beginPath(); g.rect(0, 0, W*(.12 + .8*f), N); g.clip();
-      g.font = `${font}, Georgia, serif`; g.textAlign = 'center'; g.lineJoin = g.lineCap = 'round';
-      g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = N*.013;
-      lines.forEach((l, i) => g.strokeText(l, W/2, N*(.3 + .16*i)));
-      g.restore(); lastStroke = performance.now(); tex.needsUpdate = true;
-      if(f < 1) requestAnimationFrame(step);
+      h.save(); h.setTransform(k, 0, 0, 1, 0, 0);
+      h.beginPath(); h.rect(0, 0, W*(.1 + .82*f), N); h.clip();
+      h.fillStyle = h.strokeStyle = '#fff'; h.font = `${font}, Georgia, serif`; h.textAlign = 'center'; h.textBaseline = 'middle';
+      h.lineJoin = 'round'; h.lineWidth = N*.008;
+      h.fillText(HINT, W/2, N*.4); h.strokeText(HINT, W/2, N*.4);
+      h.restore(); compose(); tex.needsUpdate = true;
+      if(f < 1) requestAnimationFrame(step); else hintDone = true;
     };
     step();
   }
+  // someone draws: the word goes, in a moment (a stroke while it is still being written does not count: a cursor
+  // resting on the glass would wipe it before it could be read)
+  const drew = () => { if(hintA > 0 && hintDone && !hintGoing){ hintGoing = true; } };
   // the mist coming back, and the runs. A canvas rounds a slow fade to nothing at low values, so it fades in steps of
   // 400 ms and, once nothing has been drawn for a while, is cleared outright; a clean glass costs nothing
   let fade = 0, prev = performance.now(), clean = true;
   setInterval(() => {
     const now = performance.now(), dt = Math.min(.5, (now - prev)/1000); prev = now;
+    if(hintA > 0){
+      hintA = Math.max(0, hintA - dt/(hintGoing ? .6 : 30));   // as someone draws, at once; untouched, with the mist
+      if(hintA <= .02) hintA = 0;
+      compose(); tex.needsUpdate = true;
+    }
+    breath.v = hintA > 0 || down || now - touched < 3000 ? 1 : 0;
     if(now - lastStroke < 1000*BACK*2.5 || drips.length) clean = false;
     if(clean) return;
     fade += 3*dt/BACK;
@@ -112,17 +121,9 @@ export function createVaho(): Vaho {
     }
     drips = drips.filter(d => d.len < 68);
     if(now - lastStroke > 1000*BACK*2.5 && !drips.length){ g.fillStyle = '#000'; g.fillRect(0, 0, N, N); clean = true; }
-    tex.needsUpdate = true;
+    compose(); tex.needsUpdate = true;
   }, 120);
   // for check.py: how much of the glass is wiped (in canvas pixels)
-  const wiped = () => { const d = g.getImageData(0, 0, N, N).data; let s = 0; for(let i = 0; i < d.length; i += 4) s += d[i]; return s/255; };
+  const wiped = () => { compose(); const d = (tex.image === out ? o : g).getImageData(0, 0, N, N).data; let s = 0; for(let i = 0; i < d.length; i += 4) s += d[i]; return s/255; };
   return { tex, breath, wiped };
-}
-
-// a word on the glass, in the window's own ink, that goes after a while
-function sayer(glass: HTMLElement){
-  const p = document.createElement('p'); p.className = 'diu'; p.setAttribute('aria-hidden', 'true');
-  glass.appendChild(p);
-  let t = 0;
-  return (words: string, ms = 2200) => { p.textContent = words; p.classList.toggle('on', !!words); clearTimeout(t); t = window.setTimeout(() => p.classList.remove('on'), ms); };
 }

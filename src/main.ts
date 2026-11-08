@@ -51,8 +51,8 @@ setupShelf(world);
 setupPrivacy();
 
 // what check.py reads from the page (modules keep everything else private)
-declare global { interface Window { reus: { hingeAt: typeof hingeAt, dropped: typeof dropped, ScrollTrigger: typeof ScrollTrigger, paisaje: () => number | null, playing: () => boolean, letras: { pair: typeof pair, state: typeof state }, daylight: typeof daylight, tiempo: () => string, avisos: () => unknown, acuarela: () => number | null, parets: () => number | null, vagon: () => ReturnType<World['carriage']> | null, vaho: () => number | null } } }
-window.reus = { hingeAt, dropped, ScrollTrigger, paisaje: () => world ? world.grain() : null, playing: scenery.isPlaying, letras: { pair, state }, daylight, tiempo: weather.now, avisos: avisos.now, acuarela: () => world ? world.painted() : null, parets: () => world ? world.walls() : null, vagon: () => world ? world.carriage() : null, vaho: () => world ? world.mist() : null };
+declare global { interface Window { reus: { hingeAt: typeof hingeAt, dropped: typeof dropped, ScrollTrigger: typeof ScrollTrigger, paisaje: () => number | null, playing: () => boolean, letras: { pair: typeof pair, state: typeof state }, daylight: typeof daylight, tiempo: () => string, avisos: () => unknown, acuarela: () => number | null, parets: () => number | null, vagon: () => ReturnType<World['carriage']> | null, vaho: () => number | null, pintura: () => number } } }
+window.reus = { hingeAt, dropped, ScrollTrigger, paisaje: () => world ? world.grain() : null, playing: scenery.isPlaying, letras: { pair, state }, daylight, tiempo: weather.now, avisos: avisos.now, acuarela: () => world ? world.painted() : null, parets: () => world ? world.walls() : null, vagon: () => world ? world.carriage() : null, vaho: () => world ? world.mist() : null, pintura: scenery.reveal };
 
 // without a connection the site still opens, with the timetable it was built with (src/sw.js); only the built site
 // has the worker, not `npm run dev`

@@ -59,10 +59,6 @@
 /* the window: an empty frame; the painting shows through from the canvas behind */
 .winCell{ display:grid; place-items:center; min-height:0; container-type:size; }
 #win{ width:min(60vw, 100cqw, 100cqh * 1.62); aspect-ratio:1.62; border-radius:2.7rem; position:relative; user-select:none; }
-/* a word on the glass when a tap breathes on it (vaho.ts), in the window's own ink */
-#win .diu{ position:absolute; left:0; right:0; bottom:12%; margin:0; text-align:center; font:700 .95rem/1.2 var(--texto); color:#F1EADC;
-  text-shadow:0 1px 3px rgba(45,36,28,.8); pointer-events:none; opacity:0; transition:opacity .4s; }
-#win .diu.on{ opacity:1; }
 
 /* the departures, on the lower panel of the carriage: a painted board, one row per trip, the train shown big */
 .info{ display:grid; grid-template-columns:minmax(0,1fr); align-items:end; row-gap:.6rem; }

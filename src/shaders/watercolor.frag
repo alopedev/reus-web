@@ -279,7 +279,10 @@ void main(){
       col = mix(col, vec3(.08,.065,.055), ring(ye-.66, .025)*inC);        // the hinge
       edge += ring(sdB, .003)*.5 + ring(sdc, .03)*.35*inB;
     }
-    order = (1.-uv.y)*.25 + (fbm(uv*vec2(3.,2.)+7.)-.5)*.3;
+    // the paint reaches the wall in patches over the first two seconds, from the top down, while the pencil sketch
+    // shows beneath (Àlex 08-11: the sketch is of the whole cover, not the window alone); done by reveal .7, before
+    // the texts come in at .75 (scenery.ts)
+    order = .2 + (1.-uv.y)*.35 + (fbm(uv*vec2(3.,2.)+7.)-.5)*.4;
   }
 
   // the wall's shadow as it turns away from the light: a pigment wash that starts at the hinge (foldY)

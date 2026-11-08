@@ -977,13 +977,58 @@ async def check_magnet(browser):
     await page.close()
     return errs
 
+async def check_sketch(browser):
+    """The pencil sketch the page opens on covers the whole cover, not the window alone (Àlex 08-11): the paint reaches
+    the wall bit by bit too, so early in the painting most of the wall is still the sketch, and at the end none of it
+    is. The clock runs 20 times slower (performance.now and the animation frames), so the moment can be read in
+    software; reus.pintura(): how far the painting has got, 0–1."""
+    errs = []
+    SLOW = """(() => { const k = 20, pn = performance.now.bind(performance), b = pn(), raf = requestAnimationFrame.bind(window);
+      performance.now = () => b + (pn() - b)/k; window.requestAnimationFrame = f => raf(t => f(b + (t - b)/k)); })()"""
+    for name, opts in {"1440x900": dict(viewport={"width": 1440, "height": 900}),
+                       "390x844": dict(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)}.items():
+        page = await open_page(browser, **opts); await page.add_init_script(SLOW)
+        await page.goto(page_url)
+        if await page.evaluate("typeof reus.pintura") != "function": errs.append("reus.pintura() is missing (how far the painting has got)"); await page.close(); return errs
+        for _ in range(400):
+            if (await page.evaluate("reus.pintura()") or 0) >= .12: break
+            await page.wait_for_timeout(250)
+        at = await page.evaluate("reus.pintura()")
+        win = await page.evaluate("(() => { const r = document.getElementById('win').getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; })()")
+        poster = await page.evaluate("document.documentElement.dataset.poster || ''")
+        if not poster: errs.append(f"{name}: no pencil sketch chosen"); await page.close(); continue
+        def sketch_share(png):
+            # the share of the wall (outside the window, below the name) that still shows the sketch: close to it
+            # pixel for pixel, the sketch stretched to the screen as the page lays it
+            shot = Image.open(io.BytesIO(png)).convert("L")
+            ref = Image.open(root / "src" / "public" / poster.lstrip("/")).convert("L").resize(shot.size)
+            a, b = shot.load(), ref.load(); W, H = shot.size; n = sk = 0
+            for y in range(int(H * .22), int(H * .95), 4):
+                for x in range(0, W, 4):
+                    if win[0] - 8 <= x <= win[2] + 8 and win[1] - 8 <= y <= win[3] + 8: continue
+                    n += 1; sk += abs(a[x, y] - b[x, y]) < 24
+            return sk / max(1, n)
+        png = await page.screenshot(); early = sketch_share(png)
+        if os.environ.get("BOCETO_DUMP"): open(f"screenshots/boceto-{name}-{at:.2f}.png", "wb").write(png)
+        if at > .3: errs.append(f"{name}: the painting was read too late ({at:.2f})")
+        elif early < .75: errs.append(f"{name}: with the painting at {at:.2f}, only {early:.0%} of the wall is still the sketch (≥ 75 %)")
+        for _ in range(600):
+            if (await page.evaluate("reus.pintura()") or 0) >= 1: break
+            await page.wait_for_timeout(250)
+        await page.wait_for_timeout(1500)
+        png = await page.screenshot(); late = sketch_share(png)
+        if os.environ.get("BOCETO_DUMP"): open(f"screenshots/boceto-{name}-fin.png", "wb").write(png)
+        if late > .15: errs.append(f"{name}: once painted, {late:.0%} of the wall is still the sketch")
+        await page.close()
+    return errs
+
 async def check_mist(browser):
     """The mist on the inside of the window, every day (Àlex 08-11, idea 4 B): a fingertip or the cursor wipes it and it
-    comes back slowly. On a desk the cursor passing over the glass draws. On a phone a swipe that starts on the window
-    still moves the page; a tap breathes on the glass, and from then on a finger draws there and the page stays,
-    until 4 s without touching it. The first visit finds a few words wiped in the mist, once (capacasa.vaho); the
-    second does not. With reduced motion there is no mist. reus.vaho(): how much of the glass is wiped, null without
-    mist."""
+    comes back slowly. On a desk the cursor passing over the glass draws. On a phone the glass and the rest of the page
+    work apart: a finger on the glass draws in any direction and never moves the page; anywhere else it scrolls as
+    always. The first visit finds one word wiped in the mist, «Dibuixa», once (capacasa.vaho), and it goes as soon as
+    someone draws; the second visit does not. With reduced motion there is no mist. reus.vaho(): how much of the glass
+    is wiped, null without mist."""
     errs = []
     WIPED = "reus.vaho()"
     async def entered(page):
@@ -993,65 +1038,55 @@ async def check_mist(browser):
         for _ in range(ms // 500):
             best = max(best, await page.evaluate(WIPED) or 0); await page.wait_for_timeout(500)
         return best
-    # a desk: the first visit's words, none on the second, the cursor draws
+    # a desk: the first visit's word, gone once the cursor draws; none on the second visit; the cursor draws
     ctx = await browser.new_context(viewport={"width": 1440, "height": 900})
     page = await ctx.new_page(); page.set_default_timeout(120000)
     await page.route("https://api.open-meteo.com/**", lambda route: route.abort()); await page.route("**/api/avisos", no_notices); await page.route("**/api/retards", on_time)
     await entered(page)
     if await page.evaluate("typeof reus.vaho") != "function": errs.append("reus.vaho() is missing (how much of the glass is wiped)"); await ctx.close(); return errs
-    if await wiped_for(page, 6000) < 200: errs.append("1440x900: the first visit finds no words wiped in the mist")
+    word = await wiped_for(page, 6000)
+    if word < 200: errs.append("1440x900: the first visit finds no word wiped in the mist")
+    r = await page.evaluate("(() => { const r = document.getElementById('win').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; })()")
+    for i in range(3): await page.mouse.move(r[0] + r[2] * (.1 + .01 * i), r[1] + r[3] * .85)
+    await page.wait_for_timeout(1500)
+    after = await page.evaluate(WIPED)
+    if word >= 200 and after > word * .5: errs.append(f"1440x900: the word stays in the mist once the cursor draws ({after:.0f} of {word:.0f})")
     await page.wait_for_timeout(1000)
     await entered(page)   # the same browser, a second visit
-    if await wiped_for(page, 5000) > 50: errs.append("1440x900: the words in the mist come back on the second visit")
-    r = await page.evaluate("(() => { const r = document.getElementById('win').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; })()")
+    if await wiped_for(page, 5000) > 50: errs.append("1440x900: the word in the mist comes back on the second visit")
     before = await page.evaluate(WIPED)
     for i in range(15): await page.mouse.move(r[0] + r[2] * (.2 + .04 * i), r[1] + r[3] * .5)
     await page.wait_for_timeout(300)
     if (await page.evaluate(WIPED)) - before < 50: errs.append("1440x900: the cursor passing over the glass does not wipe the mist")
     await ctx.close()
-    # a phone: a swipe scrolls, a tap breathes and then a finger draws, 4 s later a swipe scrolls again
+    # a phone: on the glass a finger draws, up, down or sideways, and the page stays; off it, a finger scrolls
     ctx = await browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
-    await ctx.add_init_script("try { localStorage.setItem('capacasa.vaho', '1'); } catch (e) {}")   # the words already seen
+    await ctx.add_init_script("try { localStorage.setItem('capacasa.vaho', '1'); } catch (e) {}")   # the word already seen
     page = await ctx.new_page(); page.set_default_timeout(120000)
     await page.route("https://api.open-meteo.com/**", lambda route: route.abort()); await page.route("**/api/avisos", no_notices); await page.route("**/api/retards", on_time)
     cdp = await ctx.new_cdp_session(page)
     await entered(page)
-    # where to swipe and tap, read once: a page painting in software can take seconds to answer an evaluate, and the
-    # glass leaves drawing 4 s after a finger
     spots = await page.evaluate("""(() => { const r = document.getElementById('win').getBoundingClientRect();
-      return {swipe: [r.left + r.width / 2, r.top + r.height * .7], tap: [r.left + r.width * .3, r.top + r.height * .4]}; })()""")
-    async def swipe(dy):
-        r = spots["swipe"]
-        await cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": r[0], "y": r[1]}]})
+      return {glass: [r.left + r.width / 2, r.top + r.height * .7], off: [r.left + r.width / 2, Math.min(innerHeight - 30, r.bottom + 60)]}; })()""")
+    async def swipe(at, dx, dy):
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": at[0], "y": at[1]}]})
         for i in range(1, 13):
-            await cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": r[0] + 3 * i, "y": r[1] - dy * i / 12}]})
+            await cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": at[0] + dx * i / 12, "y": at[1] - dy * i / 12}]})
             await page.wait_for_timeout(30)
         await cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}); await page.wait_for_timeout(700)
-    async def tap():
-        r = spots["tap"]
-        await cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": r[0], "y": r[1]}]})
-        await page.wait_for_timeout(60)
-        await cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}); await page.wait_for_timeout(150)
-    async def reset():
-        # back to the hero once the magnet has let go: within 4 s of a hand it would finish the turn the swipe began
-        await page.wait_for_timeout(4500)
-        await page.evaluate("scrollTo({top: 0, behavior: 'instant'})"); await hinge_caught_up(page); await page.wait_for_timeout(500)
-    if await wiped_for(page, 2000) > 50: errs.append("390x844: the words in the mist come although they were seen")
-    w0 = await page.evaluate(WIPED); await swipe(160)
-    if await page.evaluate("scrollY") < 40: errs.append("390x844: a swipe up that starts on the window does not move the page")
-    if (await page.evaluate(WIPED)) - w0 > 50: errs.append("390x844: a swipe before any tap draws on the glass")
-    await reset()
-    w0 = await page.evaluate(WIPED); await tap(); await swipe(160)
-    if await page.evaluate("scrollY") > 5: errs.append("390x844: after a tap on the glass, a finger there still moves the page")
-    if (await page.evaluate(WIPED)) - w0 < 50: errs.append("390x844: after a tap on the glass, a finger there does not draw")
-    await page.wait_for_timeout(300); await reset()
-    await swipe(160)
-    if await page.evaluate("scrollY") < 40: errs.append("390x844: 4 s after drawing, a swipe on the window still does not move the page")
+    if await wiped_for(page, 2000) > 50: errs.append("390x844: the word in the mist comes although it was seen")
+    for what, dx, dy in (("up", 0, 160), ("down", 0, -120), ("sideways", 120, 0)):
+        w0 = await page.evaluate(WIPED); await swipe(spots["glass"], dx, dy)
+        if await page.evaluate("scrollY") > 5: errs.append(f"390x844: a finger on the glass moving {what} moves the page")
+        if (await page.evaluate(WIPED)) - w0 < 50: errs.append(f"390x844: a finger on the glass moving {what} does not draw")
+    await swipe(spots["off"], 0, 160)
+    if await page.evaluate("scrollY") < 40: errs.append("390x844: a swipe up that starts off the glass does not move the page")
     await ctx.close()
-    # reduced motion: no mist
-    page = await open_page(browser, viewport={"width": 390, "height": 844}, reduced_motion="reduce")
+    # reduced motion: no mist, and the glass scrolls like the rest
+    page = await open_page(browser, viewport={"width": 390, "height": 844}, reduced_motion="reduce", has_touch=True)
     await page.goto(page_url); await page.wait_for_timeout(3000)
     if await page.evaluate("window.reus.vaho ? reus.vaho() : null") is not None: errs.append("reduced motion: the window has mist")
+    if await page.evaluate("getComputedStyle(document.getElementById('win')).touchAction") == "none": errs.append("reduced motion: the glass keeps the finger from scrolling")
     await page.close()
     return errs
 
@@ -3817,6 +3852,9 @@ async def main():
         if sys.argv[1:] == ["sol"]:
             failures += await check_text_sun(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · sol"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["boceto"]:
+            failures += await check_sketch(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · boceto"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["vaho"]:
             failures += await check_mist(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · vaho"); sys.exit(1 if failures else 0)
@@ -3875,6 +3913,7 @@ async def main():
         failures += await check_sizes(browser)
         failures += await check_landscape(browser)
         failures += [f"vagon: {e}" for e in await check_carriage(browser)]
+        failures += [f"boceto: {e}" for e in await check_sketch(browser)]
         failures += [f"vaho: {e}" for e in await check_mist(browser)]
         failures += [f"sol: {e}" for e in await check_text_sun(browser)]
         failures += [f"compartir: {e}" for e in check_share()]

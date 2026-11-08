@@ -1,20 +1,17 @@
-// the mist on the window (vaho.ts), what is pure in it: what a touch on the glass is, and whether the first visit's
-// words are due. Pure: the store is passed in, so scripts/test/ runs it
+// the mist on the window (vaho.ts), what is pure in it: what the first visit's word says, and whether it is due. Pure:
+// the store is passed in, so scripts/test/ runs it
 interface Store { getItem(k: string): string | null; setItem(k: string, v: string): void }
-export interface Touch { x: number; y: number; t: number }   // where (px) and when (ms)
 
 const KEY = 'capacasa.vaho';
 
-// a tap: lifted within half a second (a long press is longer), less than 10 px from where it landed. Anything else scrolls the page, or was held
-export const isTap = (a: Touch, b: Touch) => b.t - a.t < 500 && Math.hypot(b.x - a.x, b.y - a.y) < 10;
+// the word wiped in the mist, as if someone had written it on the glass: one word, the same for a finger and a mouse
+// (Àlex 08-11: «Dibuixa», nothing else on the glass)
+export const HINT = 'Dibuixa';
 
-// the words wiped in the mist come once per browser (said in #privacitat). A store that keeps nothing (a private
-// window, blocked site data) shows them every visit rather than never
+// the word comes once per browser (said in #privacitat). A store that keeps nothing (a private window, blocked site
+// data) shows it every visit rather than never
 export function hintDue(store: Store | null): boolean {
   try { if(store?.getItem(KEY)) return false; } catch { return true; }
   try { store?.setItem(KEY, '1'); } catch { /* not remembered */ }
   return true;
 }
-
-// what the words say, as if someone had written them on the glass: a finger taps, a mouse passes over
-export const hintWords = (touch: boolean) => touch ? ['toca el vidre', 'i dibuixa'] : ['passa-hi', 'el ratolí'];
