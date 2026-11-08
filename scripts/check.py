@@ -1026,7 +1026,7 @@ async def check_mist(browser):
     """The mist on the inside of the window, every day (Àlex 08-11, idea 4 B): a fingertip or the cursor wipes it and it
     comes back slowly. On a desk the cursor passing over the glass draws. On a phone the glass and the rest of the page
     work apart: a finger on the glass draws in any direction and never moves the page; anywhere else it scrolls as
-    always. The first visit finds one word wiped in the mist, «Dibuixa», once (capacasa.vaho), and it goes as soon as
+    always. The first visit finds «Bon viatge» written by a finger in the mist, once (capacasa.vaho), and it goes as soon as
     someone draws; the second visit does not. With reduced motion there is no mist. reus.vaho(): how much of the glass
     is wiped, null without mist."""
     errs = []

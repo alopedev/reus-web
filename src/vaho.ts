@@ -3,12 +3,12 @@
 // thicker (watercolor.frag, tWipe and aliento). On a desk the cursor passing over the glass draws. On a phone the glass
 // and the rest of the page work apart (Àlex 08-11): a finger on the glass draws in any direction and never moves the
 // page (touch-action none, there only); anywhere else it scrolls as always. The first visit finds one word wiped in the
-// mist, «Dibuixa», as if someone had written it (once per browser: vidre.ts); it goes as soon as someone draws. Not
+// mist, «Bon viatge», written by a finger (once per browser: vidre.ts); it goes as soon as someone draws. Not
 // built with reduced motion (world.ts)
 import { CanvasTexture, LinearFilter } from 'three';
 import { byId } from './dom';
 import { browserStore } from './remember';
-import { HANDS, type Hand, handwriting, hintDue, written } from './vidre';
+import { handwriting, hintDue, written } from './vidre';
 
 const N = 512;            // the canvas: white where the glass is wiped
 const R = 5*N/256;        // a fingertip's radius
@@ -61,7 +61,7 @@ export function createVaho(): Vaho {
   }, {passive: true});
   glass.addEventListener('touchmove', e => { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
   glass.addEventListener('touchend', () => { last = null; down = false; touched = performance.now(); });
-  // the first visit: «Dibuixa» wiped in the mist, written left to right once the hero has come in, on a layer of its
+  // the first visit: «Bon viatge» wiped in the mist, written left to right once the hero has come in, on a layer of its
   // own (hint), so that it can go as soon as someone draws without taking their lines with it
   const hc = document.createElement('canvas'); hc.width = hc.height = N;
   const h = hc.getContext('2d')!;
@@ -78,13 +78,12 @@ export function createVaho(): Vaho {
   const go = () => setTimeout(() => { if(hintDue(browserStore())) write(); }, 900);
   if(stage.classList.contains('in')) go();
   else new MutationObserver((_, ob) => { if(stage.classList.contains('in')){ ob.disconnect(); go(); } }).observe(stage, {attributes: true, attributeFilter: ['class']});
-  // the word written as a finger writes it, stroke after stroke at a hand's pace (Àlex 08-11: «escrit a mà amb el
-  // dit»), with a fingertip's soft edge. The canvas is stretched to the glass, so the word is fitted in screen units
+  // the words written as a finger writes them, joined up, stroke after stroke at a hand's pace (Àlex 08-11: «escrit a
+  // mà amb el dit»), with a fingertip's soft edge. The canvas is stretched to the glass, so they are fitted in screen units
   function write(){
     const r = glass.getBoundingClientRect(), k = .74*r.width/Math.max(1, r.height);
-    const hand = (new URLSearchParams(location.search).get('mano') ?? 'lligada') as Hand;
-    const word = handwriting(HANDS.includes(hand) ? hand : 'lligada');
-    const top = Math.min(...word.flatMap(s => s.map(p => p[1]))), base = N*(.36 - top*k/2);
+    const word = handwriting(), ys = word.flatMap(s => s.map(p => p[1]));
+    const top = Math.min(...ys), base = N*(.36 - (top + Math.max(...ys))*k/2);
     const tip = Math.min(R, Math.max(4, -top*k*N*.055));
     const to = (p: [number, number]) => [N*(.13 + .74*p[0]), base + p[1]*k*N] as const;
     const t = performance.now(), dur = 2600;

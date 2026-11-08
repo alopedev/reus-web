@@ -1,8 +1,8 @@
-// the mist on the window (src/vidre.ts, Àlex 08-11, idea 4 B): the first visit finds one word wiped in the mist,
-// «Dibuixa», once, remembered in this browser. `npm test`, no browser
+// the mist on the window (src/vidre.ts, Àlex 08-11, idea 4 B): the first visit finds two words wiped in the mist,
+// «Bon viatge», once, remembered in this browser. `npm test`, no browser
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { HINT, HANDS, handwriting, hintDue, written } from '../../src/vidre.ts';
+import { HINT, handwriting, hintDue, written } from '../../src/vidre.ts';
 
 const memory = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); }, m }; };
 
@@ -21,23 +21,22 @@ test('a browser that keeps nothing still gets the words, and no error', () => {
   assert.equal(hintDue(blocked), true);
 });
 
-test('the word in the mist is «Dibuixa», on a phone and on a desk alike (Àlex 08-11)', () => {
-  assert.equal(HINT, 'Dibuixa');
+test('the words in the mist are «Bon viatge», on a phone and on a desk alike (Àlex 08-11)', () => {
+  assert.equal(HINT, 'Bon viatge');
 });
 
-// «Dibuixa» looks written by a finger on the glass (Àlex 08-11): strokes, not a font, drawn in order at a hand's pace
-test('the word is a hand’s strokes across the glass, left to right, as wide as it says', () => {
-  for(const style of HANDS){
-    const s = handwriting(style), xs = s.flatMap(k => k.map(p => p[0]));
-    assert.ok(s.length >= 3, style);
-    assert.equal(Math.min(...xs), 0, style); assert.equal(Math.max(...xs), 1, style);
-    assert.ok(s[0][0][0] < .2, `${style}: starts on the left`);
-    assert.ok(s.every(k => k.every(p => Number.isFinite(p[1]) && Math.abs(p[1]) < .5)), `${style}: one line high`);
-  }
+// the words look written by a finger on the glass (Àlex 08-11): joined-up strokes, not a font, drawn in order at a
+// hand's pace
+test('the words are a hand’s strokes across the glass, left to right, as wide as they say', () => {
+  const s = handwriting(), xs = s.flatMap(k => k.map(p => p[0]));
+  assert.ok(s.length >= 3);
+  assert.equal(Math.min(...xs), 0); assert.equal(Math.max(...xs), 1);
+  assert.ok(s[0][0][0] < .2, 'starts on the left');
+  assert.ok(s.every(k => k.every(p => Number.isFinite(p[1]) && Math.abs(p[1]) < .5)), 'one line high');
 });
 
 test('the word is written stroke after stroke: nothing at first, all of it at the end', () => {
-  const s = handwriting('lligada'), len = (w: [number, number][][]) => w.reduce((a, k) => a + k.length, 0);
+  const s = handwriting(), len = (w: [number, number][][]) => w.reduce((a, k) => a + k.length, 0);
   assert.equal(len(written(s, 0)), 0);
   assert.equal(len(written(s, 1)), len(s));
   const half = len(written(s, .5));
