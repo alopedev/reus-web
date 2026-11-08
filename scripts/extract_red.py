@@ -78,6 +78,10 @@ Regla de fusion (docs/referencias/datos-red.md #5):
      horas) que circula varios dias se guarda una sola vez en `trenes`; `dias` lista
      los indices que circulan cada fecha.
 
+Ademas escribe data/rodalies.json (desde el 08-11-2026): las demas lineas de Rodalies (LINEAS_RODALIES: R1, R2,
+R2N, R2S, R3, R4, R7, R8) de fom, con tren directo a una estacion de la ciudad de Barcelona (BARCELONA_CIUTAT), sin
+los autobuses de obras ni lo que red.json ya trae (rodalies). La web aun no lo lee. Si falla, red.json se escribe igual.
+
 Uso:
   python3 scripts/extract_red.py [--fomento RUTA] [--avld RUTA] [--desde AAAA-MM-DD]
 
@@ -104,6 +108,8 @@ FUERA = {
     "Barcelona Sant Andreu",
     # Francia: Perpinya cae dentro de la caja de Catalunya de fast_stops (los trenes rapidos que van a Lyon o Paris)
     "Perpignan",
+    # Arago, en las rutas de Rodalies de Lleida
+    "Tardienta", "Villanueva de Gállego",
 }
 BARCELONA = {
     SANTS: "Barcelona-Sants", PDG: "Barcelona-Passeig de Gracia",
@@ -111,6 +117,17 @@ BARCELONA = {
 }
 CAMP_TARRAGONA = "04104"
 LINEAS_FOM = ["R11", "R13", "R14", "R15", "R16", "R17"]
+# las demas lineas de Rodalies con tren directo a Barcelona (Alex, 08-11-2026: que sirva a cualquiera que viva en Catalunya).
+# Van a data/rodalies.json, aparte: la web aun no las lee (rodalies)
+LINEAS_RODALIES = ["R1", "R2", "R2N", "R2S", "R3", "R4", "R7", "R8"]
+# las estaciones de Rodalies dentro de Barcelona: para las lineas de rodalies.json, el «Barcelona» del viaje (la R1, la R3
+# y la R4 pasan por Placa de Catalunya y Arc de Triomf; la R7 y, con las obras, la R3, salen de Fabra i Puig)
+BARCELONA_CIUTAT = {
+    "71801": "Barcelona-Sants", "71802": "Barcelona-Passeig de Gracia", "78805": "Barcelona Placa de Catalunya",
+    "78804": "Barcelona Arc de Triomf", "79009": "Barcelona El Clot", "79400": "Barcelona Estacio de Franca",
+    "79004": "Barcelona Sant Andreu", "78806": "Barcelona La Sagrera-Meridiana", "78802": "Barcelona Fabra i Puig",
+    "78801": "Barcelona Torre Baro-Vallbona",
+}
 PRODUCTOS_REGIONALES_AV = {"REGIONAL", "REG.EXP.", "MD"}
 # los trenes rapidos de av (route_short_name en mayusculas): todos con la misma etiqueta, AV (Alex, 08-11-2026)
 PRODUCTOS_RAPIDOS = {"AVE", "AVE INT", "AVLO", "AVANT", "AVANT EXP", "ALVIA", "EUROMED", "INTERCITY"}
@@ -123,6 +140,7 @@ NDIAS = 14
 
 root = pathlib.Path(__file__).resolve().parent.parent
 out = root / "data/red.json"
+out_rod = root / "data/rodalies.json"
 
 # Comarca de cada pueblo con tren directo a Barcelona. Punto de partida: la tabla
 # COMARCA del prototipo (rama prototipo/selector-pueblo, src/prototipo/datos_proto.py),
@@ -169,6 +187,56 @@ COMARCA = {
     "Montblanc": "Conca de Barberà",
     # solo trenes rapidos: la estacion del AVE de Figueres, a 2 km de la de la R11
     "Figueres-Vilafant": "Alt Empordà",
+    # las demas lineas de Rodalies (rodalies.json, 08-11-2026): todas las estaciones catalanas de sus rutas, tambien las
+    # que hoy no tienen tren directo (la R3 mas alla de La Garriga, por obras; la R7, la R8, la RL3 y la RL4), para
+    # que el robot no se pare el dia que vuelvan
+    # R1 (Maresme)
+    "L'Hospitalet de Llobregat": "Barcelonès", "Sant Adrià de Besòs": "Barcelonès", "Badalona": "Barcelonès",
+    "Montgat": "Maresme", "Montgat-Nord": "Maresme", "El Masnou": "Maresme", "Ocata": "Maresme",
+    "Premià de Mar": "Maresme", "Vilassar de Mar": "Maresme", "Cabrera de Mar-Vilassar de Mar": "Maresme",
+    "Mataró": "Maresme", "Sant Andreu de Llavaneres": "Maresme", "Caldes d'Estrac": "Maresme",
+    "Arenys de Mar": "Maresme", "Canet de Mar": "Maresme", "Sant Pol de Mar": "Maresme", "Calella": "Maresme",
+    "Pineda de Mar": "Maresme", "Santa Susanna": "Maresme", "Malgrat de Mar": "Maresme", "Blanes": "Selva",
+    "Tordera": "Maresme",
+    # R2, R2 Nord, R2 Sud
+    "Viladecans": "Baix Llobregat", "Gavà": "Baix Llobregat", "Castelldefels": "Baix Llobregat",
+    "Platja de Castelldefels": "Baix Llobregat", "Garraf": "Garraf", "Sitges": "Garraf", "Cubelles": "Garraf",
+    "Cunit": "Baix Penedès", "Segur de Calafell": "Baix Penedès", "Calafell": "Baix Penedès",
+    "La Llagosta": "Vallès Oriental", "Mollet-Sant Fost": "Vallès Oriental", "Montmeló": "Vallès Oriental",
+    "Les Franqueses-Granollers Nord": "Vallès Oriental", "Cardedeu": "Vallès Oriental",
+    "Llinars del Vallès": "Vallès Oriental", "Palautordera": "Vallès Oriental", "Montcada i Reixac": "Vallès Occidental",
+    # R4
+    "Cornellà": "Baix Llobregat", "Sant Joan Despí": "Baix Llobregat", "Sant Feliu de Llobregat": "Baix Llobregat",
+    "Molins de Rei": "Baix Llobregat", "El Papiol": "Baix Llobregat", "Castellbisbal": "Vallès Occidental",
+    "Martorell Central": "Baix Llobregat", "Gelida": "Alt Penedès", "Sant Sadurní d'Anoia": "Alt Penedès",
+    "Lavern-Subirats": "Alt Penedès", "La Granada": "Alt Penedès", "Vilafranca del Penedès": "Alt Penedès",
+    "Els Monjos": "Alt Penedès", "L'Arboç": "Baix Penedès", "El Vendrell": "Baix Penedès",
+    "Montcada-Bifurcació": "Vallès Occidental", "Montcada i Reixac-Santa Maria": "Vallès Occidental",
+    "Montcada i Reixac-Manresa": "Vallès Occidental", "Cerdanyola del Vallès": "Vallès Occidental",
+    "Barberà del Vallès": "Vallès Occidental", "Sabadell Sud": "Vallès Occidental",
+    "Sabadell Centre": "Vallès Occidental", "Sabadell Nord": "Vallès Occidental", "Terrassa Est": "Vallès Occidental",
+    "Terrassa Estació del Nord": "Vallès Occidental", "Sant Miquel de Gonteres": "Vallès Occidental",
+    "Viladecavalls": "Vallès Occidental", "Vacarisses-Torreblanca": "Vallès Occidental",
+    "Vacarisses": "Vallès Occidental", "Castellbell i el Vilar-Monist Montserrat": "Bages",
+    "Sant Vicenç de Castellet": "Bages", "Manresa": "Bages",
+    # R3
+    "Montcada-Ripollet": "Vallès Occidental", "Santa Perpètua de Mogoda la Florida": "Vallès Occidental",
+    "Mollet-Santa Rosa": "Vallès Oriental", "Parets del Vallès": "Vallès Oriental",
+    "Granollers-Canovelles": "Vallès Oriental", "Les Franqueses del Vallès": "Vallès Oriental",
+    "La Garriga": "Vallès Oriental", "Figaró": "Vallès Oriental", "Sant Martí de Centelles": "Osona",
+    "Centelles": "Osona", "Balenyà-Els Hostalets": "Osona", "Balenyà-Tona-Seva": "Osona", "Vic": "Osona",
+    "Manlleu": "Osona", "Torelló": "Osona", "Borgonyà": "Osona", "Sant Quirze de Besora-Montesquiu": "Osona",
+    "La Farga de Bebié": "Osona", "Ripoll": "Ripollès", "Campdevànol": "Ripollès", "Ribes de Freser": "Ripollès",
+    "Planoles": "Ripollès", "Toses": "Ripollès", "La Molina": "Cerdanya", "Urtx-Alp": "Cerdanya",
+    "Puigcerdà": "Cerdanya", "La Tor de Querol-Enveig": "Alta Cerdanya",
+    # R7, R8
+    "Cerdanyola Universitat": "Vallès Occidental", "Sant Cugat Coll Favà": "Vallès Occidental",
+    "Rubí Can Vallhonrat": "Vallès Occidental", "Santa Perpètua de Mogoda Riera de Caldes": "Vallès Occidental",
+    # RL3, RL4 (Lleida - Manresa - Terrassa)
+    "Rajadell": "Bages", "Aguilar de Segarra": "Bages", "Seguers-Sant Pere Sallavinera": "Anoia", "Calaf": "Anoia",
+    "Sant Martí Sesgueioles": "Anoia", "Sant Guim de Freixenet": "Segarra", "Cervera": "Segarra",
+    "Tàrrega": "Urgell", "Anglesola": "Urgell", "Bellpuig": "Urgell", "Castellnou de Seana": "Pla d'Urgell",
+    "Golmés": "Pla d'Urgell", "Mollerussa": "Pla d'Urgell", "Bell-lloc d'Urgell": "Pla d'Urgell",
 }
 
 
@@ -263,7 +331,7 @@ def runs(cal, exc, sid, d):
 
 # ---------- fom: regionales R11/R13-R17 ----------
 
-def load_fom(gtfs, day_range):
+def load_fom(gtfs, day_range, lines=LINEAS_FOM):
     """Devuelve:
       - fom_trains: lista de dicts {trip_id, date, line, bus, stops:[(seq,stop_id,arr,dep)]}
         (todas las paradas, sin filtrar Catalunya todavia), solo trips activos en
@@ -275,7 +343,7 @@ def load_fom(gtfs, day_range):
     routes, bus_routes = {}, set()
     for r in gtfs.rows("routes.txt"):
         name = r["route_short_name"]
-        if name in LINEAS_FOM:
+        if name in lines:
             routes[r["route_id"]] = name
             if r.get("route_type") == "3":
                 bus_routes.add(r["route_id"])
@@ -616,6 +684,79 @@ def one_per_train(trenes, dias):
     return trenes, dias
 
 
+# ---------- las demas lineas de Rodalies: data/rodalies.json ----------
+
+def rodalies_number(trip_id):
+    """El numero de tren de un trip de Rodalies, el de en medio de su trip_id («5112L25601R1» -> 25601), o el trip_id
+    entero si no tiene esa forma."""
+    m = re.match(r"^\d{4}[A-Z](\d+)[A-Z]", trip_id.strip())
+    return m.group(1) if m else trip_id
+
+
+def rodalies_stops(stops, stop_names, dropped):
+    """Las paradas catalanas de un tren de Rodalies, en orden, como filter_catalunya pero con todas las estaciones de
+    Barcelona (BARCELONA_CIUTAT): fuera las de FUERA, y una sin comarca hace fallar el script."""
+    kept = []
+    for seq, stop_id, arr, dep in stops:
+        name = stop_names.get(stop_id, stop_id)
+        if stop_id in BARCELONA_CIUTAT or name in COMARCA:
+            kept.append((seq, stop_id, arr, dep))
+        elif name in FUERA:
+            dropped.add(name)
+        else:
+            raise SystemExit(f"Parada {stop_id} ({name!r}) de Rodalies desconocida: anadela a COMARCA (si es catalana) o a "
+                             f"FUERA en scripts/extract_red.py.")
+    return kept
+
+
+def rodalies(rod_trains, red_trenes, red_dias, stop_names, dropped):
+    """(trenes, dias) de data/rodalies.json: los trenes de LINEAS_RODALIES de fom (no los autobuses de obras) que paran
+    en Barcelona (BARCELONA_CIUTAT) y en otra estacion, con sus paradas catalanas, su linea y su numero. Un tren que
+    red.json ya tiene ese dia (same_train: Rodalies llama R2 Sud a algun R15 de Flix) no se repite. El mismo tren varios
+    dias se guarda una vez; dias da sus indices por fecha ISO. rod_trains como los de load_fom."""
+    red_by_day = {iso: [red_trenes[i]["s"] for i in idxs] for iso, idxs in red_dias.items()}
+    index, trenes, dias = {}, [], collections.defaultdict(set)
+    for t in sorted(rod_trains, key=lambda t: (t["date"], t["trip_id"])):
+        if t["bus"]:
+            continue
+        kept = rodalies_stops(t["stops"], stop_names, dropped)
+        ids = {sid for _q, sid, _a, _e in kept}
+        if not ids & BARCELONA_CIUTAT.keys() or not ids - BARCELONA_CIUTAT.keys():
+            continue
+        seq = [[sid, a, e] for _q, sid, a, e in kept]
+        iso = t["date"].isoformat()
+        if any(same_train(seq, other) for other in red_by_day.get(iso, ())):
+            continue
+        n = rodalies_number(t["trip_id"])
+        key = (t["line"], n, json.dumps(seq))
+        if key not in index:
+            index[key] = len(trenes)
+            trenes.append({"n": n, "p": t["line"], "s": seq})
+        dias[iso].add(index[key])
+    if not trenes:
+        return [], {}
+    return one_per_train(trenes, dias)
+
+
+def rodalies_stations(trenes, stop_names, stop_ll):
+    """Las estaciones de rodalies.json, solo las que tienen tren: las de Barcelona con barcelona: true y sus lineas; las
+    demas con comarca, lineas y, si se sabe, donde estan (ll)."""
+    est = {}
+    for t in trenes:
+        for sid, _a, _e in t["s"]:
+            if sid not in est:
+                name = stop_names.get(sid, BARCELONA_CIUTAT.get(sid))
+                est[sid] = ({"nombre": name, "barcelona": True} if sid in BARCELONA_CIUTAT
+                            else {"nombre": name, "comarca": COMARCA[name]})
+                est[sid]["lineas"] = set()
+                if sid not in BARCELONA_CIUTAT and sid in stop_ll:
+                    est[sid]["ll"] = stop_ll[sid]
+            est[sid]["lineas"].add(t["p"])
+    for info in est.values():
+        info["lineas"] = sorted(info["lineas"])
+    return est
+
+
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--fomento", help="zip o carpeta del feed Fichero_CER_FOMENTO (por defecto, se descarga)")
@@ -634,7 +775,10 @@ def main():
 
     print("Leyendo fom (Fichero_CER_FOMENTO)...", file=sys.stderr)
     fom_gtfs = load_gtfs(args.fomento, FOMENTO_URL)
-    fom_trains, line_stops = load_fom(fom_gtfs, day_range)
+    # una sola pasada por stop_times.txt (casi 300 MB) para los regionales de red.json y las demas lineas de rodalies.json
+    all_fom, line_stops = load_fom(fom_gtfs, day_range, LINEAS_FOM + LINEAS_RODALIES)
+    fom_trains = [t for t in all_fom if t["line"] in LINEAS_FOM]
+    rod_trains = [t for t in all_fom if t["line"] in LINEAS_RODALIES]
     dropped = set()   # paradas de av fuera de Catalunya (o nuevas sin comarca): se listan al final
 
     stop_names = {}
@@ -941,6 +1085,34 @@ def main():
         file=sys.stderr,
     )
     print(f"Paradas descartadas (FUERA): {', '.join(sorted(dropped)) or 'ninguna'}", file=sys.stderr)
+    write_rodalies(rod_trains, trenes, dias, stop_names, stop_ll, start)
+
+
+def write_rodalies(rod_trains, red_trenes, red_dias, stop_names, stop_ll, start):
+    """data/rodalies.json: las demas lineas de Rodalies (rodalies). La web aun no lo lee: si falla (una estacion nueva
+    sin comarca), red.json se publica igual y rodalies.json se queda como estaba, con un aviso en el run del robot."""
+    try:
+        trenes, dias = rodalies(rod_trains, red_trenes, red_dias, stop_names, set())
+        if not trenes:
+            raise SystemExit("ningun tren de Rodalies con parada en Barcelona")
+        estaciones = rodalies_stations(trenes, stop_names, stop_ll)
+    except SystemExit as e:
+        msg = f"rodalies.json no se ha tocado: {e}"
+        print(f"  aviso: {msg}", file=sys.stderr)
+        if os.environ.get("GITHUB_ACTIONS"):
+            print(f"::warning title=rodalies.json sin actualizar::{msg}")
+        return
+    data = {
+        "fuente": "Origen de los datos: Renfe Operadora",
+        "actualizado": start.isoformat(),
+        "estaciones": estaciones,
+        "trenes": trenes,
+        "dias": {d: sorted(idxs) for d, idxs in sorted(dias.items())},
+    }
+    out_rod.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    size_gzip = len(gzip.compress(out_rod.read_bytes()))
+    print(f"{len(estaciones)} estaciones, {len(trenes)} trenes de Rodalies -> {out_rod} ({size_gzip / 1024:.1f} KB gzip)",
+          file=sys.stderr)
 
 
 if __name__ == "__main__":
