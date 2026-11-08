@@ -10,12 +10,8 @@ import roomFrag from './shaders/room.frag?raw';
 
 const LUX = Math.PI;   // lights as in r128 (see world.ts)
 
+// sunUV: where the sun (or the moon) is painted in the window, 0–1 across and up it
 export interface Light { sun: number[]; hor: number[]; wallA: number[]; sunUV?: number[] }
-// PROTOTYPE idea 3 (?luz=a|b|c): the light that rules the carriage
-export const PAPEL = typeof location === 'undefined' ? 0 : ' abc'.indexOf(new URLSearchParams(location.search).get('papel') || ' ');   // PROTOTYPE idea 2
-// PROTOTYPE (08-11): warmer colours, ?calido=a (a warm wall), b (warm light), c (a warm glaze over the painting)
-export const CALIDO = typeof location === 'undefined' ? 0 : ' abc'.indexOf(new URLSearchParams(location.search).get('calido') || ' ');
-export const LUZ = typeof location === 'undefined' ? 0 : ' abc'.indexOf(new URLSearchParams(location.search).get('luz') || ' ');
 export interface Room {
   raw: WebGLRenderTarget;      // the carriage as rendered: its alpha, where there is something in front of the wall
   painted: WebGLRenderTarget;  // painted with brush strokes: the colour, and in alpha its edges
@@ -51,7 +47,6 @@ export function createRoom(renderer: WebGLRenderer): Room {
     alu: M(0xc9cdd1), glass: M(0xcfe0e6, .35), case: M(0x4f6478), pack: M(0xa8492c),
     dark: M(0x1c1c1e), mapW: M(0xeeece6), line: M(0x8a6a4a),
   };
-  if(CALIDO === 1){ mats.wall.color.set(0xcaa478); mats.wallLow.color.set(0x8c6e4e); mats.lining.color.set(0xe2cfac); }   // a: the older Rodalies' beige
   mats.wall.side = DoubleSide;
   const add = (geo: BufferGeometry, mat: MeshLambertMaterial, x: number, y: number, z: number, parent: Object3D = group, cast = true) => {
     const m = new Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = cast; m.receiveShadow = true; parent.add(m); return m;
@@ -61,7 +56,7 @@ export function createRoom(renderer: WebGLRenderer): Room {
     const mat = new ShaderMaterial({ defines, uniforms: U, vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`, fragmentShader: roomFrag });
     const s = new Scene(); s.add(new Mesh(new PlaneGeometry(2, 2), mat)); return s;
   };
-  const U = { tRoom:{value:raw.texture}, tRoomN:{value:normal.texture}, sres:{value:new Vector2(2, 2)}, aspect:{value:1}, win:{value:new Vector4(0, 0, 1, 1)}, papel:{value:PAPEL}, sunS:{value:new Vector3(.82, .82, 1)} };
+  const U = { tRoom:{value:raw.texture}, tRoomN:{value:normal.texture}, sres:{value:new Vector2(2, 2)}, aspect:{value:1}, win:{value:new Vector4(0, 0, 1, 1)}, sunS:{value:new Vector3(.82, .82, 1)} };
   const brushScene = quad({}), paperScene = quad({PAPER_PASS: ''}), flat = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
   function layout(A: number, win: Win, r: number, wide: boolean){
@@ -135,11 +130,10 @@ export function createRoom(renderer: WebGLRenderer): Room {
   }
   // the light of the hour (daylight in light.ts): the sun and the sky through the window, the ceiling's LEDs; at night
   // the carriage lit from inside (night: 0 by day, 1 at night)
-  // PROTOTYPE idea 3: the sun comes through the window from where it is painted in it (sunUV: right of the window and
-  // high by day, low at dawn and dusk), so its patch on the seats moves with the hour
+  // the sun comes through the window from where it is painted in it (sunUV: right of the window and high by day, low
+  // at dawn and dusk), so its patch on the seats moves with the hour (Àlex 08-11, idea 3 B)
   let aimAt = { cx: .5, cy: .5, cushion: .2, m: .3 }, sunUV = [.82, .82];
   function aim(){
-    if(!LUZ) return;
     const { cx, cy, cushion } = aimAt;
     const e = (15 + 20*Math.min(1, Math.max(0, (sunUV[1] - .4)/.44)))*Math.PI/180, a = Math.sign(sunUV[0] - .5 || 1)*1.2;   // ahead of the train: across onto the facing seats
     const d = [-Math.sin(a)*Math.cos(e), -Math.sin(e), Math.cos(a)*Math.cos(e)];   // the way the light travels
@@ -148,36 +142,22 @@ export function createRoom(renderer: WebGLRenderer): Room {
     sun.position.set(cx - d[0]*2, cy - d[1]*2, -d[2]*2);
   }
   function light(p: Light, night: number){
-    const led = new Color(.95, .96, 1);
-    sun.color.setRGB(p.sun[0], p.sun[1], p.sun[2]); sunBase = 1.4*(1 - night)*LUX;
-    glow.color.setRGB(p.hor[0], p.hor[1], p.hor[2]); glow.intensity = (.9*(1 - night) + .1)*LUX;
-    lampBase = .3*night*LUX;
-    ceil.color.copy(led); ceil.intensity = (.35 + .1*night)*LUX;
-    amb.color.setRGB(p.wallA[0], p.wallA[1], p.wallA[2]).lerp(led, .5); amb.intensity = (.55 - .3*night)*LUX;
+    const day = 1 - night;
     if(p.sunUV){ sunUV = p.sunUV; aim(); }
-    // PROTOTYPE idea 2: the paper's relief lit from the sun (or the moon, faintly) where it is painted; a low sun rakes it a little more (Àlex, 08-11: not much, or the drawing loses its edges)
-    U.sunS.value.set(sunUV[0], sunUV[1], (1 - night)*(.78 - .12*Math.min(1, Math.max(0, (sunUV[1] - .4)/.44))) + .35*night);
-    if(LUZ) sun.color.lerp(new Color(1, .97, .9), .45);   // sunlit blue cloth reads paler and warm, not green
-    if(LUZ === 1){          // a: a patch of sun on the seats, harder shadows
-      sunBase = 3.6*(1 - night)*LUX; amb.intensity = (.4 - .2*night)*LUX; sun.shadow.radius = 2;
-    } else if(LUZ === 2){   // b: the same, the shade blue as in a watercolour, the brightest light left as paper
-      sunBase = (3.2*(1 - night) + 1.7*night)*LUX; sun.shadow.radius = 2;   // at night the moon, from where it is painted
-      sun.color.lerp(new Color(.66, .76, 1), night);
-      amb.color.setRGB(.62, .68, .92).lerp(new Color(p.wallA[0], p.wallA[1], p.wallA[2]), .35); amb.intensity = (.5 - .25*night)*LUX;
-      ceil.color.setRGB(.8, .86, 1); ceil.intensity = (.22 + .2*night)*LUX;
-    }
-    if(CALIDO === 2){   // b: by day the sun golden and the shade only a little blue: the room takes the warmth of the hour
-      const day = 1 - night;
-      sun.color.lerp(new Color(1, .78, .5), .7*day);
-      amb.color.lerp(new Color(1, .8, .58), .75*day);
-      ceil.color.lerp(new Color(1, .86, .68), .7*day);
-      glow.color.lerp(new Color(1, .9, .75), .4*day);
-    }
-    if(LUZ === 3){   // c: by day only the window lights the carriage (the ceiling off), chiaroscuro
-      sunBase = 3*(1 - night)*LUX; sun.shadow.radius = 3;
-      glow.intensity = (1.3*(1 - night) + .1)*LUX; glow.distance = 0; glow.decay = 1.6;
-      ceil.intensity = (.05 + .4*night)*LUX; amb.intensity = (.22 - .05*night)*LUX;
-    }
+    // a watercolourist's light (Àlex 08-11, idea 3 B and colours B): a patch of sun on the seats with harder shadows,
+    // the shade blue, and by day the sun golden so the room takes the warmth of the hour; at night the moon, from
+    // where it is painted. The brightest light is left as paper (watercolor.frag)
+    sun.color.setRGB(p.sun[0], p.sun[1], p.sun[2]).lerp(new Color(1, .97, .9), .45);   // sunlit blue cloth reads paler and warm, not green
+    sun.color.lerp(new Color(.66, .76, 1), night).lerp(new Color(1, .78, .5), .7*day);
+    sunBase = (3.2*day + 1.7*night)*LUX; sun.shadow.radius = 2;
+    glow.color.setRGB(p.hor[0], p.hor[1], p.hor[2]).lerp(new Color(1, .9, .75), .4*day); glow.intensity = (.9*day + .1)*LUX;
+    lampBase = .3*night*LUX;
+    ceil.color.setRGB(.8, .86, 1).lerp(new Color(1, .86, .68), .7*day); ceil.intensity = (.22 + .2*night)*LUX;
+    amb.color.setRGB(.62, .68, .92).lerp(new Color(p.wallA[0], p.wallA[1], p.wallA[2]), .35).lerp(new Color(1, .8, .58), .75*day);
+    amb.intensity = (.5 - .25*night)*LUX;
+    // the paper's relief lit from the sun (or the moon, faintly) where it is painted (Àlex 08-11, idea 2 A); a low
+    // sun rakes it a little more, not much, or the drawing loses its edges
+    U.sunS.value.set(sunUV[0], sunUV[1], day*(.78 - .12*Math.min(1, Math.max(0, (sunUV[1] - .4)/.44))) + .35*night);
   }
   function render(W: number, H: number){
     sun.intensity = sunBase*sunK; lamp.intensity = lampBase*lampK;

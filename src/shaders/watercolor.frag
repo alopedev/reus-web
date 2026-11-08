@@ -1,29 +1,20 @@
 precision highp float;
 uniform sampler2D tScene; uniform vec2 res, sres; uniform float tq, reveal, aspect, waspect, hor, wrad, foldY, shade;
-uniform vec3 skyTop, skyHor, sunCol, wood; uniform vec2 sunPos; uniform float sunA; uniform vec4 win; uniform float wx; uniform vec4 brd; uniform float washAll;
+uniform vec3 skyTop, skyHor, sunCol, wood; uniform vec2 sunPos; uniform float sunA; uniform vec4 win; uniform float wx; uniform vec4 brd; uniform vec4 txt[4]; uniform float washAll;
 // the carriage (room.ts): as rendered (its alpha), painted (room.frag), and the paper's factor; overWin: a seat over the window
 uniform sampler2D tRoom, tRoomP, tPaper; uniform float overWin;
-// PROTOTYPE idea 1: the brush's direction rendered from the landscape (tDir), the option (pincel: 0 none, 1 a, 2 b, 3 c),
-// how far the land has moved (flowOff, over a period flowP) and the camera's focal length in the target's pixels (fpx)
-uniform sampler2D tDir; uniform float pincel, flowOff, flowP, fpx;
-// PROTOTYPE idea 3: the light in the carriage (luz: 0 none, 1 a, 2 b, 3 c)
-uniform float luz; uniform sampler2D tPoster; uniform float posterOn; uniform sampler2D tWipe; uniform float vaho; uniform float aliento; uniform float calido;
+// the brush's direction rendered from the landscape (tDir, world.ts), how far the land has moved (flowOff, over a
+// period flowP) and the camera's focal length in the target's pixels (fpx)
+uniform sampler2D tDir; uniform float flowOff, flowP, fpx;
+// the pencil sketch the page opens on (tPoster, posterOn); the mist on the glass (vaho: on; tWipe: where it is wiped;
+// aliento: a breath on it, 0–1; vaho.ts)
+uniform sampler2D tPoster; uniform float posterOn; uniform sampler2D tWipe; uniform float vaho, aliento;
 varying vec2 vUv;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x), mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x), f.y); }
 float fbm(vec2 p){ float v=0., a=.5; for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.03; a*=.5; } return v; }
 float sdRR(vec2 p, vec2 b, float r){ vec2 q=abs(p)-b+r; return length(max(q,0.))+min(max(q.x,q.y),0.)-r; }
-vec4 quad(vec2 uv, vec2 dir, out float var){
-  vec2 px = 1./res; vec4 m = vec4(0.); vec3 s = vec3(0.);
-  for(int j=0;j<3;j++) for(int i=0;i<3;i++){ vec4 c = texture2D(tScene, uv + vec2(float(i),float(j))*dir*px*1.6); m += c; s += c.rgb*c.rgb; }
-  m /= 9.; s /= 9.; s = abs(s - m.rgb*m.rgb); var = s.r+s.g+s.b; return m;
-}
-vec4 kuwahara(vec2 uv){
-  float v0,v1,v2,v3;
-  vec4 a=quad(uv,vec2(-1.,-1.),v0), b=quad(uv,vec2(1.,-1.),v1), c=quad(uv,vec2(1.,1.),v2), d=quad(uv,vec2(-1.,1.),v3);
-  vec4 r=a; float mv=v0; if(v1<mv){mv=v1;r=b;} if(v2<mv){mv=v2;r=c;} if(v3<mv){mv=v3;r=d;} return r;
-}
 vec3 sky(vec2 w, float t){
   float hy = clamp((w.y-hor)/(1.-hor),0.,1.);
   vec3 s = mix(skyHor, skyTop, pow(hy,.75));
@@ -40,23 +31,18 @@ vec3 sky(vec2 w, float t){
 }
 // what the window shows, before it becomes paint
 float ring(float sd, float w){ return 1. - smoothstep(0., w, abs(sd)); }
-// PROTOTYPE idea 1 ----------------------------------------------------------------------------------------------
+// the landscape painted along the brush (Àlex 08-11, idea 1 C: marked strokes) --------------------------------------
 // the direction of the brush at this point, in the target's pixels: rendered from the scene where there is land; in
-// the sky, level bands that wander (c: curving round the sun)
+// the sky, level bands that wander and curve round the sun
 vec2 brushDir(vec2 s, vec2 w, out vec4 dd){
   dd = texture2D(tDir, s);
   if(dd.a < .5){
     vec2 F = normalize(vec2(1., (fbm(w*vec2(1.5,2.5)+5.)-.5)*.6));
-    if(pincel > 2.5){ vec2 d = (w - sunPos)*vec2(waspect,1.); vec2 round = normalize(vec2(-d.y, d.x)); F = normalize(mix(F, round*sign(dot(round,F)+1e-4), smoothstep(.45,.12,length(d)))); }
+    vec2 d = (w - sunPos)*vec2(waspect,1.); vec2 round = normalize(vec2(-d.y, d.x)); F = normalize(mix(F, round*sign(dot(round,F)+1e-4), smoothstep(.45,.12,length(d))));
     return F;
   }
   float a = atan(dd.g*2.-1., dd.r*2.-1.)*.5;
   return vec2(cos(a), sin(a));
-}
-vec4 quadA(vec2 p, vec2 qx, vec2 qy, out float var){
-  vec4 m = vec4(0.); vec3 s = vec3(0.);
-  for(int j=0;j<3;j++) for(int i=0;i<3;i++){ vec4 c = texture2D(tScene, p + float(i)*qx + float(j)*qy); m += c; s += c.rgb*c.rgb; }
-  m /= 9.; s /= 9.; s = abs(s - m.rgb*m.rgb); var = s.r+s.g+s.b; return m;
 }
 // the paint dragged along the brush (a line integral along the field): facets of the same thing at the same
 // distance along the stroke melt into one wash, edges across it stay
@@ -78,13 +64,6 @@ vec4 drag(vec2 p, vec2 F0, float steps, float stepPx){
   }
   return acc/n;
 }
-// the four-quadrant filter stretched along the brush (len px along it, wid across)
-vec4 kuwaharaA(vec2 p, vec2 F, float len, float wid){
-  vec2 px = 1./res, G = vec2(-F.y, F.x), ax = F*px*len, ay = G*px*wid;
-  float v0,v1,v2,v3;
-  vec4 a=quadA(p,-ax,-ay,v0), b=quadA(p,ax,-ay,v1), c=quadA(p,ax,ay,v2), d=quadA(p,-ax,ay,v3);
-  vec4 r=a; float mv=v0; if(v1<mv){mv=v1;r=b;} if(v2<mv){mv=v2;r=c;} if(v3<mv){mv=v3;r=d;} return r;
-}
 // one layer of loose strokes over the land, on a grid that travels with it (shift: px the land has moved here)
 void strokesA(vec2 q, vec2 F, vec2 G, float cs, float off, float shift, vec3 here, float tol, out vec3 col, out float cover, out float rim){
   col = here; cover = 0.; rim = 0.;
@@ -102,7 +81,11 @@ void strokesA(vec2 q, vec2 F, vec2 G, float cs, float off, float shift, vec3 her
     vec4 sc4 = texture2D(tScene, cuv);
     vec3 sc = sc4.a > .5 ? sc4.rgb/sc4.a : here;
     if(length(sc - here) > tol) continue;
-    if(k > cover){ col = sc*(pincel > 2.5 ? .86 + .24*r2 : .92 + .13*r2); cover = k; rim = ring(rr - .85, .2); }
+    // each stroke a little lighter or darker than the colour it carries; less so in pale, greyish colours (the sand, the
+    // haze), where the same spread reads as grit (Àlex 08-11: the sand, softer)
+    float sat = max(sc.r, max(sc.g, sc.b)) - min(sc.r, min(sc.g, sc.b)), lum = dot(sc, vec3(.299,.587,.114));
+    float spread = mix(.24, .1, smoothstep(.55, .78, lum)*(1. - smoothstep(.12, .3, sat)));
+    if(k > cover){ col = sc*(.98 + spread*(r2 - .5)); cover = k; rim = ring(rr - .85, .2); }
   }
 }
 // strokes in the sky (it is not in the scene): only how loaded each one was, and its rim
@@ -124,20 +107,20 @@ vec4 brushed(vec2 s, vec2 w, out vec3 strokeCol, out float strokeK, out float st
   vec4 dd; vec2 F = brushDir(s, w, dd), G = vec2(-F.y, F.x);
   // near things get longer strokes than far ones (dd.b: sqrt(3/depth))
   float near = dd.a > .5 ? .35 + dd.b : 1.;
-  vec4 k = drag(s, F, pincel > 2.5 ? 10. : 8., (pincel > 2.5 ? 2.8 : 2.4)*near*res.y/400.);
+  vec4 k = drag(s, F, 10., 2.8*near*res.y/400.);
   strokeCol = vec3(0.); strokeK = 0.; strokeRim = 0.;
-  if(pincel > 1.5){
+  {
     vec3 here = k.a > .02 ? k.rgb/k.a : vec3(0.);
     if(dd.a < .5) here = vec3(0.);
     // the land moves past at a speed set by its depth (dd.b = sqrt(3/z)); two grids that take turns, each fading
     // out before it jumps back, so the strokes travel with the land and never pop
     float ppu = dd.a > .5 ? dd.b*dd.b/3.*fpx : 0.;
-    float cs = (pincel > 2.5 ? 22. : 14.)*res.y/400.*(.5 + (dd.a > .5 ? dd.b : .5));
+    float cs = 22.*res.y/400.*(.5 + (dd.a > .5 ? dd.b : .5));
     float ph0 = fract(flowOff/flowP), ph1 = fract(flowOff/flowP + .5);
     float w0 = 1. - abs(2.*ph0 - 1.), w1 = 1. - w0;
     vec2 q = s*res;
     vec3 c0, c1, c2, c3; float k0, k1, k2, k3, r0, r1, r2, r3;
-    float tol = pincel > 2.5 ? .3 : .22;
+    float tol = .3;
     strokesA(q, F, G, cs, 0., ph0*flowP*ppu, here, tol, c0, k0, r0);
     strokesA(q, F, G, cs*.8, .5, ph0*flowP*ppu, here, tol, c1, k1, r1);
     strokesA(q, F, G, cs, .25, ph1*flowP*ppu, here, tol, c2, k2, r2);
@@ -147,7 +130,7 @@ vec4 brushed(vec2 s, vec2 w, out vec3 strokeCol, out float strokeK, out float st
     strokeK = ka*w0 + kb*w1;
     strokeCol = (ca*ka*w0 + cb*kb*w1)/max(strokeK, 1e-4);
     strokeRim = max(r0*k0, r1*k1)*w0 + max(r2*k2, r3*k3)*w1;
-    if(dd.a < .5){ strokeK *= pincel > 2.5 ? .0 : 0.; }
+    if(dd.a < .5) strokeK = 0.;   // the sky has its own (skyStrokes)
   }
   return k;
 }
@@ -155,16 +138,12 @@ vec4 brushed(vec2 s, vec2 w, out vec3 strokeCol, out float strokeK, out float st
 vec3 outside(vec2 w, float t, out float e, out float pen){
   vec2 wo = vec2(fbm(w*vec2(7.,5.)+t*1.7), fbm(w*vec2(6.,8.)-t*1.3)) - .5;
   vec2 s = w + wo*.006;
-  if(pincel > 3.5){ e = 0.; pen = 0.; return texture2D(tDir, s).rgb*texture2D(tDir, s).a; }
   vec3 sCol; float sK = 0., sRim = 0.;
-  vec4 k = pincel > .5 ? brushed(s, w, sCol, sK, sRim) : kuwahara(s);
+  vec4 k = brushed(s, w, sCol, sK, sRim);
   float a = smoothstep(.3,.7,k.a);
   vec3 obj = k.rgb/max(k.a,.001);
-  if(pincel > 1.5){
-    float glaze = pincel > 2.5 ? .85 : .7;
-    obj = mix(obj, mix(obj, sCol, glaze), sK);
-    obj *= 1. - (pincel > 2.5 ? .2 : .14)*sRim;
-  }
+  obj = mix(obj, mix(obj, sCol, .85), sK);
+  obj *= 1. - .2*sRim;
   float lum = dot(obj, vec3(.299,.587,.114));
   obj = mix(vec3(lum), obj, .8); obj = mix(obj, vec3(1.), .1);
   vec2 px = 1./res;
@@ -176,11 +155,10 @@ vec3 outside(vec2 w, float t, out float e, out float pen){
   float ov = step(.5, wx);
   obj = mix(obj, mix(vec3(dot(obj, vec3(.299,.587,.114))), obj, .65)*.9, ov);
   vec3 c = mix(sky(w,t), obj, a);
-  if(pincel > 1.5){
+  {
     vec4 dd; vec2 F = brushDir(s, w, dd);
-    vec3 st = skyStrokes(s*res, F, (pincel > 2.5 ? 30. : 20.)*res.y/400.);
-    float amp = pincel > 2.5 ? .8 : .5;
-    amp *= max(step(.5, wx), smoothstep(.1, .16, length((w - sunPos)*vec2(waspect,1.))));   // not on the sun's (or the moon's) disc
+    vec3 st = skyStrokes(s*res, F, 30.*res.y/400.);
+    float amp = .8*max(step(.5, wx), smoothstep(.1, .16, length((w - sunPos)*vec2(waspect,1.))));   // not on the sun's (or the moon's) disc
     c *= mix(1., mix(1., .93 + .12*st.y, amp), st.x*(1. - a));
     c *= 1. - .08*amp*st.z*st.x*(1. - a);
   }
@@ -243,15 +221,12 @@ void main(){
       col = mix(col, col*.62, rim*.6);
       edge += rim*.3;
     }
-    // PROTOTYPE idea 4: mist on the inside of the glass (rain or fog at home), wiped where a finger or the cursor passed
-    if(vaho > .5){                                                  // any day (Àlex, 08-11); thicker with rain or fog
+    // mist on the inside of the glass, every day, thicker with rain or fog at home; wiped where a finger or the cursor
+    // passed (vaho.ts; Àlex 08-11, idea 4 B)
+    if(vaho > .5){
       float wp = texture2D(tWipe, w).r;
       vec2 m = vec2(w.x*waspect, w.y);
       float d = mix(wx > 1.5 ? .78 : .64, .92, aliento)*(.82 + .36*fbm(m*7. + 2.));
-      if(vaho > 2.5){                                               // c: it condenses at the edges and the bottom
-        float ed = min(min(w.x, 1.-w.x)*waspect, min(w.y, 1.-w.y));
-        d *= clamp(1. - smoothstep(.02, .2 + .1*fbm(m*5.), ed) + (1. - smoothstep(0., .45, w.y))*.8, 0., 1.);
-      }
       float speck = step(.8, noise(m*260.))*.25;                    // the beads of the mist
       vec3 mist = mix(vec3(dot(skyHor, vec3(.3,.5,.2))), skyHor, .4)*.92 + .1;
       float k = d*(1. - wp);
@@ -269,15 +244,22 @@ void main(){
     col *= mix(.7, 1., smoothstep(0., .24, uv.y));                    // the foot of the wall in shadow: the ruler reads over it
     edge = rp.a*.7;
     pen = smoothstep(.5, 1., rp.a)*.3;
-    if(luz > .5){
-      // fewer ink lines: an edge darkens the paint a little, a line shows only where two colours are far apart
-      float soft = luz > 1.5 ? .35 : .55;
-      edge *= soft; pen *= luz > 1.5 ? .25 : .5;
-      // the strongest light left as paper, the way a watercolourist leaves the white of the sheet
-      float lum = dot(col, vec3(.3,.55,.15));
-      if(luz > 1.5) col = mix(col, calido > 2.5 ? vec3(1.,.94,.82) : vec3(.98,.95,.88), smoothstep(.62, .9, lum)*.7);
+    // fewer ink lines: an edge darkens the paint a little, a line shows only where two colours are far apart; and the
+    // strongest light left as paper, the way a watercolourist leaves the white of the sheet (Àlex 08-11, idea 3 B)
+    edge *= .35; pen *= .25;
+    float lum = dot(col, vec3(.3,.55,.15));
+    col = mix(col, vec3(.98,.95,.88), smoothstep(.62, .9, lum)*.7);
+    // behind small text (txt, world.ts) the sunlit paint keeps a shade, so the cream letters read: a soft glaze over
+    // what is pale only, nothing over what is already dark enough
+    float behind = 0.;
+    for(int i = 0; i < 4; i++){
+      vec4 t = txt[i];
+      if(t.z <= t.x) continue;
+      vec2 c = (t.xy + t.zw)*.5, h = (t.zw - t.xy)*.5 + vec2(.012/aspect, .012);
+      behind = max(behind, 1. - smoothstep(0., .025, sdRR((uv - c)*vec2(aspect, 1.), h*vec2(aspect, 1.), .01)));
     }
-    if(calido > 2.5) col *= vec3(1.17, 1., .7);   // PROTOTYPE c: a warm glaze (raw sienna) over the whole carriage
+    lum = dot(col, vec3(.3,.55,.15));
+    col = mix(col, col*min(1., .42/max(lum, .01)), behind);
     // the name's split-flap board (.tauler), painted on the wall like the window and the seats (Àlex, 10-10): a dark
     // panel with a soft shadow, and eight cells with their hinge. Its geometry in em, as hero.css lays it out:
     // 8.58 × 1.58 em overall, the cells 0.97 × 1.32 em every 1.05 em, starting 0.13 em in (padding + border)
@@ -321,9 +303,10 @@ void main(){
   A *= mix(.25, 1., wet) * (1. + front*.9) * step(.001, wet+front);
   vec3 paper = vec3(.94,.93,.90) * (.965 + .06*fbm(uv*sres*.09));
   vec3 c = paper * (1. - clamp(A,0.,1.));
-  if(sdW >= 0. || ahead){ vec4 pp = texture2D(tPaper, uv); c = c*(pp.r + .5) + (pp.g - .5)*vec3(1., .97, .9); }   // PROTOTYPE idea 2: g, light the paper's relief catches          // the paper's tooth and the wall's broad washes (room.frag)
+  // the paper's tooth and the wall's broad washes, and the light its relief catches from the sun (room.frag)
+  if(sdW >= 0. || ahead){ vec4 pp = texture2D(tPaper, uv); c = c*(pp.r + .5) + (pp.g - .5)*vec3(1., .97, .9); }
   c *= 1. - pen*wet*vec3(.62,.6,.55);
-  if(posterOn > .5) c = mix(texture2D(tPoster, vUv).rgb, c, clamp((wet + front)*1.4, 0., 1.));   // PROTOTYPE idea 5
+  if(posterOn > .5) c = mix(texture2D(tPoster, vUv).rgb, c, clamp((wet + front)*1.4, 0., 1.));   // the sketch, until the paint reaches it
   gl_FragColor = vec4(c, 1.);
 }
 #endif

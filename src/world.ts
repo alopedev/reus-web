@@ -4,8 +4,9 @@ import { daylight, type Hour } from './light';
 import { PHONE } from './phone';
 import type { Weather } from './weather';
 import watercolorFrag from './shaders/watercolor.frag?raw';
-import { CALIDO, createRoom, LUZ } from './room';
-import { createVaho, VAHO } from './vaho';
+import { createRoom } from './room';
+import { reduce } from './state';
+import { createVaho } from './vaho';
 
 export interface World {
   frame(dx: number, time: number, reveal: number): void;   // move the landscape by dx and paint it
@@ -18,6 +19,7 @@ export interface World {
   painted(): number;                                       // share of the canvas the last watercolour pass painted (check.py)
   walls(): number;                                         // how many times the whole wall has been painted (check.py)
   carriage(): { over: number; gaps: number; seats: boolean }; // the 3D carriage: the window a seat covers, the wall missing (check.py)
+  mist(): number | null;                                   // how much of the glass is wiped, null without mist (check.py)
 }
 // something scattered on the landscape: position, size, and turn around the vertical axis
 type Placement = [x: number, y: number, z: number, size: [number, number, number], turn?: number];
@@ -45,10 +47,10 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
   const LUX = Math.PI;
   const hemi = new HemisphereLight(0xffffff, 0x777766, .95*LUX); scene.add(hemi);
   const sun = new DirectionalLight(0xffffff, .8*LUX); scene.add(sun);
-  const PINCEL = ' abcd'.indexOf(new URLSearchParams(location.search).get('pincel') || ' ');
   const mat = (c: Color) => new MeshPhongMaterial({color:c, flatShading:true, shininess:0, specular:0x000000});
-  // PROTOTYPE idea 1: canopies lit as round, not by their facets (each vertex's normal points away from the centre)
-  const canopy = (r: number) => { const g = new IcosahedronGeometry(r, 0); if(PINCEL > 0){ const p = g.attributes.position, n = g.attributes.normal; const v = new Vector3(); for(let i=0;i<p.count;i++){ v.set(p.getX(i), p.getY(i), p.getZ(i)).normalize(); n.setXYZ(i, v.x, v.y, v.z); } } return g; };
+  // canopies lit as round, not by their facets (each vertex's normal points away from the centre): the brush lays
+  // a tree in one stroke, not in a stroke per facet (Àlex 08-11, idea 1 C)
+  const canopy = (r: number) => { const g = new IcosahedronGeometry(r, 0); const p = g.attributes.position, n = g.attributes.normal; const v = new Vector3(); for(let i=0;i<p.count;i++){ v.set(p.getX(i), p.getY(i), p.getZ(i)).normalize(); n.setXYZ(i, v.x, v.y, v.z); } return g; };
   const vmat = new MeshPhongMaterial({vertexColors:true, flatShading:true, shininess:0, specular:0x000000});
   const C = (h: number) => new Color(h);
   const pig = {sap:C(0x8D9A62), vine:C(0x74854A), olive:C(0x8C9960), ochre:C(0xC9A060), earth:C(0xB39478), sand:C(0xE4D6B6), sea:C(0x40708F), indigo:C(0x46507A), pine:C(0x4F6B3C), roof:C(0xB5705A), wall:C(0xEBE3D2), wave:C(0xDCE6EA)};
@@ -69,7 +71,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     g.add(new Mesh(geo, vmat));
     const dummy = new Object3D();
     function instanced(geom: BufferGeometry, color: Color, list: Placement[], jitter=.12){
-      const mm = mat(color); if(PINCEL > 0 && geom.type === 'IcosahedronGeometry') mm.flatShading = false;
+      const mm = mat(color); if(geom.type === 'IcosahedronGeometry') mm.flatShading = false;
       const m = new InstancedMesh(geom, mm, list.length);
       list.forEach((t,i)=>{ dummy.position.set(t[0],t[1],t[2]); dummy.rotation.set(0,t[4]||0,0); dummy.scale.set(t[3][0],t[3][1],t[3][2]); dummy.updateMatrix(); m.setMatrixAt(i, dummy.matrix);
         const c = new Color(color); c.offsetHSL(0, 0, (r()-.5)*jitter); m.setColorAt(i, c); });
@@ -107,8 +109,10 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
   const RW = 3600;
   const headlands = [0,1].map(()=> ridge(RW, -1700, 40, [[55,2],[25,5],[10,11]], pig.indigo, 180));
   headlands.forEach(m=>scene.add(m));
-  // PROTOTYPE (idea 1, ?pincel=a|b|c): which way the brush runs at each point of the landscape, rendered from the
-  // scene itself into tDir: a twin of every mesh, in layer 1, with a material that writes its direction
+  // which way the brush runs at each point of the landscape (Àlex 08-11, idea 1 C), rendered from the scene itself
+  // into tDir every frame: a twin of every mesh, in layer 1, with a material that writes its direction (KIND 0: along
+  // the surface, level; 1: round the centre, a canopy; 2: up, a trunk; 3: across, a house or the sea), doubled angle
+  // in rg, and in b how near it is (sqrt(3/depth)), for the strokes' length and how fast they travel with the land
   const dirMats = new Map<number, ShaderMaterial>();
   const dirU = { dres:{value:new Vector2(2,2)} };
   const dirMat = (kind: number) => {
@@ -149,18 +153,14 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     if(o instanceof InstancedMesh) (t as InstancedMesh).instanceMatrix = o.instanceMatrix as InstancedBufferAttribute;
     t.layers.set(1); o.add(t);
   };
-  if(PINCEL > 0){
-    tiles.forEach(g => {
-      const kids = [...g.children];
-      // ground, olives, trunks, vines, pines, pine trunks, houses and roofs, waves
-      kids.forEach((o, i) => {
-        if(i === 0) twin(o, 0);
-        else if(o instanceof InstancedMesh){ const geo = o.geometry.type; twin(o, geo === 'CylinderGeometry' ? 2 : geo === 'BoxGeometry' ? 3 : 1); }
-        else twin(o, 0);
-      });
+  tiles.forEach(g => {
+    // ground, olives, trunks, vines, pines, pine trunks, houses and roofs, waves
+    [...g.children].forEach((o, i) => {
+      if(i > 0 && o instanceof InstancedMesh){ const geo = o.geometry.type; twin(o, geo === 'CylinderGeometry' ? 2 : geo === 'BoxGeometry' ? 3 : 1); }
+      else twin(o, 0);
     });
-    twin(sea, 3); headlands.forEach(h => twin(h, 0));
-  }
+  });
+  twin(sea, 3); headlands.forEach(h => twin(h, 0));
 
 
   const rt = new WebGLRenderTarget(2, 2, {format:RGBAFormat, minFilter:LinearFilter, magFilter:LinearFilter});
@@ -170,20 +170,21 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
       skyTop:{value:new Vector3()}, skyHor:{value:new Vector3()}, sunCol:{value:new Vector3()}, sunPos:{value:new Vector2()}, sunA:{value:.85},
       aspect:{value:1}, waspect:{value:1}, hor:{value:.42}, win:{value:new Vector4(.2,.3,.8,.8)}, wrad:{value:.04}, seats:{value:1},
       wallA:{value:new Vector3()}, wallB:{value:new Vector3()}, wood:{value:new Vector3()}, seat:{value:new Vector3()},
-      foldY:{value:0}, shade:{value:0}, wx:{value:0}, brd:{value:new Vector4(0,0,0,0)}, washAll:{value:0},
+      foldY:{value:0}, shade:{value:0}, wx:{value:0}, brd:{value:new Vector4(0,0,0,0)}, txt:{value:[0,1,2,3].map(() => new Vector4(0,0,0,0))}, washAll:{value:0},
       tRoom:{value:null as unknown}, tRoomP:{value:null as unknown}, tPaper:{value:null as unknown}, overWin:{value:0},
-      tDir:{value:dirRT.texture}, pincel:{value:PINCEL}, luz:{value:LUZ}, flowOff:{value:0}, fpx:{value:1}, flowP:{value:L},
-      tPoster:{value:null as unknown}, posterOn:{value:0}, tWipe:{value:null as unknown}, vaho:{value:VAHO}, aliento:{value:0}, calido:{value:CALIDO} },
+      tDir:{value:dirRT.texture}, flowOff:{value:0}, fpx:{value:1}, flowP:{value:L},
+      tPoster:{value:null as unknown}, posterOn:{value:0}, tWipe:{value:null as unknown}, vaho:{value:0}, aliento:{value:0} },
     vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`,
     fragmentShader: watercolorFrag,
   });
   const postScene = new Scene(), postCam = new OrthographicCamera(-1,1,1,-1,0,1);
   postScene.add(new Mesh(new PlaneGeometry(2,2), post));
   const U = post.uniforms;
-  const vh = VAHO ? createVaho() : null; if(vh) U.tWipe.value = vh.tex;   // PROTOTYPE idea 4
-  // PROTOTYPE idea 5: the poster the page opens on (index.html) stays under the paint until the paint reaches it
-  const posterSrc = document.documentElement.dataset.posterSrc;
-  if(posterSrc) new TextureLoader().load(posterSrc, t => { U.tPoster.value = t; U.posterOn.value = 1; });
+  // the mist on the glass (vaho.ts), every day; none with reduced motion
+  const vh = reduce ? null : createVaho(); if(vh){ U.tWipe.value = vh.tex; U.vaho.value = 1; }
+  // the pencil sketch the page opens on (index.html, Àlex 08-11, idea 5 B) stays under the paint until it reaches it
+  const poster = document.documentElement.dataset.poster;
+  if(poster) new TextureLoader().load(poster, t => { U.tPoster.value = t; U.posterOn.value = 1; });
   // the carriage round the window, built in 3D and painted with brush strokes (room.ts)
   const room = createRoom(renderer);
   U.tRoom.value = room.raw.texture; U.tRoomP.value = room.painted.texture; U.tPaper.value = room.paper.texture;
@@ -226,6 +227,14 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     // the board cancels their rise with a transform of its own, so it never moves on the wall
     const b = document.querySelector('.tauler')?.getBoundingClientRect();
     if(b) U.brd.value.set(b.left/cw, 1-b.bottom/ch, b.right/cw, 1-b.top/ch);
+    // where small text sits on the wall (the subtitle, the board's rows, the phone's day tabs): the shader keeps the
+    // sunlit paint behind it from going pale, so the cream letters still read (Àlex 08-11: the sun's white patch hid
+    // «el pròxim» and the subtitle in the afternoon). Measured without the texts' own entrance rise
+    const rise = [...document.querySelectorAll<HTMLElement>('.top, .info')].map(e => [e, e.style.transform, e.style.transition] as const);
+    rise.forEach(([e]) => { e.style.transition = 'none'; e.style.transform = 'none'; });
+    const texts = [...document.querySelectorAll('.sub, #cap, #board .trip')].map(e => e.getBoundingClientRect()).filter(t => t.width > 0 && t.height > 0);
+    rise.forEach(([e, t]) => { e.style.transform = t; }); void hero.offsetWidth; rise.forEach(([e, , tr]) => { e.style.transition = tr; });
+    U.txt.value.forEach((v: Vector4, i: number) => { const t = texts[i]; if(t) v.set(t.left/cw, 1-t.bottom/ch, t.right/cw, 1-t.top/ch); else v.set(0, 0, 0, 0); });
     hero.style.transform = tilt;
     U.seats.value = (cw/ch > 1.15 && r.left > cw*.12) ? 1 : 0;
     const k = s * .8 * (STACKED.matches ? 2 : 1);
@@ -235,7 +244,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     const wa = r.width/Math.max(1,r.height); U.waspect.value = wa;
     // the wall is painted again only if it changed: a resize that leaves the screen, the window and the board as they
     // were (the arrows' own, a toolbar's, a ResizeObserver's) would cost a whole watercolour pass for nothing (30-10)
-    const was = wall; wall = JSON.stringify([W, H, U.win.value.toArray(), U.wrad.value, U.brd.value.toArray(), U.seats.value, rw, rh]);
+    const was = wall; wall = JSON.stringify([W, H, U.win.value.toArray(), U.wrad.value, U.brd.value.toArray(), U.txt.value.map((v: Vector4) => v.toArray().map(n => Math.round(n*400))), U.seats.value, rw, rh]);
     if(wall !== was){
       wallKept = wetKept = false;
       // a wide screen has a bay of seats either side of the window; a phone (or any screen with no room at the
@@ -277,13 +286,13 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
   }
   let offset = 0, washRaf = 0, washed = true;
   function frame(dx: number, time: number, reveal: number){
-    if(vh) U.aliento.value += (vh.breath.v - U.aliento.value)*.12;   // PROTOTYPE: the breath on the glass (?gesto=b)
+    if(vh) U.aliento.value += (vh.breath.v - U.aliento.value)*.12;   // a breath on the glass thickens the mist
     offset += dx;
     const tx = -(((offset % L)+L) % L); tiles[0].position.x = tx - L/2; tiles[1].position.x = tx + L/2;
     const hx = -(((offset % RW)+RW) % RW); headlands[0].position.x = hx - RW/2; headlands[1].position.x = hx + RW/2;
     U.tq.value = time; U.reveal.value = reveal;
     renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, camera);
-    if(PINCEL > 0){ camera.layers.set(1); renderer.setRenderTarget(dirRT); renderer.clear(); renderer.render(scene, camera); camera.layers.set(0); U.flowOff.value = offset; }
+    camera.layers.set(1); renderer.setRenderTarget(dirRT); renderer.clear(); renderer.render(scene, camera); camera.layers.set(0); U.flowOff.value = offset;
     dryFresh = wetFresh = false;
     paint();
     washed = true;
@@ -343,7 +352,6 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     ctx.drawImage(canvas, r.left*k, r.top*k, r.width*k, r.height*k, 0, 0, out.width, out.height);
     return out;
   }
-  (window as unknown as {__frame: typeof frame}).__frame = frame;   // PROTOTYPE: frames on demand for the clips
   return {frame, setTime, resize, setWash, setWeather, grain: () => grain, snap, painted: () => share, walls: () => walls,
-    carriage: () => ({ ...room.coverage(), seats: U.seats.value > .5 })};
+    carriage: () => ({ ...room.coverage(), seats: U.seats.value > .5 }), mist: () => vh ? vh.wiped() : null};
 }
