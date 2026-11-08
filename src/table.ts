@@ -19,7 +19,7 @@ interface Box { x: number; y: number; w: number; h: number }
 export function createTable(): Table {
   const esc = byId('escena'), cv = byId<HTMLCanvasElement>('lienzo');
   const gl = cv.getContext('webgl', {preserveDrawingBuffer:true, antialias:false, powerPreference:'low-power'});
-  let prog: WebGLProgram | null = null, raf = 0, minute = 600, started = false, G: Geometry;
+  let prog: WebGLProgram | null = null, raf = 0, minute = 600, started = false, G: Geometry, painted = '';
   if(gl){
     const sh = (type: number, src: string) => { const x = gl.createShader(type)!; gl.shaderSource(x, src); gl.compileShader(x); return x; };
     prog = gl.createProgram();
@@ -103,6 +103,7 @@ export function createTable(): Table {
   }
   function paint(animate: boolean){
     layout();
+    painted = JSON.stringify(G);
     if(!prog) return;
     size();
     cancelAnimationFrame(raf);
@@ -123,12 +124,12 @@ export function createTable(): Table {
   let rs = 0;
   // a new size: repaint once it stops changing; a paint-in still under way carries on at the new size. A resize
   // that leaves the table as it was (iOS Safari's toolbar, which shrinks as the page scrolls into the table)
-  // repaints nothing: it would land in the middle of the transition
+  // repaints nothing: it would land in the middle of the transition. Compared with what was painted, not with the
+  // last layout(): the papers' observer lays out at once, so G is already new by the time this runs (08-11)
   const resized = () => { clearTimeout(rs); rs = setTimeout(() => {
     if(!started) return;
-    const before = JSON.stringify(G);
     layout();
-    if(cv.dataset.pintada && JSON.stringify(G) === before) return;
+    if(cv.dataset.pintada && JSON.stringify(G) === painted) return;
     if(cv.dataset.pintada || !prog) paint(false); else size();
   }, 200); };
   addEventListener('resize', resized);

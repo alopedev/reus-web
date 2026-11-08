@@ -43,7 +43,7 @@ function trip(r: Row, ida: boolean, phone: boolean, rec: string, bus: Bus | null
   const soon = big ? soonW : '';
   const lead = late ? `<span class="nova">${hhmm(late.dep)}</span><span class="nx"><span class="mes">+${late.min} min</span>${until ? ', ' : ''}</span>${soon}`
     : live?.kind === 'cancel' ? '<span class="nx mes">cancel·lat</span>'
-    : `<span class="nx">${r.gone ? 'ja ha sortit' : morrow ? 'demà' : 'el pròxim'}${until ? ', ' : ''}</span>${soon}${live?.kind === 'unknown' ? ' <span class="gris">· sense dades en directe encara</span>' : ''}`;
+    : `<span class="nx">${r.gone ? 'ja ha sortit' : morrow ? 'demà' : 'el pròxim'}${until ? ', ' : ''}</span>${soon}${live?.kind === 'unknown' ? ' <span class="gris">· sense dades</span>' : ''}`;
   const where = big ? lead : morrow ? 'demà' : 'després';
   // the big train's words keep to one line, and its route takes the rest of the gap up to the arrival
   const w = big ? `<span class="lead">${where}</span>${rec}` : where;
