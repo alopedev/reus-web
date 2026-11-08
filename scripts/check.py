@@ -93,7 +93,7 @@ Usage: npm run build && npm run build:paridad && python3 scripts/check.py [parid
 import asyncio, functools, html.parser, http.server, io, json, os, pathlib, re, sys, threading
 import urllib.parse
 import xml.etree.ElementTree as ET
-from PIL import Image, ImageChops, ImageStat
+from PIL import Image, ImageChops, ImageFilter, ImageStat
 from playwright.async_api import async_playwright
 
 root = pathlib.Path(__file__).resolve().parent.parent
@@ -1338,14 +1338,14 @@ async def no_notices(route):
 
 def _on_time_answer():
     """/api/retards for every check but check_retards: every train of both timetables running on time, which says
-    nothing, so no other check meets the live delay. (No answer at all would read «sense dades en directe encara».)
+    nothing, so no other check meets the live delay. (No answer at all would read «sense dades».)
     Read far in the future, so it is fresh at whatever time a check fixes the clock to."""
     import json, re
     numbers, aves = set(), set()
     for f in ("data/red.json", "scripts/baseline/red.json"):
         for t in json.loads((root / f).read_text())["trenes"]:
             m = re.match(r"^\d{4}[A-Z](\d+)[A-Z]", t["n"]); numbers.add(m.group(1) if m else t["n"])
-            if t.get("p") == "AVE": aves.add(t["n"])
+            if t.get("p") == "AV": aves.add(t["n"])
     # the AVE comes apart, from Renfe's long-distance feed (04-11)
     on = lambda ns: {n: {"estat": "circula", "retard": 0, "parada": ""} for n in ns}
     return json.dumps({"llegit": "2100-01-01T00:00:00Z", "trens": on(numbers), "ave": on(aves)})
@@ -1761,7 +1761,7 @@ async def check_retards(browser):
         if r["nova"]: errs.append(f"{kind}: a new time shows («{r['nova']}»)")
         if kind == "ontime" and (r["tach"] or "el pròxim, en 3 min" not in r["text"] or "sense dades" in r["text"]):
             errs.append(f"on time: the big row changed: «{r['text']}»")
-        if kind in ("notyet", "503") and "sense dades en directe encara" not in r["text"]:
+        if kind in ("notyet", "503") and "· sense dades" not in r["text"]:
             errs.append(f"{kind}: the big row does not say there is no live data yet: «{r['text']}»")
         if kind == "cancel" and (not r["tach"] or "cancel·lat" not in r["text"] or "en 3 min" in r["text"]):
             errs.append(f"cancelled: the big row reads «{r['text']}» (struck: {r['tach']})")
@@ -2166,6 +2166,7 @@ async def check_hero(browser):
     errs += [f"light: {e}" for e in await check_daylight(browser)]
     errs += [f"weather: {e}" for e in await check_weather(browser)]
     errs += [f"foot: {e}" for e in await check_ruler_foot(browser)]
+    errs += [f"board words: {e}" for e in await check_board_legible(browser)]
     errs += [f"notices: {e}" for e in await check_avisos(browser)]
     errs += [f"live delay: {e}" for e in await check_retards(browser)]
     errs += [f"time: {e}" for e in await check_hora(browser)]
@@ -2175,7 +2176,7 @@ async def check_hero(browser):
     page = await hero_page(browser, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     b = await page.evaluate(BOARD); r = await page.evaluate(RULER)
-    want = ["AVE 22:17 el pròxim, en 47 min → 22:59 des de Camp de Tarragona", "R15 05:36 demà → 07:07"]
+    want = ["AV 22:17 el pròxim, en 47 min → 22:59 des de Camp de Tarragona", "R15 05:36 demà → 07:07"]
     if b["rows"] != want: errs.append(f"at 21:30 from Reus the board reads {b['rows']}, expected today's AVE and tomorrow's first regional {want}")
     if b["dep"] != "22:17" or r["knob"] != 1337: errs.append(f"at 21:30 from Reus the train shown is {b['dep']} with the knob at {r['knob']}, expected the 22:17 AVE (1337)")
     if b["soon"] != "en 47 min": errs.append(f"at 21:30 from Reus .soon reads «{b['soon']}», expected «en 47 min»")
@@ -2220,7 +2221,7 @@ async def check_hero(browser):
     # at 23:30 no train is left today: tomorrow's first ones, and the board says so
     page = await hero_page(browser, at="2026-09-28T21:30:00Z")
     b = await page.evaluate(BOARD)
-    want = ["AVE 05:50 el pròxim → 06:22 fins a Camp de Tarragona", "R15 06:33 després → 08:03"]
+    want = ["AV 05:50 el pròxim → 06:22 fins a Camp de Tarragona", "R15 06:33 després → 08:03"]
     if b["rows"] != want: errs.append(f"at 23:30 the board reads {b['rows']}, expected tomorrow's first trips {want}")
     if "Avui ja no en queden" not in b["info"]: errs.append("at 23:30 the board does not say «Avui ja no en queden · demà»")
     dia = await page.evaluate("document.querySelector('.tk .fecha')?.dataset.dia")
@@ -2459,8 +2460,8 @@ async def check_hero_ruler(page):
     import re
     if re.search(r"\d\d:\d\d|Son las|Són les|Ahora|Ara", r["head"]): errs.append(f"the ruler still has a heading with the time: «{r['head']}»")
     await page.focus("#t")
-    steps = [("End", "22:03", "tren de les 22:03"), ("ArrowLeft", "21:33", "tren de les 21:33"), ("Home", "05:50", "AVE de les 05:50"),
-             ("ArrowRight", "06:33", "tren de les 06:33"), ("ArrowLeft", "05:50", "AVE de les 05:50")]
+    steps = [("End", "22:03", "tren de les 22:03"), ("ArrowLeft", "21:33", "tren de les 21:33"), ("Home", "05:50", "AV de les 05:50"),
+             ("ArrowRight", "06:33", "tren de les 06:33"), ("ArrowLeft", "05:50", "AV de les 05:50")]
     for key, dep, text in steps:
         await page.keyboard.press(key); await page.wait_for_timeout(250)
         r = await page.evaluate(RULER)
@@ -2502,6 +2503,56 @@ async def check_text_sun(browser):
                 ratio = (luminance(b["color"]) + .05) / (bright + .05)
                 if ratio < 3: errs.append(f"{w}x{h} at {at[11:16]} UTC: «{b['name']}» stands at {ratio:.1f}:1 against the sunlit wall behind it (≥ 3:1)")
             await page.close()
+    return errs
+
+# the board's words, read against what lies behind them: since the carriage in 3D (07-11) the seats' light plastic
+# backs stand behind the big time on the left and the arrival on the right (1A, Àlex 08-11)
+BOARD_WORDS = """(() => { const sel = '#dep, #board .trip .t, #board .trip:not(.big) .w, #board .big .lead, #board .trip .st';
+  const box = e => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; };
+  return [...document.querySelectorAll(sel)].filter(e => e.getClientRects().length && e.textContent.trim()).map(e => {
+    const cs = getComputedStyle(e);
+    return {what: (e.id ? '#' + e.id : e.className) + ' «' + e.textContent.replace(/\\s+/g, ' ').trim().slice(0, 24) + '»',
+      color: cs.color.match(/[\\d.]+/g).slice(0, 3).map(Number), box: box(e)}; }); })()"""
+# the board's words gone, their shadows left (the pills keep theirs): what the eye reads each word against
+BOARD_BARE = "#board .trip .t, #board .trip .w, #board .trip .st, #board .trip .w *, #board .rec .s, #dep, .sub { color:transparent !important; }"
+# the line pill grows with its row (2B, Àlex 08-11): a quarter of the big time was too little beside it
+PILLS = """(() => { const h = s => { const e = document.querySelector(s); return e ? e.getBoundingClientRect().height : 0; };
+  return {big: h('#board .big .pill'), dep: h('#dep'), next: h('#board .trip:not(.big) .pill'), time: h('#board .trip:not(.big) .t')}; })()"""
+
+async def check_board_legible(browser):
+    """On a desktop every time and word of the board's rows reads at 3:1 against what is right around its strokes, at
+    its brightest (the 90th percentile), the seats' backs included, at 10:00 on the frozen timetable; and the line pill
+    grows with its row. A phone keeps its pill. The bar is AA's for large text: the small soft words («el pròxim»,
+    «després») never reached AA's 4.5:1 even on the bare wall (about 4:1 with the halo). Left out: the route's stop
+    names, which stand wherever the timetable puts them (at 1920 «Vila-seca» on a seat's back still reads weakly),
+    and the subtitle, over the luggage rack's bright bar"""
+    errs = []
+    for w, h in ((1280, 800), (1440, 900), (1920, 1080)):
+        page = await hero_page(browser, w, h); await page.wait_for_timeout(1500)
+        words = await page.evaluate(BOARD_WORDS)
+        p = await page.evaluate(PILLS)
+        if p["big"] < .55 * p["dep"]: errs.append(f"{w}x{h}: the big row's pill is {p['big']:.0f} px tall beside a {p['dep']:.0f} px time, expected at least {.55 * p['dep']:.0f}")
+        if p["next"] < .75 * p["time"] or p["next"] >= p["big"]: errs.append(f"{w}x{h}: the second row's pill is {p['next']:.0f} px tall beside a {p['time']:.0f} px time, expected at least {.75 * p['time']:.0f} and under the big one ({p['big']:.0f})")
+        drawn = Image.open(io.BytesIO(await page.screenshot())).convert("L")
+        await page.add_style_tag(content=BOARD_BARE); await page.wait_for_timeout(300)
+        bare = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
+        # the strokes: where the words lit the picture up; around them, the ring 2 px out, what the eye sets each
+        # stroke against (the box would count the empty room over and under the letters too)
+        strokes = ImageChops.subtract(drawn, bare.convert("L")).point(lambda v: 255 if v > 40 else 0)
+        ring = ImageChops.subtract(strokes.filter(ImageFilter.MaxFilter(5)), strokes.filter(ImageFilter.MaxFilter(3)))
+        for word in words:
+            x0, y0, x1, y1 = word["box"]
+            behind = sorted(luminance(bare.getpixel((x, y))) for x in range(max(0, int(x0) - 4), min(w, int(x1) + 4)) for y in range(max(0, int(y0) - 4), min(h, int(y1) + 4))
+                            if ring.getpixel((x, y)))
+            if len(behind) < 20: continue
+            ratio = (luminance(word["color"]) + .05) / (behind[int(.9 * len(behind)) - 1] + .05)
+            if ratio < 3: errs.append(f"{w}x{h}: {word['what']} reads at {ratio:.1f}:1 against what is around its strokes, expected 3:1")
+        await page.close()
+    page = await hero_page(browser, 390, 844)
+    p = await page.evaluate(PILLS)
+    size = await page.evaluate("parseFloat(getComputedStyle(document.querySelector('#board .big .pill')).fontSize) / parseFloat(getComputedStyle(document.documentElement).fontSize)")
+    if abs(size - .93) > .01: errs.append(f"on a phone the pill is {size:.2f} rem, expected .93 as before")
+    await page.close()
     return errs
 
 async def check_ruler_foot(browser):
@@ -2551,19 +2602,19 @@ async def check_hero_board(page):
         if word in b["info"]: errs.append(f"the board still says «{word}»")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     # the big train is the first to leave, AVE included
-    await expect("at 10:00, Reus → Sants", ["AVE 10:30 el pròxim, en 30 min → 11:11 des de Camp de Tarragona", "R15 10:36 després → 12:07"], "10:30", "en 30 min", ("04104", "71801", "28/09/2026"))
+    await expect("at 10:00, Reus → Sants", ["AV 10:30 el pròxim, en 30 min → 11:11 des de Camp de Tarragona", "R15 10:36 després → 12:07"], "10:30", "en 30 min", ("04104", "71801", "28/09/2026"))
     async def choose(time):
         ok = await page.evaluate(f"(() => {{ const b = [...document.querySelectorAll('#board button.tt')].find(b => b.querySelector('.t').textContent === '{time}'); if(b) b.click(); return !!b; }})()")
         await page.wait_for_timeout(300); return ok
     if not await choose("10:36"): return errs + ["the R15 at 10:36 is not a button"]
-    await expect("after choosing the 10:36", ["R15 10:36 el pròxim → 12:07", "AVE 11:00 després → 11:44 des de Camp de Tarragona"], "10:36", "", ("71400", "71801", "28/09/2026"))
+    await expect("after choosing the 10:36", ["R15 10:36 el pròxim → 12:07", "AV 11:00 després → 11:44 des de Camp de Tarragona"], "10:36", "", ("71400", "71801", "28/09/2026"))
     await page.click("#nowBtn"); await page.wait_for_timeout(300)
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     if not await choose("11:03"): return errs + ["the R15 at 11:03 is not a button"]
-    await expect("after choosing the 11:03", ["R15 11:03 el pròxim → 12:33", "AVE 12:00 després → 12:31 fins a Camp de Tarragona"], "11:03", "")
+    await expect("after choosing the 11:03", ["R15 11:03 el pròxim → 12:33", "AV 12:00 després → 12:31 fins a Camp de Tarragona"], "11:03", "")
     if not await choose("12:00"): return errs + ["the AVE at 12:00 is not a button"]
-    b = await expect("after choosing the AVE", ["AVE 12:00 el pròxim → 12:31 fins a Camp de Tarragona", "R14 12:03 després → 13:33"], "12:00", "", ("71801", "04104", "28/09/2026"))
-    if "AVE" not in b["aviso"] or "Camp de Tarragona" not in b["aviso"]: errs.append(f"choosing the AVE, the live region does not say it is an AVE to Camp de Tarragona («{b['aviso']}»)")
+    b = await expect("after choosing the AVE", ["AV 12:00 el pròxim → 12:31 fins a Camp de Tarragona", "R14 12:03 després → 13:33"], "12:00", "", ("71801", "04104", "28/09/2026"))
+    if "AV " not in b["aviso"] or "Camp de Tarragona" not in b["aviso"]: errs.append(f"choosing the AV, the live region does not say it is an AV to Camp de Tarragona («{b['aviso']}»)")
     await page.click("#nowBtn"); await page.wait_for_timeout(300)
     return errs
 
@@ -2693,7 +2744,7 @@ JOURNEY = """(() => { const rec = document.querySelector('#board .trip.big .rec'
           bare: [...rec.querySelectorAll('i')].map(i => i.hidden), full: [...rec.querySelectorAll('i')].map(i => i.dataset.n),
           tram: getComputedStyle(rec.querySelector('.tram')).display,
           shown: shown.map(s => ({text: s.textContent, side: s.classList.contains('up') ? 'up' : s.classList.contains('down') ? 'down' : '', ...box(s)})),
-          titles: [...rec.querySelectorAll('i')].map(i => i.title), rec: box(rec), off: rec.classList.contains('off'), hidden: rec.getAttribute('aria-hidden'),
+          titles: [...rec.querySelectorAll('i')].map(i => i.title), rec: box(rec), rem: parseFloat(getComputedStyle(document.documentElement).fontSize), off: rec.classList.contains('off'), hidden: rec.getAttribute('aria-hidden'),
           win: box(document.getElementById('win')), lead: box(document.querySelector('#board .big .lead')), arr: box(document.querySelector('#board .big .arr'))}; })()"""
 
 async def check_journey(browser):
@@ -2701,9 +2752,16 @@ async def check_journey(browser):
     arrival, a line with a dot per stop placed by the time the train reaches it, and each stop's name above or below
     its dot, without its time (Àlex 09-10: the dot's place already says it). When not every name fits, the line folds (Àlex 08-10, option B): the first two stops and the
     last two keep their names, the stops between lose their dots under a dotted stretch with «· N parades ·» over it
-    (the folded stops as its tooltip). Labels never overlap each other, the board's words, the arrival or the window.
-    No route for the AVE (no stops) nor on a phone."""
+    (the folded stops as its tooltip). Labels never overlap each other, the board's words, the arrival or the window,
+    and two names on the same side keep .8rem apart, so they never read as one (Àlex 08-11, 4A: «Torredembarra» and
+    «Tarragona» stood 8 px apart). No route for the AVE (no stops) nor on a phone."""
     errs, net, day = [], _net(), "2026-09-28"
+    def apart(when, j):
+        for i, p in enumerate(j["shown"]):
+            for q in j["shown"][i + 1:]:
+                gap = max(p["l"], q["l"]) - min(p["r"], q["r"])
+                if p["side"] == q["side"] and 0 <= gap < .8 * j["rem"] - .5:
+                    errs.append(f"{when}: «{p['text']}» and «{q['text']}» stand {gap:.1f} px apart on the same side, expected .8rem ({.8 * j['rem']:.1f} px)")
     def judge(when, j, want, folded):
         if j is None: errs.append(f"{when}: the big train has no route (.rec)"); return
         names, mins, d0, a0 = want
@@ -2734,9 +2792,16 @@ async def check_journey(browser):
                 if cut(p, j[name]): errs.append(f"{when}: «{p['text']}» overlaps {name}")
             for q in j["shown"][i + 1:]:
                 if cut(p, q): errs.append(f"{when}: «{p['text']}» overlaps «{q['text']}»")
+        apart(when, j)
     # at 10:00, Sants → Reus: the R15 at 10:03, every stop labelled
     page = await hero_page(browser)
     judge("Sants → Reus at 10:00", await page.evaluate(JOURNEY), _stops(net, day, SANTS_ID, REUS_TOWN, 603), False)
+    await page.close()
+    # with no live data yet, «· sense dades» takes some of the line: at 1440, the R15's names crowd the most there
+    page = await retards_page(browser, "503", 1440, 900)
+    apart("Sants → Reus at 10:00 with no live data", await page.evaluate(JOURNEY))
+    await page.close()
+    page = await hero_page(browser)
     # Reus → Sants: the AVE from Camp de Tarragona is the big train, and has no stops
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     if await page.evaluate(JOURNEY) is not None: errs.append("the AVE (no stops between Camp de Tarragona and Sants) has a route")
@@ -2990,7 +3055,7 @@ async def check_town_choose_girona(browser):
     # the words of each row and the ruler's count are scripts/test/board.test.ts's; here, that the page paints them
     want = ["R11 10:16 el pròxim, en 16 min → 11:35", "R11 11:16 després → 12:47"]
     if b["rows"] != want: errs.append(f"after choosing Girona the board reads {b['rows']}, expected {want}")
-    if any("AVE" in row for row in b["rows"]): errs.append("Girona has no AVE, but the board shows one")
+    if any(row.startswith("AV ") for row in b["rows"]): errs.append("Girona has no fast train in the frozen timetable, but the board shows one")
     total = 23
     if r["ticks"] != total: errs.append(f"the ruler has {r['ticks']} ticks, expected {total} (the day's direct R11 Sants→Girona trains)")
     if "Girona" not in b["aviso"]: errs.append(f"choosing Girona, the live region does not name it («{b['aviso'][:80]}»)")
@@ -3608,7 +3673,7 @@ async def check_phone_board(browser):
     page = await hero_page(browser, 390, 844, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
     b = await tap("#board button.big", "the AVE from Reus at 21:30")
-    if b: home(b, "the AVE from Reus at 21:30", "Agafo l’AVE de les 22:17 a Camp de Tarragona. Arribo a Sants a les 22:59.")
+    if b: home(b, "the AVE from Reus at 21:30", "Agafo l’AV de les 22:17 a Camp de Tarragona. Arribo a Sants a les 22:59.")
     await page.close()
     return errs
 
@@ -3841,6 +3906,9 @@ async def main():
         if sys.argv[1:] == ["abast"]:
             failures += await check_reach(browser) + await check_remember(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · abast"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["tauler"]:
+            failures += await check_board_legible(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · tauler"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["barra"]:
             failures += await check_bar_tint(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · barra"); sys.exit(1 if failures else 0)

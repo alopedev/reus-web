@@ -17,7 +17,13 @@
 /* the glass in front of the cells: a faint light on its upper half */
 .tauler::after{ content:''; position:absolute; inset:0 0 50%; border-radius:.07em .07em 0 0; pointer-events:none;
   background:linear-gradient(rgba(255,255,255,.09), rgba(255,255,255,0) 90%); }
-.sub{ margin:.7rem 0 0; font-size:1.15rem; color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.35); }
+.sub{ margin:.7rem 0 0; font-size:1.15rem; color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.35), var(--halo); }
+/* a soft dark halo behind every word of the board and the subtitle, never a box (1A, Àlex 08-11): on the wall it hardly
+   shows; over the seats' light plastic backs, which stand behind the big time and the arrival since the carriage in
+   3D, it keeps each word apart. A thin stroke casts a faint shadow, so the tight one is laid four times and the soft one
+   twice: one of each only showed around the big time. A phone has none (its own block) */
+#hero{ --halo:0 0 .12em rgba(28,23,19,.95), 0 0 .12em rgba(28,23,19,.95), 0 0 .12em rgba(28,23,19,.95), 0 0 .12em rgba(28,23,19,.95),
+  0 0 .35em rgba(28,23,19,.9), 0 0 .35em rgba(28,23,19,.9), 0 0 .9em rgba(28,23,19,.65); }
 .brandBox{ min-width:0; }
 
 /* one train ticket, cut out of paper: both ends of the trip, and the arrows to turn it around */
@@ -64,10 +70,15 @@
 .info{ display:grid; grid-template-columns:minmax(0,1fr); align-items:end; row-gap:.6rem; }
 .label:empty{ display:none; }
 .board{ display:grid; grid-template-columns:auto auto minmax(0,1fr) auto; align-items:baseline; column-gap:1.1rem; row-gap:.25rem;
-  color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.35); }
+  color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.35), var(--halo); }
 .trip{ display:grid; grid-column:1 / -1; grid-template-columns:subgrid; align-items:baseline; }
 .pill{ display:inline-block; font:700 .93rem/1 var(--texto); color:var(--t, #fff); background:var(--c); padding:.28em .45em; border-radius:.3em;
   letter-spacing:.02em; text-shadow:none; }
+/* the line pill grows with its row, as the time does (2B, Àlex 08-11): with the fast trains among the regionals it is
+   what tells them apart. Each pill as wide as its own name, not stretched to its column */
+#board .pill{ justify-self:start; }
+#board .big .pill{ font-size:1.6rem; }
+#board .trip:not(.big) .pill{ font-size:1.1rem; }
 .trip .t{ font-family:var(--serif); font-weight:400; font-size:1.5rem; }
 .trip .w{ font-size:1rem; line-height:1.15; color:var(--soft); }
 .trip .arr{ color:var(--soft); font-size:1.3rem; white-space:nowrap; }
@@ -75,14 +86,14 @@
 .trip .st{ grid-column:3 / -1; justify-self:end; font-size:.93rem; line-height:1.1; color:var(--soft); white-space:nowrap; }
 /* the train shown is the one pressed: flat on the wall, no offset shadow and no frame (the inked stamp around it was
    dropped, Àlex 06-10). It is only a time: the stubs say what it leads to (Àlex 18-10) */
-#dep{ font-size:4.6rem; line-height:.9; letter-spacing:-.02em; text-shadow:0 1px 2px rgba(0,0,0,.35); justify-self:start; }
+#dep{ font-size:4.6rem; line-height:.9; letter-spacing:-.02em; text-shadow:0 1px 2px rgba(0,0,0,.35), var(--halo); justify-self:start; }
 .big .arr{ color:var(--paper); font-size:1.8rem; }
 /* the other trips are doors to them: the whole row presses, its time stands off the wall (raised, the hard offset
    shadow of the ticket); pressing flattens it */
 .tt{ font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; text-align:left; cursor:pointer; text-shadow:inherit; }
-.tt .t:not(.arr){ text-shadow:var(--alzado-pared); }
-.tt:hover .t:not(.arr){ text-shadow:var(--alzado-pared-hover); }
-.tt:active .t:not(.arr){ text-shadow:none; transform:translate(.06em,.06em); }
+.tt .t:not(.arr){ text-shadow:var(--alzado-pared), var(--halo); }
+.tt:hover .t:not(.arr){ text-shadow:var(--alzado-pared-hover), var(--halo); }
+.tt:active .t:not(.arr){ text-shadow:var(--halo); transform:translate(.06em,.06em); }
 .tt:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
 /* the big train's route, on a desktop (journey.ts): its words first, on one line, then a line up to the arrival
    with a dot at every stop, placed by the time it reaches it; names above or below, like the ruler's */
@@ -94,7 +105,7 @@
 #dep.tach::after{ content:""; position:absolute; left:-4%; right:-4%; top:52%; height:.075em; background:#E8A35C; transform:rotate(-8deg);
   box-shadow:.03em .03em 0 var(--shadow); border-radius:.05em; pointer-events:none;
   -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:120px; mask-size:120px; }
-.big .nova{ font-family:var(--serif); font-weight:400; font-size:2.5rem; line-height:1; color:#E8A35C; text-shadow:.06em .06em 0 var(--shadow); margin-right:.35em; vertical-align:-.12em; }
+.big .nova{ font-family:var(--serif); font-weight:400; font-size:2.5rem; line-height:1; color:#E8A35C; text-shadow:.06em .06em 0 var(--shadow), var(--halo); margin-right:.35em; vertical-align:-.12em; }
 .big .mes{ color:#E8A35C; font-weight:700; }
 .big .gris{ color:var(--soft); opacity:.8; }
 .big .arr s{ font-size:.8em; opacity:.6; text-decoration-color:#E8A35C; text-decoration-thickness:.09em; margin-right:.25em; }
@@ -270,6 +281,9 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 @media (max-width:700px), (max-aspect-ratio:4/5), (orientation:landscape) and (max-height:500px){
   /* stacked: the ticket sits under the name, as wide as its text */
   .stage{ padding:1rem 1.15rem; }
+  /* a phone keeps its board as it was: no halo, the pill at its old size */
+  #hero{ --halo:0 0 transparent; }
+  #board .big .pill, #board .trip:not(.big) .pill{ font-size:.93rem; }
   .top{ flex-direction:column; align-items:flex-start; gap:.6rem; }
   .tauler{ font-size:2.1rem; } .sub{ font-size:1rem; }
   .tickets{ justify-content:flex-start; flex-wrap:wrap; row-gap:.5rem; }

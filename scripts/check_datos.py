@@ -6,19 +6,19 @@ Rules checked:
      Operadora», actualizado (an ISO date), estaciones, trenes and dias.
   2. dias covers at least 14 consecutive days from actualizado; every index it lists
      points to an existing train.
-  3. Every train: n is non-empty, p is one of R11/R13/R14/R15/R16/R17/AVE/AVLO, it has
+  3. Every train: n is non-empty, p is one of R11/R13/R14/R15/R16/R17/AV, it has
      at least 2 stops, every stop's stop_id is in estaciones, arrival <= departure at
      each stop, and times never go backwards along s.
   4. Every train touches at least one Barcelona station (71801, 71802, 79009, 79400) —
      the site is Barcelona <-> your town.
-  5. AVE/AVLO trains only stop, among the saved stations, at Sants (71801) and Camp de
-     Tarragona (04104).
+  5. Fast trains (AV: AVE, Avant, Alvia, Euromed, Intercity) take you from Barcelona to a
+     Catalan station or back: besides Barcelona, they stop somewhere else.
   6. No duplicates: within the same day, no two trains share n, and no two trains are the same
      physical train under another number: two trains that stop at the same two or more stations,
      in the same order, leaving each within a minute of the other (the two Renfe feeds often
      differ by a minute at one station, e.g. Passeig de Gràcia) — arriving, where either one ends.
   7. Stations: the Barcelona ones carry barcelona: true; every town carries a non-empty
-     comarca and lineas; Camp de Tarragona (04104) carries lineas == ["AVE"] or including AVE.
+     comarca and lineas; Camp de Tarragona (04104) carries lineas == ["AV"] or including AV.
   8. Coverage: at least the 74 towns with a direct train to Barcelona (by stops.txt name)
      are present, and Reus (71400) is in Baix Camp.
   9. Parity with the current site: for every date present in both data/trains.json and
@@ -26,10 +26,10 @@ Rules checked:
      71801 then later at 71400) match trains.json's "r" key exactly on (salida, llegada),
      counting repeats (a train listed twice is an error), and Reus->Sants matches "b".
      Reports concrete extra/missing/repeated departures (HH:MM).
-  10. There is an AVE Sants -> Camp de Tarragona every day (at least 5 a day), and the
+  10. There is a fast train (AV) Sants -> Camp de Tarragona every day (at least 5 a day), and the
       same in the opposite direction.
   11. Size: red.json is <= 150 KB gzip-compressed.
-  12. No day lost most of its lines: every day, each line (R11, R13-R17, and AVE/AVLO together)
+  12. No day lost most of its lines: every day, each line (R11, R13-R17, and the fast trains together)
       runs at least half its median number of trains a day over the file. Two or more lines short
       the same day look like a broken feed: held back, not published. One line alone is usually
       works on it: published, with a warning (`aviso:`, and a GitHub warning in the robot's run).
@@ -44,9 +44,20 @@ SANTS, PDG, CLOT, FRANCA = "71801", "71802", "79009", "79400"
 BARCELONA_IDS = {SANTS, PDG, CLOT, FRANCA}
 REUS = "71400"
 CAMP_TARRAGONA = "04104"
-PRODUCTOS = {"R11", "R13", "R14", "R15", "R16", "R17", "AVE", "AVLO"}
-ALTA_VELOCIDAD = {"AVE", "AVLO"}
+PRODUCTOS = {"R11", "R13", "R14", "R15", "R16", "R17", "AV"}
+ALTA_VELOCIDAD = {"AV"}
 MAX_BYTES_GZIP = 150 * 1024
+
+# data/rodalies.json (08-11-2026): every other Rodalies line with a direct train to Barcelona, apart from red.json (the
+# web does not read it yet). Its Barcelona is any station in the city, and a few big towns, one or two per line, must
+# be there: a line gone missing from the feed holds the file back
+PRODUCTOS_RODALIES = {"R1", "R2", "R2N", "R2S", "R3", "R4", "R7", "R8"}
+# the R2 proper runs on weekdays and barely at weekends, when the R2 Nord and Sud take over: rule 12 counts them together
+FAMILIA_RODALIES = {"R2": "R2", "R2N": "R2", "R2S": "R2"}
+BARCELONA_CIUTAT = {SANTS, PDG, CLOT, FRANCA, "78805", "78804", "79004", "78806", "78802", "78801"}
+PUEBLOS_RODALIES = ["Badalona", "Mataró", "Blanes", "L'Hospitalet de Llobregat", "Sabadell Centre",
+                    "Terrassa Estació del Nord", "Manresa", "Martorell Central", "Vilafranca del Penedès",
+                    "Castelldefels", "Sitges", "Cardedeu", "Llinars del Vallès"]
 
 # the 59 towns with a direct train to Barcelona (by stops.txt name), sorted.
 # See docs/referencias/datos-red-contrato.md and the GTFS investigation for how this list was built.
@@ -149,7 +160,7 @@ def check_dias(d):
     return errs
 
 
-def check_trenes(d):
+def check_trenes(d, productos=PRODUCTOS):
     """Rule 3: n, p, stops, stop_id membership, non-decreasing times; f, when there is one, a number other than n; b,
     when there is one, two of its stops in order."""
     errs = []
@@ -172,8 +183,8 @@ def check_trenes(d):
             if not (isinstance(b, list) and len(b) == 2 and all(x in ids for x in b)
                     and ids.index(b[0]) < ids.index(b[1])):
                 bad.append(f"{label}: b={b!r} is not two of its stops in order")
-        if t.get("p") not in PRODUCTOS:
-            bad.append(f"{label}: p={t.get('p')!r} not in {sorted(PRODUCTOS)}")
+        if t.get("p") not in productos:
+            bad.append(f"{label}: p={t.get('p')!r} not in {sorted(productos)}")
         s = t.get("s")
         if not isinstance(s, list) or len(s) < 2:
             bad.append(f"{label}: fewer than 2 stops")
@@ -198,27 +209,25 @@ def check_trenes(d):
     return errs
 
 
-def check_toca_barcelona(d):
+def check_toca_barcelona(d, barcelona=BARCELONA_IDS):
     """Rule 4: every train touches a Barcelona station."""
     bad = []
     for t in d.get("trenes", []):
         ids = {stop[0] for stop in t.get("s", []) if isinstance(stop, list) and stop}
-        if not ids & BARCELONA_IDS:
+        if not ids & barcelona:
             bad.append(f"train n={t.get('n')!r} (p={t.get('p')!r}) never touches Barcelona")
     return capped(bad)
 
 
 def check_alta_velocidad_paradas(d):
-    """Rule 5: AVE/AVLO only stop at Sants and Camp de Tarragona."""
+    """Rule 5: a fast train stops somewhere besides Barcelona."""
     bad = []
-    allowed = {SANTS, CAMP_TARRAGONA}
     for t in d.get("trenes", []):
         if t.get("p") not in ALTA_VELOCIDAD:
             continue
         ids = {stop[0] for stop in t.get("s", []) if isinstance(stop, list) and stop}
-        extra = ids - allowed
-        if extra:
-            bad.append(f"{t.get('p')} train n={t.get('n')!r} stops at {sorted(extra)}, only Sants/Camp de Tarragona allowed")
+        if not ids - BARCELONA_IDS:
+            bad.append(f"{t.get('p')} train n={t.get('n')!r} only stops in Barcelona: it takes nobody home")
     return capped(bad)
 
 
@@ -256,7 +265,7 @@ def check_duplicados(d):
     return capped(bad)
 
 
-def check_estaciones(d):
+def check_estaciones(d, barcelona=BARCELONA_IDS):
     """Rule 7: Barcelona flag, comarca/lineas (and ll, when there) for towns, Camp de Tarragona's lineas."""
     errs = []
     estaciones = d.get("estaciones", {})
@@ -265,14 +274,14 @@ def check_estaciones(d):
         if not isinstance(info, dict):
             bad.append(f"{sid}: not an object")
             continue
-        if sid in BARCELONA_IDS:
+        if sid in barcelona:
             if info.get("barcelona") is not True:
                 bad.append(f"{sid} ({info.get('nombre')}): missing barcelona: true")
             continue
         if sid == CAMP_TARRAGONA:
             lineas = info.get("lineas")
-            if lineas != ["AVE"] and (not isinstance(lineas, list) or "AVE" not in lineas):
-                bad.append(f"{sid} (Camp de Tarragona): lineas should be [\"AVE\"] or include AVE, got {lineas!r}")
+            if not isinstance(lineas, list) or "AV" not in lineas:
+                bad.append(f"{sid} (Camp de Tarragona): lineas should include AV, got {lineas!r}")
             continue
         # a plain town
         if not info.get("comarca"):
@@ -370,7 +379,7 @@ def check_paridad(d, trains_path):
 
 
 def check_ave_camp_tarragona(d):
-    """Rule 10: at least 5 AVE/AVLO Sants->Camp de Tarragona every day, and the reverse."""
+    """Rule 10: at least 5 fast trains Sants->Camp de Tarragona every day, and the reverse."""
     trenes = d.get("trenes", [])
     dias = d.get("dias", {})
     errs = []
@@ -392,25 +401,25 @@ def check_ave_camp_tarragona(d):
                 elif pos[CAMP_TARRAGONA] < pos[SANTS]:
                     counts["vuelta"] += 1
         if counts["ida"] < 5:
-            errs.append(f"{day}: only {counts['ida']} AVE/AVLO Sants->Camp de Tarragona (need >= 5)")
+            errs.append(f"{day}: only {counts['ida']} fast trains Sants->Camp de Tarragona (need >= 5)")
         if counts["vuelta"] < 5:
-            errs.append(f"{day}: only {counts['vuelta']} AVE/AVLO Camp de Tarragona->Sants (need >= 5)")
+            errs.append(f"{day}: only {counts['vuelta']} fast trains Camp de Tarragona->Sants (need >= 5)")
     return capped(errs)
 
 
-def lineas_cortas(d):
+def lineas_cortas(d, productos=PRODUCTOS, familia=None):
     """Rule 12: {day: [message, ...]} for each line that runs under half its median number of trains a day."""
     trenes = d.get("trenes", [])
     dias = d.get("dias", {})
     if not isinstance(dias, dict) or not dias:
         return {}
-    linea = lambda p: "AVE/AVLO" if p in ALTA_VELOCIDAD else p
-    lineas = sorted({linea(t.get("p")) for t in trenes if t.get("p") in PRODUCTOS})
+    linea = lambda p: (familia or {}).get(p) or ("AV" if p in ALTA_VELOCIDAD else p)
+    lineas = sorted({linea(t.get("p")) for t in trenes if t.get("p") in productos})
     por_dia = {}
     for day, indices in dias.items():
         c = collections.Counter()
         for idx in indices if isinstance(indices, list) else []:
-            if isinstance(idx, int) and 0 <= idx < len(trenes) and trenes[idx].get("p") in PRODUCTOS:
+            if isinstance(idx, int) and 0 <= idx < len(trenes) and trenes[idx].get("p") in productos:
                 c[linea(trenes[idx]["p"])] += 1
         por_dia[day] = c
     out = collections.defaultdict(list)
@@ -424,14 +433,14 @@ def lineas_cortas(d):
     return dict(sorted(out.items()))
 
 
-def check_dia_incompleto(d):
+def check_dia_incompleto(d, productos=PRODUCTOS, familia=None):
     """Rule 12: two or more lines short the same day look like a broken feed: nothing is published."""
-    return capped([f"{day}: {'; '.join(m)}" for day, m in lineas_cortas(d).items() if len(m) >= 2], 10)
+    return capped([f"{day}: {'; '.join(m)}" for day, m in lineas_cortas(d, productos, familia).items() if len(m) >= 2], 10)
 
 
-def avisos_dia_incompleto(d):
+def avisos_dia_incompleto(d, productos=PRODUCTOS, familia=None):
     """Rule 12: one line short alone is usually works on that line (Àlex, 07-11): published, with a warning."""
-    return [f"{day}: {m[0]}" for day, m in lineas_cortas(d).items() if len(m) == 1]
+    return [f"{day}: {m[0]}" for day, m in lineas_cortas(d, productos, familia).items() if len(m) == 1]
 
 
 def check_tamano(path):
@@ -461,7 +470,7 @@ def run(path, trains_path):
         ("estaciones", lambda: check_estaciones(d)),
         ("cobertura", lambda: check_cobertura(d)),
         ("paridad", lambda: check_paridad(d, trains_path)),
-        ("AVE Camp de Tarragona", lambda: check_ave_camp_tarragona(d)),
+        ("AV Camp de Tarragona", lambda: check_ave_camp_tarragona(d)),
         ("tamaño", lambda: check_tamano(path)),
         ("día incompleto", lambda: check_dia_incompleto(d)),
     ):
@@ -469,14 +478,43 @@ def run(path, trains_path):
     return failures
 
 
-def avisos(lines):
+def check_pueblos(d, towns):
+    """rodalies.json's coverage: each of these towns has a station and some train."""
+    served = {stop[0] for t in d.get("trenes", []) for stop in t.get("s", []) if isinstance(stop, list) and stop}
+    by_nombre = {info.get("nombre"): sid for sid, info in d.get("estaciones", {}).items() if isinstance(info, dict)}
+    return capped([f"{town}: no station with a train" for town in towns if by_nombre.get(town) not in served])
+
+
+def run_rodalies(path, towns=PUEBLOS_RODALIES):
+    """The rules of red.json that apply to rodalies.json: shape, 14 days, trains, Barcelona, no duplicates, stations,
+    its towns, size and no day short of two lines or more."""
+    d, load_errs = load(path)
+    if load_errs:
+        return load_errs
+    failures = []
+    for prefix, fn in (
+        ("shape", lambda: check_top_level(d)),
+        ("dias", lambda: check_dias(d)),
+        ("trenes", lambda: check_trenes(d, PRODUCTOS_RODALIES)),
+        ("barcelona", lambda: check_toca_barcelona(d, BARCELONA_CIUTAT)),
+        ("duplicados", lambda: check_duplicados(d)),
+        ("estaciones", lambda: check_estaciones(d, BARCELONA_CIUTAT)),
+        ("cobertura", lambda: check_pueblos(d, towns)),
+        ("tamaño", lambda: check_tamano(path)),
+        ("día incompleto", lambda: check_dia_incompleto(d, PRODUCTOS_RODALIES, FAMILIA_RODALIES)),
+    ):
+        failures += [f"rodalies.json · {prefix}: {e}" for e in fn()]
+    return failures
+
+
+def avisos(lines, fichero="red.json"):
     """Warnings that do not stop the robot: on stderr and, in GitHub Actions, as an annotation and in the run summary."""
     import os
     for line in lines:
         msg = f"día incompleto: {line} (published anyway: one line alone, probably works)"
         print(f"aviso: {msg}", file=sys.stderr)
         if os.environ.get("GITHUB_ACTIONS"):
-            print(f"::warning title=Día con pocos trenes en red.json::{msg}")
+            print(f"::warning title=Día con pocos trenes en {fichero}::{msg}")
         if os.environ.get("GITHUB_STEP_SUMMARY"):
             with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
                 f.write(f"- ⚠️ {msg}\n")
@@ -515,6 +553,16 @@ def main_caducidad(args):
 if __name__ == "__main__":
     if "--caducidad" in sys.argv:
         main_caducidad([a for a in sys.argv[1:] if a != "--caducidad"]); sys.exit(0)
+    if "--rodalies" in sys.argv:
+        args = [a for a in sys.argv[1:] if a != "--rodalies"]
+        rod_path = pathlib.Path(args[0]) if args else root / "data/rodalies.json"
+        failures = run_rodalies(rod_path)
+        d, _ = load(rod_path)
+        avisos(avisos_dia_incompleto(d or {}, PRODUCTOS_RODALIES, FAMILIA_RODALIES), "rodalies.json")
+        if failures:
+            print("FAIL\n  " + "\n  ".join(failures))
+            sys.exit(1)
+        print("OK · rodalies"); sys.exit(0)
     red_path = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else root / "data/red.json"
     trains_path = root / "data/trains.json"
     failures = run(red_path, trains_path)

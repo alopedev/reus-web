@@ -3,7 +3,7 @@
 // early), cancelled, not in Renfe's feed (a train enters it only once it runs), or unknown (the function could not be
 // reached, or its answer is old). Unknown is never taken for «on time»
 import { createLive, type LiveOptions } from './live';
-import { NET } from './time';
+import { NET, FAST } from './time';
 
 export type Train = { estat: 'circula', retard: number, parada: string, andana?: string } | { estat: 'cancelat' };
 // cancelats: the cancelled regionals Renfe gives no position for, by their number in the Rodalies feed; ave: the AVE
@@ -44,7 +44,7 @@ export type Known = Train | { estat: 'sense' } | { estat: 'error' };
 // follow() asks at most every 30 s (live.ts); onChange runs when what is known changes
 export function createRetards(onChange: () => void, o: Omit<Partial<LiveOptions<Answer, ''>>, 'ask'> & { ask?: Ask, trenes?: Numbered[] } = {}){
   const { ask = askFunction, trenes = NET.trenes, ...rest } = o;
-  const inRodalies = rodalies(trenes), aves = new Set(trenes.filter(t => t.p === 'AVE').map(t => t.n));
+  const inRodalies = rodalies(trenes), aves = new Set(trenes.filter(t => t.p === FAST).map(t => t.n));
   const live = createLive<Answer, ''>(onChange, { fresh: FRESH, usable, sign: a => ({ trens: a.trens, ave: a.ave }), ...rest, ask: () => ask() });
   return {
     follow: () => live.follow(''),

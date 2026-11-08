@@ -77,9 +77,9 @@ type Spot = { side: Side, left: number };
 // when the one before is in the way, it slides right as long as it still starts before its dot. If one is left out,
 // the line folds instead, keeping two names at each end, else one, else none. Only when even the fold has no room
 // (a train of three or four stops on a short line) do the names that fit stay, the others left as bare dots with
-// the stop as a tooltip
+// the stop as a tooltip. Two names on one side keep .8rem apart, so they never read as one (Àlex 08-11, 4A)
 export function fitJourney(rec: HTMLElement): void {
-  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize), W = rec.clientWidth, gap = .5 * rem;
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize), W = rec.clientWidth, gap = .8 * rem;
   // too short a line says nothing: it stays hidden rather than squeeze its dots together
   rec.classList.toggle('off', W < 8 * rem);
   if(rec.classList.contains('bus')){ fitBus(rec, W, gap); return; }
