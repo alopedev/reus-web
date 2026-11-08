@@ -86,7 +86,7 @@ feed; si se omiten, se descargan de ssl.renfe.com (para que corra en GitHub Acti
 --desde fija el primer dia (por defecto, hoy en Europe/Madrid) para poder repetir
 pruebas con un resultado estable.
 """
-import argparse, collections, csv, datetime as dt, gzip, io, json, pathlib, re, sys
+import argparse, collections, csv, datetime as dt, gzip, io, json, os, pathlib, re, sys
 import urllib.request, zipfile
 from zoneinfo import ZoneInfo
 
@@ -426,6 +426,35 @@ def with_bus(piece, a_stops, buses):
         bus = min(from_train, key=lambda x: (x[0][3], -len(x)))
         return list(piece[:-1]) + [(0, last[1], last[2], bus[0][3])] + list(bus[1:]), [last[1], bus[-1][1]]
     return None
+
+
+def bus_gaps(trenes, dias, buses_by_date):
+    """Los trenes que van en tren por donde ese dia Rodalies va en autobus (obras), sin `b` que lo diga: un tren
+    que no existe. with_bus junta los autobuses que puede (el tramo de fom y el autobus que lo enlaza); esto avisa
+    de los que no, p. ej. unas obras nuevas en una linea que av da entera y fom no trae. Un tramo es «en autobus»
+    si un mismo autobus de ese dia para en sus dos paradas. Devuelve [(dia, numero, linea, desde, hasta)], cada
+    tramo seguido una vez, en orden de dia y de numero."""
+    out = []
+    for iso, idxs in sorted(dias.items()):
+        buses = [{sid for _q, sid, _a, _e in bus} for bus in buses_by_date.get(dt.date.fromisoformat(iso), ())]
+        if not buses:
+            continue
+        for i in sorted(idxs, key=lambda i: (trenes[i]["n"], i)):
+            t = trenes[i]
+            ids = [sid for sid, _a, _e in t["s"]]
+            lo, hi = (ids.index(t["b"][0]), ids.index(t["b"][1])) if t.get("b") else (-1, -1)
+            # the train's stops where a bus stops that day (Vimbodi, where the 12:08 bus does not, is skipped)
+            at = [k for k, sid in enumerate(ids) if any(sid in bus for bus in buses)]
+            run = None
+            for x, y in zip(at, at[1:] + [None]):
+                by_bus = (y is not None and not (lo <= x and y <= hi)
+                          and any(ids[x] in bus and ids[y] in bus for bus in buses))
+                if by_bus and run is None:
+                    run = x
+                elif not by_bus and run is not None:
+                    out.append((iso, t["n"], t["p"], ids[run], ids[x]))
+                    run = None
+    return out
 
 
 def rodalies_numbers(fom_numero):
@@ -844,6 +873,21 @@ def main():
     for t in trenes:
         if t["n"] in numeros:
             t["f"] = numeros[t["n"]]
+
+    # obras que with_bus no ha sabido enlazar: no para la publicacion (el horario de Renfe es ese), pero lo dice en
+    # el resumen del run de GitHub, donde lo lee la tarea que vigila el robot
+    gaps = collections.defaultdict(list)
+    for iso, numero, p, desde, hasta in bus_gaps(trenes, dias, buses_by_date):
+        gaps[(p, numero, desde, hasta)].append(iso)
+    for (p, numero, desde, hasta), isos in sorted(gaps.items()):
+        msg = (f"{p} {numero} va en tren de {stop_names.get(desde, desde)} a {stop_names.get(hasta, hasta)} "
+               f"y ese dia Rodalies hace el tramo en autobus: {len(isos)} dias ({isos[0]} a {isos[-1]})")
+        print(f"  aviso: {msg}", file=sys.stderr)
+        if os.environ.get("GITHUB_ACTIONS"):
+            print(f"::warning title=Obras sin autobus en red.json::{msg}")
+        if os.environ.get("GITHUB_STEP_SUMMARY"):
+            with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+                f.write(f"- Obras sin autobús en red.json: {msg}\n")
 
     if not trenes:
         raise SystemExit("No se ha generado ningun tren: revisa los feeds/rango de fechas. data/red.json no se ha tocado.")

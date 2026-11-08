@@ -103,14 +103,16 @@ class Contract(unittest.TestCase):
         d = red(("03080", "AVE", [["71801", 505, 505], ["71802", 510, 510]]))
         self.assertEqual(len(check_datos.check_alta_velocidad_paradas(d)), 1)
 
-    def test_a_day_half_empty_of_fast_trains_is_held_back_as_one_line(self):
+    def test_a_day_half_empty_of_fast_trains_counts_as_one_line(self):
         fast = lambda n, p, dep: (n, p, [["71801", dep, dep], ["79300", dep + 40, dep + 40]])
         trains = [fast(f"{i}", "AV" if i % 2 else "AVE", 300 + 30 * i) for i in range(10)]
         d = {"trenes": [{"n": n, "p": p, "s": s} for n, p, s in trains],
              "dias": {"2026-11-10": list(range(10)), "2026-11-11": list(range(10)), "2026-11-12": [0, 1, 2]}}
-        errs = check_datos.check_dia_incompleto(d)
-        self.assertEqual(len(errs), 1, errs)
-        self.assertIn("2026-11-12: AV runs 3", errs[0])
+        # AV and AVE together are one line short (published with a warning), not two (held back)
+        self.assertEqual(check_datos.check_dia_incompleto(d), [])
+        warns = check_datos.avisos_dia_incompleto(d)
+        self.assertEqual(len(warns), 1, warns)
+        self.assertIn("2026-11-12: AV runs 3", warns[0])
 
 
 if __name__ == "__main__":

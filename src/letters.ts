@@ -56,6 +56,7 @@ interface Glyph { x: number; y: number; w: number; h: number }
 export interface Chip {
   i: number; from: string; to: string; x: number; y: number; w: number; h: number; fontSize: number;
   rz: number; ry: number; scale: number; scrap: number; gone: number; arc: number; wallShade: number; flying: boolean;
+  left: boolean;   // it has left the wall: from its liftoff on it rides the table's layer (#letras-mesa)
 }
 export interface LettersState { h1Opacity: number; h2Opacity: number; chips: Chip[] }
 
@@ -118,6 +119,9 @@ export function measure(): void {
   srcFont = parseFloat(getComputedStyle(brand).fontSize) || 16;
   dstFont = parseFloat(getComputedStyle(qe).fontSize) || 16;
   tableW = document.documentElement.clientWidth;
+  // the table's layer reaches as far down as a chip can be seen during the turn (the scroll stops short of the
+  // table's rest, the screen ends a screen below it): any taller, it would lengthen the page
+  byId('letras-mesa').style.height = `${shelf.offsetTop + view.h}px`;
   hero.style.transform = heroT; shelf.style.transform = shelfT;
   // transforms back while transitions are still off, flushed, and only then the transitions: restored together,
   // .top would slide its 6 px back over a second, the board with it, and the wall could read it mid-slide
@@ -189,7 +193,7 @@ export function state(p: number): LettersState {
       const flying = t > 0 && t < 1;   // strictly mid-flight, not glued to the wall or the table: only then is the
       // shadow worth its own compositor layer (will-change solo durante el viaje)
       chips.push({i, from: e.from, to: e.to ?? '', x, y, w: srcFont * 1.3, h: srcFont * 1.3, fontSize: srcFont,
-        rz, ry, scale, scrap, gone, arc, wallShade, flying});
+        rz, ry, scale, scrap, gone, arc, wallShade, flying, left: t > 0});
     });
   }
   return {h1Opacity, h2Opacity, chips};
@@ -214,7 +218,7 @@ function makeFace(cls: string): HTMLElement {
 }
 
 function makeChip(c: Chip): HTMLElement {
-  const el = document.createElement('div'); el.className = 'ficha';
+  const el = document.createElement('div'); el.className = 'ficha'; el.dataset.i = String(c.i);
   el.style.width = c.w.toFixed(1) + 'px'; el.style.height = c.h.toFixed(1) + 'px'; el.style.fontSize = c.fontSize.toFixed(2) + 'px';
   const som = document.createElement('div'); som.className = 'som';
   som.style.background = DARK;   // constant: set once here, never rewritten per frame
@@ -233,13 +237,21 @@ function faceStyle(cara: HTMLElement, letter: string, scrap: number, wallShade: 
   lavado.style.opacity = (.45 * wallShade).toFixed(3);
 }
 
-function syncChips(container: HTMLElement, chips: Chip[]): void {
+// two layers, so that each chip moves with what it belongs to between two redraws. A phone scrolls the page on its
+// own and the page's code hears of it later (8-10 redraws a second against the table's 60 on Àlex's iPhone, 06-11):
+// a chip still on the wall stays in the fixed layer, with the fixed wall; once it has left, it goes to the layer that
+// scrolls with the page (#letras-mesa), where it rides the table as the table's own text does. Both are drawn in
+// screen terms; on the table's layer that screen point is laid on the page, at the scroll `top` it was worked out for
+function syncChips(wall: HTMLElement, table: HTMLElement, chips: Chip[], top: number): void {
   const seen = new Set(chips.map(c => c.i));
   pool.forEach((el, i) => { if(el && !seen.has(i)){ el.remove(); pool[i] = null; } });
   chips.forEach(c => {
     let el = pool[c.i];
-    if(!el){ el = makeChip(c); pool[c.i] = el; container.appendChild(el); }
-    el.style.transform = `translate(${(c.x - c.w / 2).toFixed(1)}px, ${(c.y - c.h / 2).toFixed(1)}px) perspective(900px) rotateZ(${c.rz.toFixed(2)}deg) scale(${c.scale.toFixed(4)})`;
+    if(!el){ el = makeChip(c); pool[c.i] = el; }
+    const layer = c.left ? table : wall;
+    if(el.parentElement !== layer) layer.appendChild(el);
+    const y = c.left ? c.y + top : c.y;
+    el.style.transform = `translate(${(c.x - c.w / 2).toFixed(1)}px, ${(y - c.h / 2).toFixed(1)}px) perspective(900px) rotateZ(${c.rz.toFixed(2)}deg) scale(${c.scale.toFixed(4)})`;
     el.style.opacity = (1 - c.gone).toFixed(3);
     const som = el.children[0] as HTMLElement, flip = el.children[1] as HTMLElement;
     flip.style.transform = `rotateY(${c.ry.toFixed(1)}deg)`;
@@ -255,15 +267,16 @@ function syncChips(container: HTMLElement, chips: Chip[]): void {
   });
 }
 
-// draws the journey at progress p: the real h1/h2 fade (color/opacity only, never visibility/display -- they
-// stay in the accessibility tree) while the chips relay them
-export function render(p: number): void {
+// draws the journey at progress p, worked out at the scroll `top` (read before any style is written: pitch() in
+// shelf.ts): the real h1/h2 fade (color/opacity only, never visibility/display -- they stay in the accessibility
+// tree) while the chips relay them
+export function render(p: number, top: number): void {
   if(!measured) return;
   const st = state(p);
   const brand = find<HTMLElement>('.brand'), qe = byId('qe');
   if(st.h1Opacity < .999) brand.style.opacity = st.h1Opacity.toFixed(3); else brand.style.removeProperty('opacity');
   if(st.h2Opacity < .999) qe.style.opacity = st.h2Opacity.toFixed(3); else qe.style.removeProperty('opacity');
-  syncChips(byId('letras'), st.chips);
+  syncChips(byId('letras'), byId('letras-mesa'), st.chips, top);
 }
 
 // reduced motion, or the shelf tearing down: no chips, h1/h2 back to their normal (CSS-defined) look

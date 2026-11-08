@@ -354,9 +354,11 @@ async def check_wash(page, name):
         await at(f)
         seen[f] = await steady_reading(page, [near, far], wall=True)
         if await page.evaluate("+getComputedStyle(document.getElementById('sombra')).opacity > 0"): errs.append(f"the flat #sombra veil darkens the wall at {f:.0%} although WebGL paints it")
-    if not seen[.3][0] < base[0] - 8: errs.append(f"no wash at the hinge at 30% ({base[0]:.0f} → {seen[.3][0]:.0f})")
+    # the wash darkens by a share of the colour under it: on a dark spot (the carriage's floor at night) 8 levels is a lot
+    darker = lambda now, was: now < was - 8 or now < .75 * was
+    if not darker(seen[.3][0], base[0]): errs.append(f"no wash at the hinge at 30% ({base[0]:.0f} → {seen[.3][0]:.0f})")
     if abs(seen[.3][1] - base[1]) > 10: errs.append(f"the wash already covers the top of the wall at 30% ({base[1]:.0f} → {seen[.3][1]:.0f})")
-    if not seen[.7][1] < base[1] - 8: errs.append(f"the wash does not climb the wall: its top is still bare at 70% ({base[1]:.0f} → {seen[.7][1]:.0f})")
+    if not darker(seen[.7][1], base[1]): errs.append(f"the wash does not climb the wall: its top is still bare at 70% ({base[1]:.0f} → {seen[.7][1]:.0f})")
     if await page.evaluate("getComputedStyle(document.querySelector('.stage')).filter") == "none": errs.append("the texts on the wall do not dim with the wash at 70%")
     await at(0)
     back = await steady_reading(page, [near, far])
@@ -436,7 +438,8 @@ QE_TARGET = [0, 1, 2, 4, 3, 5, 3, 3]
 # lifts off at roughly this progress
 def letters_start(i): return .06 + i * .035
 
-CHIP_RECT = """(i => { const chips = document.querySelectorAll('#letras .ficha'); const el = chips[i]; if(!el) return null;
+# a chip by its letter's index in the name, in whichever layer it is (on the wall, #letras; off it, #letras-mesa)
+CHIP_RECT = """(i => { const el = document.querySelector(`.ficha[data-i="${i}"]`); if(!el) return null;
   const b = el.getBoundingClientRect(); return {x: b.left + b.width / 2, y: b.top + b.height / 2}; })"""
 # the on-screen box of the i-th character of an element's text, over all its text nodes in order (h1.brand has a
 # span per cell of its board, h2#qe one text node), through whatever transform its ancestors currently carry
@@ -448,7 +451,7 @@ GLYPH_RECT = """((sel, i) => { const el = document.querySelector(sel); if(!el) r
   const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 1);
   const rects = r.getClientRects(); if(!rects.length) return null; const b = rects[0];
   return {x: b.left + b.width / 2, y: b.top + b.height / 2}; })"""
-LETTERS_STATE = """(() => { const chips = document.querySelectorAll('#letras .ficha');
+LETTERS_STATE = """(() => { const chips = document.querySelectorAll('#letras .ficha, #letras-mesa .ficha');
   const c = s => getComputedStyle(document.querySelector(s));
   const h1 = c('.brand'), h2 = c('#qe');
   return {count: chips.length,
@@ -499,21 +502,25 @@ async def check_letters_pair(page):
     return errs
 
 async def check_letters_layer(page):
-    """#letras: fixed, full viewport, non-interactive, a direct child of body (sibling of #hero/#repisa, never
-    nested inside either — their transform/filter would break its fixed positioning), above both of them."""
-    info = await page.evaluate("""() => { const l = document.getElementById('letras'); if(!l) return null;
-      const c = getComputedStyle(l);
-      return {position: c.position, pointerEvents: c.pointerEvents, zIndex: c.zIndex,
-              parentIsBody: l.parentElement === document.body, ariaHidden: l.getAttribute('aria-hidden')}; }""")
-    if not info: return ["#letras is missing"]
+    """Two layers, non-interactive, aria-hidden, direct children of body (siblings of #hero/#repisa, never nested
+    inside either -- their transform/filter would move them), above both of them. #letras is fixed, full viewport:
+    the chips still on the wall, which is fixed too. #letras-mesa scrolls with the page, as the table does
+    (check_letters_ride), and clips what sticks out, so a chip off the screen never widens the page (check_drop_width)."""
     errs = []
-    if info["position"] != "fixed": errs.append(f"#letras is not position:fixed ({info['position']})")
-    if info["pointerEvents"] != "none": errs.append("#letras is not pointer-events:none")
-    if not info["parentIsBody"]: errs.append("#letras is not a direct child of body")
-    if info["ariaHidden"] != "true": errs.append("#letras is not aria-hidden")
-    try: z = float(info["zIndex"])
-    except (TypeError, ValueError): z = None
-    if z is None or z <= 2: errs.append(f"#letras z-index ({info['zIndex']}) is not above the wall (0) and the table (2)")
+    for lid, pos in (("letras", "fixed"), ("letras-mesa", "absolute")):
+        info = await page.evaluate("""id => { const l = document.getElementById(id); if(!l) return null;
+          const c = getComputedStyle(l);
+          return {position: c.position, pointerEvents: c.pointerEvents, zIndex: c.zIndex, overflow: c.overflowX,
+                  parentIsBody: l.parentElement === document.body, ariaHidden: l.getAttribute('aria-hidden')}; }""", lid)
+        if not info: errs.append(f"#{lid} is missing"); continue
+        if info["position"] != pos: errs.append(f"#{lid} is not position:{pos} ({info['position']})")
+        if info["pointerEvents"] != "none": errs.append(f"#{lid} is not pointer-events:none")
+        if not info["parentIsBody"]: errs.append(f"#{lid} is not a direct child of body")
+        if info["ariaHidden"] != "true": errs.append(f"#{lid} is not aria-hidden")
+        if pos == "absolute" and info["overflow"] != "clip": errs.append(f"#{lid} does not clip what sticks out (overflow {info['overflow']})")
+        try: z = float(info["zIndex"])
+        except (TypeError, ValueError): z = None
+        if z is None or z <= 2: errs.append(f"#{lid} z-index ({info['zIndex']}) is not above the wall (0) and the table (2)")
     return errs
 
 async def check_letters_rest(page):
@@ -547,8 +554,8 @@ async def check_letters_midway(page):
     if st["h2Vis"] == "hidden" or st["h2Disp"] == "none": errs.append("h2#qe was hidden with visibility/display, not just color/opacity")
     if not st["h2Text"].strip(): errs.append("h2#qe lost its text content")
     above = await page.evaluate("""() => { const z = s => { const el = document.querySelector(s); return el ? +getComputedStyle(el).zIndex || 0 : 0; };
-      return z('#letras') > z('#hero') && z('#letras') > z('#repisa'); }""")
-    if not above: errs.append("#letras is not above #hero and #repisa at p=0.3")
+      return ['#letras', '#letras-mesa'].every(l => z(l) > z('#hero') && z(l) > z('#repisa')); }""")
+    if not above: errs.append("#letras or #letras-mesa is not above #hero and #repisa at p=0.3")
     return errs
 
 async def check_letters_positions(page):
@@ -573,6 +580,32 @@ async def check_letters_positions(page):
         if d > 3: errs.append(f"chip {i} is {d:.1f}px from its h2 glyph at p=0.97")
     return errs
 
+async def check_letters_ride(page):
+    """A phone scrolls the page on its own (the compositor) and the page's code hears of it later: on Àlex's iPhone
+    (06-11) the landed letters of «Què és» were redrawn 8-10 times a second while the table moved 60, and parted
+    from it by up to 25 pt. So between two redraws a chip that has left the wall rides the table, and one still on
+    the wall stays with the wall: here the page is scrolled and read in the same task, before its scroll event runs."""
+    errs = []
+    for p, dy in ((.3, 40), (.7, 40), (.7, -40)):
+        await letters_at(page, p)
+        got = await page.evaluate("""(dy => { const chip = i => { const el = document.querySelector(`.ficha[data-i="${i}"]`);
+            return el && el.getBoundingClientRect().top; };
+          const ids = [...document.querySelectorAll('.ficha')].map(el => +el.dataset.i), qe = () => document.getElementById('qe').getBoundingClientRect().top;
+          const before = ids.map(chip), t0 = qe();
+          scrollTo({top: scrollY + dy, behavior: 'instant'});
+          return {table: qe() - t0, chips: ids.map((i, k) => ({i, moved: chip(i) - before[k]}))}; })""", dy)
+        if abs(got["table"] + dy) > 1: errs.append(f"p={p}: the table moved {got['table']:.1f} px for a {dy:+d} px scroll (the test's own premise)")
+        if sorted(c["i"] for c in got["chips"] if c["i"] == c["i"]) != list(range(len(NAME))):
+            errs.append(f"p={p}: the chips carry indexes {[c['i'] for c in got['chips']]} (data-i), expected 0 to {len(NAME) - 1}")
+        for c in got["chips"]:
+            flown = p > letters_start(c["i"])
+            want = -dy if flown else 0
+            if abs(c["moved"] - want) > 1.5:
+                errs.append(f"p={p}, scrolled {dy:+d} px: chip {c['i']} moved {c['moved']:.1f} px before the page redrew, "
+                            f"its {'table' if flown else 'wall'} {want:.1f} px")
+    await letters_at(page, .7)
+    return errs
+
 async def check_letters_landed(page):
     """Once the wall is gone (p=1) the chips are gone too, and the real h2 shows where they landed."""
     await letters_at(page, 1)
@@ -585,7 +618,7 @@ async def check_letters_landed(page):
 async def check_letters_reversible(page):
     """Scrubbing 0.3 -> 0.8 -> 0.3 leaves the chips exactly where they were the first time at 0.3."""
     async def snapshot():
-        return await page.evaluate("""() => [...document.querySelectorAll('#letras .ficha')].map(el => {
+        return await page.evaluate("""() => [...document.querySelectorAll('.ficha')].sort((a, b) => a.dataset.i - b.dataset.i).map(el => {
           const b = el.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top)]; })""")
     await letters_at(page, .3); before = await snapshot()
     await letters_at(page, .8); await letters_at(page, .3); after = await snapshot()
@@ -646,6 +679,7 @@ async def check_letters(page, name):
     errs += [f"rest: {e}" for e in await check_letters_rest(page)]
     errs += [f"midway: {e}" for e in await check_letters_midway(page)]
     errs += [f"positions: {e}" for e in await check_letters_positions(page)]
+    errs += [f"ride: {e}" for e in await check_letters_ride(page)]
     errs += [f"landed: {e}" for e in await check_letters_landed(page)]
     errs += [f"reversible: {e}" for e in await check_letters_reversible(page)]
     errs += [f"toolbar: {e}" for e in await check_toolbar(page)]
@@ -1078,7 +1112,8 @@ async def check_still_window(browser):
         img = Image.open(io.BytesIO(await page.screenshot())).convert("RGB"); await page.close()
         pa, pb = [[sum(img.getpixel((int(x) + i, int(y) + j))[c] for i in range(-2, 3) for j in range(-2, 3)) / 25 for c in range(3)] for x, y in (a, b)]
         d = sum((u - v) ** 2 for u, v in zip(pa, pb)) ** .5
-        if d < 60: errs.append(f"{name}: the still frame's window is not where #win is (wall above it and sky inside differ by only {d:.0f})")
+        # the carriage's grey wall (07-11) is nearer the sky's colour than the brown one was: 40 to 60 apart at 10:00
+        if d < 30: errs.append(f"{name}: the still frame's window is not where #win is (wall above it and sky inside differ by only {d:.0f})")
     return errs
 
 # phones held sideways: short and wide, a desktop's proportions without its height
@@ -1120,13 +1155,49 @@ async def check_landscape(browser):
         await page.close()
     return errs
 
+async def check_carriage(browser):
+    """The carriage built in 3D (Àlex, 07-11; src/room.ts, src/carriage.ts) leaves no hole in the wall at any size
+    and, by day and at night, covers the window only where it should: on a wide screen, nothing (the seats stand either
+    side of it); on a phone and any screen without room at its sides, our seat alone over the window's lower-left
+    corner, a small part of it. `reus.vagon()` reads the carriage's own render: what of the window an opaque surface
+    covers, and what of the rest is not covered by the wall."""
+    errs = []
+    sizes = {**SIZES, **LANDSCAPE}
+    for at, when in [("2026-09-28T08:00:00Z", "day"), ("2026-09-28T21:00:00Z", "night")]:
+        for name, (w, h) in sizes.items():
+            phone = name in LANDSCAPE or w < 500
+            page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce", is_mobile=phone, has_touch=phone)
+            errors = []
+            page.on("pageerror", lambda e: errors.append(str(e)))
+            await page.clock.set_fixed_time(at)
+            await page.goto(page_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1500)
+            v = await page.evaluate("window.reus.vagon ? reus.vagon() : null")
+            await page.close()
+            errs += [f"{name} {when}: JS error: {e}" for e in errors]
+            if not v: errs.append(f"{name} {when}: reus.vagon() gives nothing (no carriage built)"); continue
+            if v["gaps"] > .0002: errs.append(f"{name} {when}: {v['gaps']:.2%} of the wall is missing around the window")
+            if v["seats"] and v["over"] > 0: errs.append(f"{name} {when}: a seat covers {v['over']:.2%} of the window on a wide screen")
+            if not v["seats"] and not 0 < v["over"] <= CARRIAGE_OVER: errs.append(f"{name} {when}: our seat covers {v['over']:.2%} of the window, expected some and at most {CARRIAGE_OVER:.0%}")
+    return errs
+
+CARRIAGE_OVER = .15   # our seat over the window's corner on a phone
+
 async def check_sizes(browser):
-    """Layout at every size: read straight from the page, no waiting for the painting."""
+    """Layout at every size, read straight from the page, no waiting for the painting, on the day's timetable
+    (data/red.json): the hero shows trains, nothing overlaps, no JS error. Almost every other check reads the frozen
+    timetable (dist-paridad/) and cannot tell a new timetable from yesterday's: the timetable robot runs this,
+    check_landscape and check_things_clear (`check.py datos`), not the whole suite, so a check of an animation that
+    fails on main does not hold the data back (21-10)."""
     failures = []
     for name, (w, h) in SIZES.items():
         page = await open_page(browser, viewport={"width": w, "height": h})
+        errors = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
         await page.goto(page_url); await page.wait_for_timeout(1200)
         failures += [f"{name}: {e}" for e in await page.evaluate(FIT)]
+        rows = await page.evaluate("document.querySelectorAll('#board .trip').length")
+        if not rows: failures.append(f"{name}: the board shows no train with the new timetable")
+        failures += [f"{name}: JS error: {e}" for e in errors]
         await page.close()
     return failures
 
@@ -1136,13 +1207,21 @@ baseline = root / "scripts/baseline" / sys.platform
 async def open_page(browser, **options):
     """A page with generous timeouts: software rendering on a two-core CI machine can take long to give a frame.
     Open-Meteo is never asked: the window keeps fair weather, so no check depends on the real weather
-    (check_weather answers for it). Nor are the lines' notices (/api/avisos, a Vercel function): check_avisos answers;
+    (check_weather answers for it). Nor are the lines' notices (/api/avisos, a Vercel function): every line normal, so
+    no stamp (no answer would put the blank one on a desktop's ticket, 07-11); check_avisos answers its own;
     Renfe's live delays (/api/retards) answer every train on time; check_retards answers its own."""
     page = await browser.new_page(**options); page.set_default_timeout(120000)
     await page.route("https://api.open-meteo.com/**", lambda route: route.abort())
-    await page.route("**/api/avisos", lambda route: route.abort())
+    await page.route("**/api/avisos", no_notices)
     await page.route("**/api/retards", on_time)
     return page
+
+async def no_notices(route):
+    """/api/avisos for every check but check_avisos: no notice on any line, read far in the future so it is fresh at
+    whatever time a check fixes the clock to."""
+    import json
+    await route.fulfill(status=200, content_type="application/json", body=json.dumps(
+        {"llegit": "2100-01-01T00:00:00Z", "linies": {l: {"estat": "normal"} for l in ("R11", "R13", "R14", "R15", "R16", "R17")}}))
 
 def _on_time_answer():
     """/api/retards for every check but check_retards: every train of both timetables running on time, which says
@@ -1407,6 +1486,7 @@ async def check_weather(browser):
         return ["data/red.json has no town coordinates (ll): the window can never show the weather"]
     for code, want in WEATHER:
         page = await browser.new_page(viewport={"width": 1440, "height": 900}, reduced_motion="reduce"); page.set_default_timeout(120000)
+        await page.route("**/api/avisos", no_notices)
         asked = []
         async def answer(route, request, code=code):
             asked.append(request.url)
@@ -1438,6 +1518,11 @@ AVISOS_JS = """() => ({
   boxed: !!document.querySelector('#detalle .avisos.avis'),
   more: document.querySelector('#detalle .avisos .mes, #avis .mes')?.getAttribute('href') ?? null })"""
 
+# the blank stamp: a button or not, its ink's raised shadow, its frame's style and what the reader hears
+BLANK_JS = """() => { const e = document.querySelector('.tk .segell'); if(!e) return {};
+  return { button: e.tagName === 'BUTTON', shadow: getComputedStyle(e).textShadow,
+    border: getComputedStyle(e, '::after').borderTopStyle, label: e.getAttribute('aria-label') ?? '' } }"""
+
 def avisos_answer(kind):
     """The function's answer: «avis» on every line, «normal», «old» (read an hour before the page's 10:00) or «503»."""
     import json
@@ -1452,7 +1537,7 @@ async def avisos_page(browser, kind, w, h):
     asked = []
     async def answer(route, request):
         asked.append(request.url); await route.fulfill(**avisos_answer(kind))
-    await page.route("**/api/avisos", answer)   # the latest route wins over open_page's abort
+    await page.route("**/api/avisos", answer)   # the latest route wins over open_page's
     await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
     await page.goto(parity_url); await page.evaluate("document.fonts.ready")
     try: await page.wait_for_function("window.reus && window.reus.avisos() !== null", timeout=20000)
@@ -1462,7 +1547,7 @@ async def avisos_page(browser, kind, w, h):
 
 async def check_avisos(browser):
     """Desktop: a notice on a line of the board puts an ink stamp on the ticket, which opens a sheet with the whole
-    text; no notice, or no answer, no stamp. Phone: nothing on the board; the train's sheet says its line's notice,
+    text; no notice, no stamp; no answer (or one too old), a blank stamp, «Avisos sense consultar», flat. Phone: nothing on the board; the train's sheet says its line's notice,
     that there is none (and when it was read), or that it could not be read (an error, or an answer too old)."""
     errs = []
     page, asked = await avisos_page(browser, "avis", 1440, 900)
@@ -1483,10 +1568,20 @@ async def check_avisos(browser):
     await page.keyboard.press("Escape"); await page.wait_for_timeout(300); a = await page.evaluate(AVISOS_JS)
     if a["open"] or "segell" not in a["focus"]: errs.append(f"Esc leaves #avis open ({a['open']}) or the focus off the stamp ({a['focus']})")
     await page.close()
-    for kind in ("normal", "503", "old"):
+    page, _ = await avisos_page(browser, "normal", 1440, 900)
+    a = await page.evaluate(AVISOS_JS)
+    if a["stamp"]: errs.append(f"with no notice the ticket has a stamp: «{a['stamp']}»")
+    await page.close()
+    # no answer, or one too old: a blank stamp (Àlex, 07-11, option A), grey, dashed and flat; it does not press
+    for kind in ("503", "old"):
         page, _ = await avisos_page(browser, kind, 1440, 900)
         a = await page.evaluate(AVISOS_JS)
-        if a["stamp"]: errs.append(f"with «{kind}» the ticket has a stamp: «{a['stamp']}»")
+        b = await page.evaluate(BLANK_JS)
+        if not a["stamp"] or " ".join(a["stamp"].split()) != "Avisos sense consultar":
+            errs.append(f"with «{kind}» the ticket's stamp reads «{a['stamp']}», expected «Avisos sense consultar»")
+        elif b["button"] or b["shadow"] != "none" or b["border"] != "dashed" or "consultar" not in b["label"]:
+            errs.append(f"with «{kind}» the blank stamp is not flat, dashed and named: {b}")
+        if kind == "503": await page.screenshot(path=str(shots / "avisos-sense-consultar.png"))
         await page.close()
     # a phone: never a stamp; the big train's sheet says what is known of the R15
     phone = {"avis": NOTICE, "normal": "Sense avisos a l’R15 (consultat a les 09:58).",
@@ -1529,7 +1624,7 @@ async def retards_page(browser, kind, w, h):
     async def answer(route):
         if status != "200": await route.fulfill(status=int(status), body="{}")
         else: await route.fulfill(status=200, content_type="application/json", body=json.dumps({"llegit": "2026-09-28T07:59:40Z", "trens": trens}))
-    await page.route("**/api/retards", answer)   # the latest route wins over open_page's abort
+    await page.route("**/api/retards", answer)   # the latest route wins over open_page's
     await page.clock.set_fixed_time("2026-09-28T08:00:00Z")
     await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(2500)
     return page
@@ -1776,7 +1871,9 @@ async def board_painted(page, label):
     await page.evaluate("document.head.lastElementChild.remove()")
     off = painted_edges(shot, s["rect"])
     if any(v is None for v in off.values()): errs.append(f"{label}: the wall does not paint the board under the name (edges found: {off})")
-    elif any(abs(v) > 3 for v in off.values()): errs.append(f"{label}: the painted board is off its box by {off} px")
+    # under the board the luggage rack's rail may run (the carriage, 07-11): dark below the box is the rack, not the board;
+    # a board painted lower would move its top too
+    elif any(abs(v) > 3 for k, v in off.items() if k != "bottom") or off["bottom"] > 3: errs.append(f"{label}: the painted board is off its box by {off} px")
     return errs
 
 async def check_board_painted(browser):
@@ -1904,7 +2001,10 @@ async def check_hora(browser):
         s = await page.evaluate(HORA)
         if s["raised"]: errs.append(f"{name}: the highlighted time is raised ({s['shadow']})")
         if s["link"]: errs.append(f"{name}: the highlighted time is a link (the stub «Compra» is the way to Renfe)")
-        if any(s[k] not in (None, "none") for k in ("dep", "mas", "talo")) or "batec" in s["cls"] or "duda" in s["cls"]:
+        # «swap» is the board's own animation when the train shown changes: with the real clock a train can leave just
+        # as the touch lands (the robot's run of 03-11), and that is not the hint beating
+        if s["dep"] not in (None, "none", "swap") or any(s[k] not in (None, "none") for k in ("mas", "talo")) \
+                or "batec" in s["cls"] or "duda" in s["cls"]:
             errs.append(f"{name}: a touch on the window makes something beat ({s})")
         if s["kept"] is not None: errs.append(f"{name}: the browser still keeps «capacasa.hora» ({s['kept']})")
         await page.close()
@@ -1938,6 +2038,7 @@ async def check_hero(browser):
     errs += [f"phone sheet: {e}" for e in await check_sheet_close(browser)]
     errs += [f"paper: {e}" for e in await check_paper_motion(browser)]
     errs += await check_sheet_holds_page(browser)
+    errs += [f"bar: {e}" for e in await check_bar_tint(browser)]
     # 3.5 · the Barcelona station
     errs += [f"station: {e}" for e in await check_station(browser)]
     # the big train's route, only on a desktop
@@ -3010,6 +3111,54 @@ SHEET_WATCH = """(() => { const d = document.getElementById('detalle'), p = d.qu
     d.addEventListener('click', e => { if(e.target === d) go(); }, {once:true, capture:true});
   }); })()"""
 
+# Safari 26 on an iPhone paints the band under its toolbar in the colour of the fixed box at the bottom edge: it
+# hit-tests a point near the middle of the edge (4 px in, by some accounts 8), skips all but fixed and sticky boxes
+# (pointer-events too, by some accounts) and walks up to the fixed one. With none there it falls back to the body
+# (world.ts gives the body the wall's colour); but once a sheet has been there it kept the sheet's paper after the
+# sheet closed, on the hero and on the table (Àlex's iPhone, 06-11). Read here the way Safari is said to read it
+BAR_PROBE = """(() => { const s = document.createElement('style'); s.textContent = '*{pointer-events:auto!important}'; document.head.appendChild(s);
+  const fixed = el => { for(let n = el; n && n !== document.documentElement; n = n.parentElement){ const p = getComputedStyle(n).position;
+    if(p === 'fixed' || p === 'sticky') return n; } return null; };
+  const out = [4, 8].map(d => { const at = document.elementsFromPoint(innerWidth / 2, innerHeight - d).map(fixed).find(Boolean);
+    if(!at) return {d, none: true};
+    const c = getComputedStyle(at), r = at.getBoundingClientRect(), inner = r.height - parseFloat(c.paddingTop) - parseFloat(c.paddingBottom)
+      - parseFloat(c.borderTopWidth) - parseFloat(c.borderBottomWidth);
+    return {d, el: at.id || at.className, colour: c.backgroundColor, wide: r.width / innerWidth, paints: c.backgroundClip !== 'content-box' || inner > .5 ? inner : 0,
+      opacity: +c.opacity, shown: c.visibility === 'visible'}; });
+  s.remove(); return {probes: out, body: getComputedStyle(document.body).backgroundColor}; })()"""
+
+async def check_bar_tint(browser):
+    """Under Safari 26's toolbar, the band is the body's colour (the wall's) before a sheet opens and again once it
+    has closed, on the hero and on the table: a fixed strip along the bottom edge, as wide as the screen, above
+    everything but the sheets themselves (they go to the top layer), holds the body's colour for Safari to read,
+    and paints nothing on the page (its background is clipped to an empty content box)."""
+    errs = []
+    async def probe(page, when):
+        got = await page.evaluate(BAR_PROBE)
+        for pr in got["probes"]:
+            where = f"{when}, {pr['d']} px above the bottom"
+            if pr.get("none"): errs.append(f"{where}: no fixed box for Safari to read"); continue
+            if pr["colour"] != got["body"]: errs.append(f"{where}: Safari reads {pr['colour']} from «{pr['el']}», the body is {got['body']}")
+            if pr["wide"] < .9: errs.append(f"{where}: «{pr['el']}» spans {pr['wide']:.0%} of the screen (Safari wants 90 %)")
+            if pr["paints"]: errs.append(f"{where}: «{pr['el']}» paints {pr['paints']:.0f} px of its colour on the page")
+            if pr["opacity"] < .99 or not pr["shown"]: errs.append(f"{where}: «{pr['el']}» is not shown (Safari skips it)")
+    for name, opts, sheet, close in (
+            ("phone", dict(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True), "#cap .talo", "Escape"),
+            ("desktop", dict(viewport={"width": 1440, "height": 900}), ".tk .town", "Escape")):
+        page = await open_page(browser, reduced_motion="reduce", **opts)
+        await page.clock.set_fixed_time("2026-09-28T19:00:00Z")
+        await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1500)
+        await page.add_style_tag(content=".top,.info{opacity:1!important;transition:none!important;transform:none!important}")
+        await probe(page, f"{name}, hero")
+        await page.click(sheet, timeout=CLICK_MS); await page.wait_for_timeout(600)
+        await page.keyboard.press(close); await page.wait_for_timeout(600)
+        if await page.evaluate("!!document.querySelector('dialog[open]')"): errs.append(f"{name}: the sheet did not close"); await page.close(); continue
+        await probe(page, f"{name}, hero, after a sheet")
+        await page.evaluate("scrollTo({top: document.getElementById('repisa').offsetTop, behavior: 'instant'})"); await page.wait_for_timeout(600)
+        await probe(page, f"{name}, table")
+        await page.close()
+    return errs
+
 async def check_sheet_close(browser):
     """The train's sheet on a phone closes softly (Àlex 20-10, option A): no handle on top (nothing can be dragged
     yet) and no ✕ drawn (Àlex: «quita la x»); a tap outside, Esc or Android's back gesture slide the paper back down
@@ -3204,7 +3353,13 @@ async def check_paper_motion(browser):
             # the arrows cross the two ends over to their new places, one over and one under
             for turn in range(2):
                 await page.evaluate(REC)
-                await tap_at(page, ".tk .swap"); await page.wait_for_timeout(700)
+                await tap_at(page, ".tk .swap")
+                # on a slow runner the swap can hold the page's thread for seconds (in desktop it may move the window,
+                # and the carriage, 07-11, is repainted in software): wait for the two ends to start, not a fixed time
+                if motion != "reduce":
+                    try: await page.wait_for_function("window.__rec.filter(r => r.name === 'creua').length >= 2", timeout=10000)
+                    except Exception: pass
+                await page.wait_for_timeout(700)
                 cr = [r for r in await page.evaluate("window.__rec") if r["name"] == "creua"]
                 when = f"{where}, the arrows ({turn + 1})"
                 if motion == "reduce":
@@ -3220,6 +3375,8 @@ async def check_paper_motion(browser):
                 await tap_at(page, f".tk .end.{end}"); await page.wait_for_timeout(700)
                 await page.evaluate(REC)
                 for sel in steps:
+                    try: await page.wait_for_selector(sel, timeout=10000)
+                    except Exception: pass
                     if not await tap_at(page, sel): errs.append(f"{where}, picking from .end.{end}: no {sel} to press"); break
                     await page.wait_for_timeout(800)
                 # the stamp comes once the sheet has gone: on a slow runner, painted in software, it can take longer
@@ -3540,10 +3697,22 @@ async def main():
         if sys.argv[1:] == ["fulls"]:
             failures += await check_sheet_holds_page(browser)
             failures += await check_sheet_close(browser)
+            failures += await check_bar_tint(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · fulls"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["abast"]:
             failures += await check_reach(browser) + await check_remember(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · abast"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["barra"]:
+            failures += await check_bar_tint(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · barra"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["datos"]:
+            failures += await check_sizes(browser)
+            failures += [f"horitzontal: {e}" for e in await check_landscape(browser)]
+            failures += [f"mesa: {e}" for e in await check_things_clear(browser)]
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · datos"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["vagon"]:
+            failures += await check_carriage(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · vagon"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["a11y"]:
             failures += await check_a11y(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · a11y"); sys.exit(1 if failures else 0)
@@ -3595,6 +3764,7 @@ async def main():
         failures += await check_still_idle(browser)
         failures += await check_sizes(browser)
         failures += await check_landscape(browser)
+        failures += [f"vagon: {e}" for e in await check_carriage(browser)]
         failures += [f"compartir: {e}" for e in check_share()]
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
         failures += [f"abast: {e}" for e in await check_reach(browser) + await check_remember(browser)]

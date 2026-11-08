@@ -190,7 +190,7 @@ export function pose(p: number): Pose {
 let laid = -1;
 function pitch(reset = false, again = false){
   const hero = byId('hero'), shelf = byId('repisa');
-  const p = reset ? 0 : dropped();
+  const top = scrollY, p = reset ? 0 : dropped();
   if(!reset && !again && p === laid && (p === 0 || p === 1)) return;
   laid = reset ? -1 : p;
   const {P, fold, wall, table, s, shade} = pose(p);
@@ -206,5 +206,5 @@ function pitch(reset = false, again = false){
   if(shade > 0) hero.style.setProperty('--lavado', shade.toFixed(3)); else hero.style.removeProperty('--lavado');
   if(world) world.setWash(p, shade);
   else byId('sombra').style.opacity = (.6 * shade).toFixed(3);
-  letters.render(p);
+  letters.render(p, top);
 }

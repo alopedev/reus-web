@@ -15,9 +15,9 @@ import type { World } from './world';
 import type { Table } from './table';
 import type { Scenery } from './scenery';
 import type { createWeather } from './weather';
-import { notices, type Avisos } from './avisos';
+import { notices, unread, type Avisos } from './avisos';
 import type { Retards } from './retards';
-import { stamp, heard, setupNotice, type Notice } from './notice';
+import { stamp, blank, heard, setupNotice, type Notice } from './notice';
 import { dateSpan } from './ca';
 import { esc } from './html';
 import { PHONE } from './phone';
@@ -66,7 +66,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     setDate(v.day);
     if(v.kind === 'none'){
       byId('ticks').innerHTML = nowLine(now.min);
-      boardDraw.draw(''); cur = null; setStamp([]);
+      boardDraw.draw(''); cur = null; setStamp([], []);
       if(said !== v.key){ byId('aviso').textContent = v.say; said = v.key; }
       byId('note').textContent = v.note;
       scenery.still();
@@ -76,9 +76,9 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     byId('ticks').innerHTML = v.ruler.map(m=>`<i class="${m.on ? 'on' : ''}" style="left:${pos(m.dep)}"></i>`).join('') + (v.tomorrow ? '' : nowLine(now.min));
     const html = board(v, state.dir==='casa', narrow.matches).join('');
     cur = v.trip;
-    // the notices of the board's regional lines: a stamp on a desktop's ticket
+    // the notices of the board's regional lines: a stamp on a desktop's ticket; a blank one when nobody could read them
     const ns = notices(avisos, v.lines);
-    setStamp(narrow.matches ? [] : ns);
+    setStamp(narrow.matches ? [] : ns, narrow.matches ? [] : unread(avisos, v.lines));
     const turn = said !== null && said !== v.key;
     if(turn) boardDraw.reset();
     if(boardDraw.draw(html)){
@@ -113,8 +113,9 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   // the stub's printed date: the day of the train shown (tomorrow's when the board has moved on to tomorrow)
   let dated = '';
   function setDate(iso: string){ if(iso === dated) return; const f = byId('tickets').querySelector<HTMLElement>('.fecha')!; f.innerHTML = dotDate(dated = iso); f.dataset.dia = iso; }
-  function setStamp(ns: Notice[]){
-    const html = ns.length ? stamp(ns) : ''; shownNotices = ns;
+  // a notice wins over a line nobody could read: one stamp only, and the one with something behind it
+  function setStamp(ns: Notice[], unknown: string[]){
+    const html = ns.length ? stamp(ns) : unknown.length ? blank(unknown) : ''; shownNotices = ns;
     if(html === stamped) return;
     const tk = byId('tickets').querySelector<HTMLElement>('.tk')!, had = tk.querySelector('.segell:focus');
     tk.querySelector('.segell')?.remove(); stamped = html; tk.classList.toggle('sellat', !!html);
@@ -231,7 +232,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     }
     else if(t.closest('.end.town')) chooser.open();
     else if(t.closest('.end.bcn')) chooser.openStation();
-    else if(t.closest('.segell')) notice.open(shownNotices, avisos.read());
+    else if(t.closest('.segell:not(.blanc)')) notice.open(shownNotices, avisos.read());
   });
   // on the minute, like the clock: the countdown, «ara» and the clock's hands move together (away from now too)
   const tick = () => { render(); setTimeout(tick, Math.max(1000, 60050 - Date.now() % 60000)); };

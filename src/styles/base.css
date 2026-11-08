@@ -25,6 +25,13 @@ body{ min-height:100%; background:#7d6650; color:var(--paper); font-family:var(-
 /* while a sheet is open (the train's, the choosers, a notice, privacy) the page behind holds still: the scroll would
    turn the wall towards the table under the backdrop (Àlex, 12-10). The gutter stays, so nothing shifts sideways */
 html:has(dialog[open]){ overflow:hidden; scrollbar-gutter:stable; }
+/* Safari 26 on an iPhone paints the band under its toolbar in the colour of the fixed box at the bottom edge, and
+   with none there, the body's (the wall's, from world.ts). A sheet open at the bottom left its paper there after it
+   closed, on the hero and on the table (Àlex's iPhone, 06-11): this strip is always there for Safari to read
+   instead, in the body's colour, above everything but the sheets (they go to the top layer). It paints nothing: all
+   its height is padding, and its background is clipped to the empty content box */
+#borde{ position:fixed; left:0; right:0; bottom:0; height:16px; padding-top:16px; z-index:9; pointer-events:none;
+  background-color:inherit; background-clip:content-box; }
 /* the hero stays put while the shelf scrolls up over it */
 #hero{ position:fixed; inset:0; z-index:0; }
 /* the wall darkens as it leans away from the camera: painted in the wall's shader when WebGL runs (the texts on
