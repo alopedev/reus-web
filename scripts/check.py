@@ -2452,7 +2452,7 @@ BOARD = """(() => { const n = s => s.replace(/\\s+/g, ' ').trim(), rows = [...do
   // is the way to Renfe, the time is only a time
   const text = r => { const c = r.cloneNode(true); c.querySelectorAll('.rec').forEach(x => x.remove()); return n(c.textContent); };
   const word = document.querySelector('.talo.compra'), q = word?.href ? new URL(word.href).searchParams : null;
-  return {rows: rows.map(text), buy: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), host: new URL(word.href).host, query: Object.fromEntries(q),
+  return {rows: rows.map(text), buy: q && {from: q.get('cdgoOrigen'), to: q.get('cdgoDestino'), day: q.get('FechaIdaSel'), host: new URL(word.href).host, query: Object.fromEntries(q), mark: decodeURIComponent(new URL(word.href).hash),
             tab: word.target === '_blank', label: word.getAttribute('aria-label') ?? word.textContent}, boardLink: !!document.querySelector('#board a[href]:not(.talo)'), buttons: rows.map(r => r.matches('button.tt')), dep: document.getElementById('dep')?.textContent,
           soon: document.querySelector('.soon')?.textContent.trim(), info: n(document.getElementById('info').textContent),
           aviso: document.getElementById('aviso').textContent}; })()"""
@@ -2648,6 +2648,12 @@ def buy_link(b, frm, to, day):
     # without these renfe.com answers E500 to a first visit, or shows a returning visitor their previous search
     missing = [f for f, v in RENFE_FIELDS.items() if k["query"].get(f) != v]
     if missing: errs.append(f"the buy link lacks the fields Renfe needs to search ({', '.join(missing)}): «{k['query']}»")
+    # Renfe opens the day's list: the link marks the train on it for the browser to scroll to (a text fragment, 13-11):
+    # the hour Renfe prints, followed by the hours the trip takes
+    import re
+    hour = re.search(r"\d\d:\d\d", b.get("dep") or "")
+    if not re.fullmatch(r"#:~:text=\d\d:\d\d h,-\d+", k.get("mark") or "") or (hour and not k["mark"].startswith(f"#:~:text={hour.group()} h,-")):
+        errs.append(f"the buy link does not mark the train of {b.get('dep')} on Renfe's list («{k.get('mark')}»)")
     if not k["tab"]: errs.append("the stub «Compra» does not open in a new tab")
     if "Renfe" not in (k["label"] or ""): errs.append(f"the stub's label does not say it buys on Renfe («{k['label']}»)")
     return errs

@@ -126,7 +126,7 @@ export function shown(now: { date: string, min: number }, v: ViewState, avisos: 
   // are counted in a phone's sheet and drawn on a desktop's board
   const ends = isAve ? (ida ? [v.station, alt] : [alt, v.station]) : ida ? [v.station, v.town] : [v.town, v.station];
   // Renfe opens the day's list, not the train: a cancelled or departed one has nothing to buy (12-10, option A)
-  const buy = cancelled || (!tomorrow && leaves < now.min) ? '' : buyUrl(ends[0], ends[1], day, a[0]);
+  const buy = cancelled || (!tomorrow && leaves < now.min) ? '' : buyUrl(ends[0], ends[1], day, a[0], a[1]);
   const stops = stopsBetween(day, a[2], ends[0], ends[1]), bus = isAve ? null : busLeg(day, a[2], ends[0], ends[1]);
   const there = isAve ? altName : townName, fast = a[3] === FAST;
   // «Recorda» (04-11, option A): into the visitor's calendar with an alarm 15 min before, at the time it now leaves;
