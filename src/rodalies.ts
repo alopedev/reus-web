@@ -31,7 +31,7 @@ export function createParts(get: Get = fromNetwork, files: Record<string, string
       let p = asking.get(id);
       if(!p){
         failed.delete(id);
-        p = get('/assets/' + files[id]).then(part => { done.add(id); return addPart(part); },
+        p = get('/assets/' + files[id]).then(part => { done.add(id); return addPart(part, id); },
           () => { failed.add(id); return false; }).finally(() => asking.delete(id));
         asking.set(id, p);
       }
