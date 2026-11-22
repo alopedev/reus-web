@@ -166,18 +166,21 @@
 .taco::before, .taco::after{ content:''; position:absolute; top:.18rem; width:.55rem; height:.16rem; background:#B9B3AA;
   box-shadow:0 .05rem 0 rgba(0,0,0,.35); }
 .taco::before{ left:.55rem; } .taco::after{ right:.55rem; }
-.full{ position:relative; padding:0; border:0; background:none; cursor:pointer; font:inherit; color:inherit;
+.full{ position:relative; display:flex; padding:0; border:0; background:none; cursor:pointer; font:inherit; color:inherit;
   filter:drop-shadow(.3rem .3rem 0 rgba(14,9,6,.9)); transition:filter .12s; }
-.full .pp{ display:flex; flex-direction:column; align-items:center; width:3.7rem; padding:0 0 .5rem; line-height:1;
+.full .pp{ flex:1; display:flex; flex-direction:column; align-items:center; min-width:3.7rem; padding:0 .5rem .5rem; line-height:1;
   background:#EFE6D2 var(--grain); color:#2D241C; transform-origin:50% 0; transition:transform .12s; }
 .full:not(.on) .pp{ transform:rotate(-2.5deg) translateY(.05rem); }
 /* the perforation it was torn from */
 .full .perf{ align-self:stretch; height:.32rem; margin-bottom:.12rem; border-bottom:1px dashed rgba(45,36,28,.2);
   background:radial-gradient(circle, rgba(45,36,28,.6) .055rem, transparent .07rem) 0 50%/.3rem .32rem repeat-x; }
 .full i{ font:700 .93rem var(--texto); font-style:normal; }
-.full b{ font:400 1.55rem 'Young Serif', serif; margin-top:.05rem; }
-/* «dia» before a day is chosen: a small calendar in dots where the number goes (22-11) */
-.full b .cal{ display:block; height:1.1rem; width:auto; margin:.28rem auto .17rem; }
+.full b{ font:400 1.55rem 'Young Serif', serif; margin:auto 0; padding-top:.05rem; }  /* both sheets as tall as the longer */
+/* «un altre dia» (Àlex, 22-11 evening) in two lines, and before a day is chosen a tiny wall calendar in colour where
+   the number goes (C of three) */
+.full[data-dia="dia"] i{ max-width:4.1rem; text-align:center; line-height:1.05; }
+.full b .cal{ display:block; height:1.6rem; width:auto; margin:.14rem auto .04rem; transform:rotate(-3deg);
+  filter:drop-shadow(.06rem .07rem 0 rgba(45,36,28,.35)); }
 /* the corner that lifts, on the sheet that can be pressed */
 .full:not(.on)::after{ content:''; position:absolute; right:.1rem; bottom:.08rem; width:.5rem; height:.5rem;
   background:linear-gradient(315deg, transparent 0 50%, #D5C8AE 50%); transform:rotate(-2.5deg);
@@ -374,11 +377,13 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .cap .days{ display:flex; gap:1.1rem; padding:0; }
   .cap .taco{ display:none; }
   .cap .full, .cap .full:hover{ filter:none; }
-  .cap .full .pp{ clip-path:none !important; background:none; width:auto; padding:0; transform:none; flex-direction:row; align-items:baseline; gap:.3rem; opacity:.72; }
+  .cap .full .pp{ clip-path:none !important; background:none; width:auto; min-width:0; padding:0; transform:none; flex-direction:row; align-items:baseline; gap:.3rem; opacity:.72; }
   .cap .full .perf{ display:none; }
   .cap .full i{ font:700 max(.95rem, 13px)/1 var(--texto); color:var(--paper); }
-  .cap .full b{ font:400 1.15rem/1 var(--serif); color:var(--paper); margin:0; }
-  .cap .full b .cal{ height:.95rem; margin:0 0 -.05rem; }
+  .cap .full b{ font:400 1.15rem/1 var(--serif); color:var(--paper); margin:0; padding:0; }
+  .cap .full b .cal{ display:inline-block; height:1.2rem; margin:0 0 -.2rem; }
+  /* «un altre dia» is the desktop's word (Àlex, 22-11): here only its little calendar, or the day chosen */
+  .cap .full[data-dia="dia"] .pp{ opacity:1; } .cap .full[data-dia="dia"] i{ display:none; }
   .cap .full i, .cap .full b{ text-shadow:0 1px 2px rgba(0,0,0,.45); }
   .cap .full:not(.on):hover .pp{ opacity:.9; }
   .cap .full.on .pp{ opacity:1; background:none; } .cap .full.on b{ color:#F3A25B; }
