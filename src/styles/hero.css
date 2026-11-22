@@ -365,6 +365,8 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   /* the board says it all with a train on it; the label stays for the board left empty (no direct train) */
   .info:has(#board .trip) #lbl{ display:none; }
   .cap{ display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:-.2rem 0 .1rem; }
+  /* its 44 px zones over the highlighted row's own (which reaches up into them): the head is the one thing a finger aims at there */
+  .cap{ position:relative; z-index:1; }
   /* «avui · demà» as flat tabs in ink on the wall, the day looked at in orange and underlined: a tab, not a paper, so
      «Compra» is the one thing raised on a phone's wall. A finger answers over 44 px around each */
   .cap .days{ display:flex; gap:1.1rem; padding:0; }
