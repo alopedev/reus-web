@@ -2,7 +2,7 @@
 // of 2026). `npm test`, in a second, no browser: check.py keeps the look, these keep the rules
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { shown, tomorrowAt, looked, type Shown } from '../../src/shown.ts';
+import { shown, tomorrowAt, looked, pickable, type Shown } from '../../src/shown.ts';
 import type { ViewState } from '../../src/state.ts';
 import type { Known } from '../../src/retards.ts';
 import { GROUPS } from '../../src/towns.ts';
@@ -51,7 +51,7 @@ test('today’s last regional, no AVE after it: the board still has two trips, t
   assert.equal(rows(s).length, 2);
   assert.equal(rows(s)[0], 'R15 1323 big18 min');
   const r = s.rows[1];
-  assert.equal(r.morrow, true);
+  assert.equal(r.morrow, 'demà');
   assert.equal(r.day, '2026-10-02');
   assert.ok(r.dep < 12 * 60, 'tomorrow’s first train, in the morning');
   // the train shown is still today’s: its day, countdown and ruler mark
@@ -327,4 +327,28 @@ test('no «Recorda» for a train leaving in under 15 min (the alarm would come l
 
 test('a late train is reminded at the time it now leaves and arrives', () => {
   assert.deepEqual(reminded(atLive('09:30', TEN03, live({ '15005': LATE(25) }))), { d: '2026-10-01', s: '628', a: '718', l: 'R15', o: 'Sants', x: 'Reus' });
+});
+
+// «Dia» (22-11): the days that can be looked at are those with a timetable, from tomorrow to the last one the data
+// covers (the frozen one ends on 11-10); a day without a direct train in this direction says so, so it is never
+// offered as if it had one (a Rodalies town before its trains have arrived has none yet)
+test('«dia» offers tomorrow to the last day with a timetable, and says which days have a train', () => {
+  const days = pickable({ date: '2026-10-01', min: 600 }, HOME);
+  assert.deepEqual(days.map(d => d.day), ['2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11']);
+  assert.ok(days.every(d => d.trains));
+  assert.ok(pickable({ date: '2026-10-01', min: 600 }, { ...HOME, town: '79500' }).every(d => !d.trains));
+  assert.deepEqual(pickable({ date: '2026-10-11', min: 600 }, HOME), []);
+});
+
+test('another date looked at says its weekday where tomorrow says «demà»', () => {
+  const v: ViewState = { ...HOME, useNow: false, minute: 21 * 60 + 33, ave: false, day: '2026-10-04' };
+  const s = train(at('2026-10-01', '21:30', v));
+  assert.equal(s.rows[0].morrow, 'diumenge');
+  assert.equal(s.trip.when, 'Diumenge');
+  assert.match(s.trip.home, /^Diumenge agafo l’R15 de les 21:33 a Sants\./);
+  assert.match(s.say, /^Tren triat, diumenge 4 d’octubre: 21:33/);
+  assert.equal(s.valuetext, 'tren de diumenge de les 21:33');
+  // tomorrow keeps its word
+  const t = train(at('2026-10-01', '21:30', { ...v, day: '2026-10-02', minute: 336 }));
+  assert.equal(t.trip.when, 'Demà');
 });

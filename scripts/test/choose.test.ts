@@ -57,3 +57,20 @@ test('the arrows turn the trip around and keep the moment chosen, tomorrow’s t
   assert.equal(big(back)?.day, TOMORROW);
   assert.deepEqual(choose(back, { kind: 'swap' }, NOW), onTomorrow);
 });
+
+// «Dia» (22-11): any day with a timetable, not only tomorrow. Sunday 04-10 at 21:30, Sants → Reus: that Sunday's
+// first train from 21:30 on, on its own day
+test('«dia»: another date’s train at this time of day', () => {
+  const v = choose(HOME, { kind: 'day', day: '2026-10-04' }, NOW);
+  assert.equal(v.useNow, false);
+  assert.equal(v.day, '2026-10-04');
+  assert.equal(big(v)?.day, '2026-10-04');
+  assert.equal(big(v)?.dep, 21 * 60 + 33);
+});
+
+test('another town, station or the ruler while another date is looked at: still that date', () => {
+  const onSunday = choose(HOME, { kind: 'day', day: '2026-10-04' }, NOW);
+  assert.equal(choose(onSunday, { kind: 'town', id: TARRAGONA }, NOW).day, '2026-10-04');
+  assert.equal(choose(onSunday, { kind: 'station', id: '79400' }, NOW).day, '2026-10-04');
+  assert.equal(choose(onSunday, { kind: 'ruler', minute: 663, ave: false }, NOW).day, '2026-10-04');
+});

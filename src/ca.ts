@@ -23,3 +23,16 @@ export function dateSpan(first: string, last: string): string {
   const head = day(d1, 'de') + (m1 === m2 && y1 === y2 ? '' : ' ' + ofMonth(m1) + (y1 === y2 ? '' : ` del ${y1}`));
   return `${head} ${day(d2, 'a')} ${ofMonth(m2)} del ${y2}`;
 }
+
+// the day the board has moved on to, in a word: «demà», or its weekday («dissabte») further on («Dia», 22-11); and in
+// full for a screen reader: «dissabte 28 de novembre»
+const WEEKDAYS = ['diumenge', 'dilluns', 'dimarts', 'dimecres', 'dijous', 'divendres', 'dissabte'];
+const weekdayOf = (iso: string): string => WEEKDAYS[new Date(iso + 'T12:00:00Z').getUTCDay()];
+export function dayWord(iso: string, today: string): string {
+  const t = new Date(today + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + 1);
+  return iso === t.toISOString().slice(0, 10) ? 'demà' : weekdayOf(iso);
+}
+export function dayLong(iso: string): string {
+  const [, m, d] = iso.split('-').map(Number);
+  return `${weekdayOf(iso)} ${d} ${ofMonth(m)}`;
+}
