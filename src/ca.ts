@@ -32,6 +32,8 @@ export function dayWord(iso: string, today: string): string {
   const t = new Date(today + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + 1);
   return iso === t.toISOString().slice(0, 10) ? 'demà' : weekdayOf(iso);
 }
+// «de l’11 d’octubre», «del 4 de desembre»: after «després»
+export function ofDay(iso: string): string { const [, m, d] = iso.split('-').map(Number); return `${day(d, 'de')} ${ofMonth(m)}`; }
 export function dayLong(iso: string): string {
   const [, m, d] = iso.split('-').map(Number);
   return `${weekdayOf(iso)} ${d} ${ofMonth(m)}`;

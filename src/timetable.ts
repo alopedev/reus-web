@@ -1,10 +1,12 @@
 import { reduce, state } from './state';
 import { madridNow, firstDay, lastDay, source, NET, bcnName, bcnShort, addDays } from './time';
-import { shown, looked, type Mark } from './shown';
+import { shown, looked, pickable, type Mark } from './shown';
+import { calendar } from './dies';
+import { closeSheet, closesSoftly } from './sheet';
 import { choose, type Choice } from './choose';
 import { board } from './board';
 import { talons } from './talons';
-import { cut, torn } from './paper';
+import { cut, torn, rag } from './paper';
 import { crossing } from './cross';
 import { setupChooser } from './chooser';
 import { setupDetail, type Trip } from './detail';
@@ -58,7 +60,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     retards.follow();
     setRoute(route(state.dir==='casa', NET.estaciones[state.town].nombre));
     marks = v.ruler;
-    setDays(now.date, looked(v, now.date));
+    setDays(now.date, looked(v, now.date), v.day);
     setTalons(talons(v, narrow.matches));
     byId('lbl').textContent = v.label;
     tIn.value = String(v.knob ?? Math.min(R1, Math.max(R0, now.min)));
@@ -131,25 +133,49 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     tk.querySelector('.segell')?.remove(); stamped = html; tk.classList.toggle('sellat', !!html);
     if(html){ tk.insertAdjacentHTML('beforeend', html); if(had) tk.querySelector<HTMLElement>('.segell')?.focus({preventScroll:true}); }
   }
-  // «Avui · Demà» (B3, Àlex 15-10): two sheets of a tear-off calendar over the ruler, the day looked at pressed flat and
-  // the other raised. Today goes back to now; tomorrow lands on tomorrow's train at this time of day (tomorrowAt), and
-  // then the ruler is tomorrow's. Past midnight tomorrow is today, and the sheets follow. Redrawn only when the day or
-  // the date changes, so a sheet keeps the focus
+  // «Avui · Dia» (B3, Àlex 15-10; «Demà» became «Dia» on 22-11, option A): two sheets of a tear-off calendar over the
+  // ruler, the day looked at pressed flat and the other raised. «Avui» goes back to now; «dia» opens a calendar of the
+  // days with a timetable (dies.ts) and, once a day is chosen, carries its number. Past midnight tomorrow is today, and
+  // the sheets follow. Redrawn only when the day or the date changes, so a sheet keeps the focus
   const days = byId('days');
   const daysDraw = redrawer(days, f => `[data-dia="${f.dataset.dia}"]`);
   const longDay = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('ca-ES', { weekday:'long', day:'numeric', month:'long', timeZone:'UTC' });
-  function setDays(today: string, on: 'avui' | 'dema'){
-    const tw = addDays(today, 1);
+  // «dia» before a day is chosen: a small calendar in dots, the stub's dot-matrix
+  const CAL = '<svg class="cal" viewBox="0 0 26 20" aria-hidden="true">' + [0, 1, 2].map(r => [0, 1, 2, 3].map(c =>
+    `<circle cx="${3 + c * 6.6}" cy="${3 + r * 7}" r="2.1" fill="currentColor"${r === 0 && c < 2 ? ' opacity=".3"' : ''}/>`).join('')).join('') + '</svg>';
+  let seen = '';
+  function setDays(today: string, on: 'avui' | 'dia', day: string){
+    seen = on === 'dia' ? day : '';
     // a tear-off pad (Àlex 15-10, A): a cardboard with the month printed in dots, and two sheets hanging from its
     // perforation, their bottom torn by hand. No weekday on them since 18-10 (H2, Àlex: shorter sheets); the name says it
-    const sheet = (key: string, word: string, iso: string, on: boolean, seed: number) =>
-      `<button type="button" class="full${on ? ' on' : ''}" data-dia="${key}" aria-pressed="${on}" aria-label="${word}, ${longDay(iso)}">`
+    const sheet = (key: string, word: string, num: string, label: string, on: boolean, seed: number, popup = false) =>
+      `<button type="button" class="full${on ? ' on' : ''}" data-dia="${key}"${popup ? ' aria-haspopup="dialog"' : ''} aria-pressed="${on}" aria-label="${label}">`
       + `<span class="pp" aria-hidden="true" style="clip-path:${torn(seed)}"><span class="perf"></span>`
-      + `<i>${word.toLowerCase()}</i> <b>${+iso.slice(8)}</b></span></button>`;
-    const html = `<span class="taco" aria-hidden="true">${dotText(padMonth(today, tw), '#F1EADC')}</span>`
-      + sheet('avui', 'Avui', today, on === 'avui', 7) + sheet('dema', 'Demà', tw, on === 'dema', 20);
+      + `<i>${word}</i> <b>${num}</b></span></button>`;
+    const html = `<span class="taco" aria-hidden="true">${dotText(padMonth(today, seen || addDays(today, 1)), '#F1EADC')}</span>`
+      + sheet('avui', 'avui', String(+today.slice(8)), `Avui, ${longDay(today)}`, on === 'avui', 7)
+      + sheet('dia', 'dia', seen ? String(+seen.slice(8)) : CAL, seen ? `Dia, ${longDay(seen)}. Tria un altre dia` : 'Dia, tria un altre dia', on === 'dia', 20, true);
     daysDraw.draw(html);
   }
+  // the calendar «dia» opens: cut like the choosers, it leaves the way paper would (sheet.ts), and the focus goes back
+  // to «dia». Today goes back to now; any other day lands on that day's train at this time of day (dayAt)
+  const dies = byId<HTMLDialogElement>('dies');
+  function openDies(){
+    const now = madridNow();
+    dies.innerHTML = `<div class="sheet"><div class="pp" style="--cut:${rag(17)}"><button type="button" class="x" aria-label="Tancar">✕</button>`
+      + `${calendar(now.date, pickable(now, state), seen || null)}</div></div>`;
+    dies.showModal();
+    (dies.querySelector<HTMLElement>('.dd[aria-current="true"]') ?? dies.querySelector<HTMLElement>('.dd[data-day]:not(.avui)') ?? dies.querySelector<HTMLElement>('.dd.avui'))?.focus();
+  }
+  closesSoftly(dies);
+  dies.addEventListener('click', e => {
+    const t = e.target as HTMLElement;
+    if(t.closest('.x')){ closeSheet(dies); return; }
+    const d = t.closest<HTMLElement>('.dd[data-day]'); if(!d) return;
+    closeSheet(dies);
+    pick(d.dataset.day === madridNow().date ? { kind: 'now' } : { kind: 'day', day: d.dataset.day! });
+  });
+  dies.addEventListener('close', () => days.querySelector<HTMLElement>('[data-dia="dia"]')?.focus({ preventScroll: true }));
   // the stubs by the pad (A3, Àlex 18-10; talons.ts): redrawn only when they change, so a stub keeps the focus
   const talonsEl = byId('talons');
   const talonsDraw = redrawer(talonsEl, f => f.classList[1] ? '.' + f.classList[1] : null);
@@ -170,9 +196,10 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     c.append(chad);
   });
   days.addEventListener('click', e=>{
-    // the day pressed is the day looked at already: nothing to do (at night «demà» is pressed with tomorrow's first train)
-    const b = (e.target as Element).closest<HTMLElement>('.full'); if(!b || b.classList.contains('on')) return;
-    pick({ kind: b.dataset.dia === 'avui' ? 'now' : 'tomorrow' });
+    const b = (e.target as Element).closest<HTMLElement>('.full'); if(!b) return;
+    // «dia» always opens its calendar, even pressed (at night, with tomorrow's first train); «avui» pressed does nothing
+    if(b.dataset.dia === 'dia'){ openDies(); return; }
+    if(!b.classList.contains('on')) pick({ kind: 'now' });
   });
   // every control turns into one choice (choose.ts), which says what the view becomes
   const apply = (c: Choice) => Object.assign(state, choose(state, c, madridNow()));

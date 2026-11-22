@@ -16,7 +16,7 @@ const big = (v: ViewState) => { const s = shown(NOW, v, quiet); assert.equal(s.k
 test('it never changes the view it is given', () => {
   const v = { ...HOME };
   choose(v, { kind: 'swap' }, NOW);
-  choose(v, { kind: 'tomorrow' }, NOW);
+  choose(v, { kind: 'day', day: TOMORROW }, NOW);
   assert.deepEqual(v, HOME);
 });
 
@@ -26,7 +26,7 @@ test('now (the platform clock, «avui»): back to now, forgetting the train, its
 });
 
 test('«demà»: tomorrow’s train at this time of day', () => {
-  const v = choose(HOME, { kind: 'tomorrow' }, NOW);
+  const v = choose(HOME, { kind: 'day', day: TOMORROW }, NOW);
   assert.deepEqual(v, { ...HOME, useNow: false, ...tomorrowAt(NOW, HOME) });
   assert.equal(v.day, TOMORROW);
 });
@@ -34,7 +34,7 @@ test('«demà»: tomorrow’s train at this time of day', () => {
 test('a trip of the board keeps its own day; the ruler picks on the day looked at', () => {
   assert.deepEqual(choose(HOME, { kind: 'trip', minute: 336, ave: false, day: TOMORROW }, NOW), { ...HOME, useNow: false, minute: 336, ave: false, day: TOMORROW });
   assert.deepEqual(choose(HOME, { kind: 'ruler', minute: 663, ave: false }, NOW), { ...HOME, useNow: false, minute: 663, ave: false, day: null });
-  const onTomorrow = choose(HOME, { kind: 'tomorrow' }, NOW);
+  const onTomorrow = choose(HOME, { kind: 'day', day: TOMORROW }, NOW);
   assert.equal(choose(onTomorrow, { kind: 'ruler', minute: 663, ave: false }, NOW).day, TOMORROW);
   // a train of today picked earlier is not tomorrow looked at
   const today = choose(HOME, { kind: 'trip', minute: 1323, ave: false, day: NOW.date }, NOW);
@@ -44,14 +44,14 @@ test('a trip of the board keeps its own day; the ruler picks on the day looked a
 test('another town or station: from now, or on tomorrow’s train at this time when tomorrow is looked at', () => {
   const picked = choose(HOME, { kind: 'ruler', minute: 1337, ave: true }, NOW);
   assert.deepEqual(choose(picked, { kind: 'town', id: TARRAGONA }, NOW), { ...picked, useNow: true, ave: false, town: TARRAGONA });
-  const onTomorrow = choose(HOME, { kind: 'tomorrow' }, NOW);
+  const onTomorrow = choose(HOME, { kind: 'day', day: TOMORROW }, NOW);
   const there = choose(onTomorrow, { kind: 'town', id: TARRAGONA }, NOW);
   assert.deepEqual(there, { ...onTomorrow, town: TARRAGONA, useNow: false, ...tomorrowAt(NOW, { ...HOME, town: TARRAGONA }) });
   assert.equal(choose(onTomorrow, { kind: 'station', id: '79400' }, NOW).day, TOMORROW);
 });
 
 test('the arrows turn the trip around and keep the moment chosen, tomorrow’s too', () => {
-  const onTomorrow = choose(HOME, { kind: 'tomorrow' }, NOW);
+  const onTomorrow = choose(HOME, { kind: 'day', day: TOMORROW }, NOW);
   const back = choose(onTomorrow, { kind: 'swap' }, NOW);
   assert.deepEqual(back, { ...onTomorrow, dir: 'bcn' });
   assert.equal(big(back)?.day, TOMORROW);

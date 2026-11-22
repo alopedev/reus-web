@@ -1136,8 +1136,9 @@ async def check_wall_unchanged(browser):
         at, box = n, b
     await page.evaluate("dispatchEvent(new Event('resize'))"); await same("a resize that changes nothing")
     await page.click("#board .tt"); await same("choosing the other trip")
-    await page.click("#days .full[aria-pressed=false]"); await same("«demà»")
-    await page.click("#days .full[aria-pressed=false]"); await same("«avui»")
+    await page.click('#days .full[data-dia="dia"]'); await page.wait_for_timeout(400)
+    await page.click("#dies .dd[data-day]:not(.avui)"); await same("«dia», tomorrow")
+    await page.click('#days .full[data-dia="avui"]'); await same("«avui»")
     await page.click(".tk .swap"); await same("the arrows"); await page.click(".tk .swap"); await same("the arrows back")
     await page.clock.run_for(60000); await same("the minute's redraw")
     await page.focus("#t"); await page.keyboard.press("End"); await page.wait_for_timeout(600)
@@ -2203,7 +2204,7 @@ async def check_hero(browser):
     dia = await page.evaluate("document.querySelector('.tk .fecha')?.dataset.dia")
     if b["dep"] != "05:36" or dia != "2026-09-29": errs.append(f"at 21:30 from Reus, tomorrow's 05:36 picked: the train shown is {b['dep']} on {dia}, expected 05:36 on 2026-09-29")
     pressed = await page.evaluate("document.querySelector('.full.on')?.dataset.dia")
-    if not b["rows"][0].startswith("R15 05:36 demà") or pressed != "dema": errs.append(f"at 21:30 from Reus, tomorrow's 05:36 picked: the board reads {b['rows']} with the «{pressed}» sheet pressed, expected «demà» on both")
+    if not b["rows"][0].startswith("R15 05:36 demà") or pressed != "dia": errs.append(f"at 21:30 from Reus, tomorrow's 05:36 picked: the board reads {b['rows']} with the «{pressed}» sheet pressed, expected «demà» on the board and «dia» pressed")
     errs += [f"at 21:30 from Reus, tomorrow's 05:36 picked: {e}" for e in buy_link(b, REUS_TOWN, SANTS_ID, "29/09/2026")]
     await page.close()
     # «ara» at both ends of the day (00:30 is clamped to the ruler's start, 23:59 is its end) never leaves the screen
@@ -2245,35 +2246,45 @@ async def check_hero(browser):
     await page.close()
     return errs
 
-# «Avui · Demà» (B3, Àlex 15-10): two tear-off calendar sheets over the ruler, hanging from one cardboard that prints
-# the month in dots (drawing A, Àlex 15-10; the sheets lost their weekday, H2 18-10). The day looked at is pressed flat, the
-# other raised; «Demà» shows tomorrow's train at this time of day with tomorrow's ruler, «Avui» goes back to now
+# «Avui · Dia» (B3, Àlex 15-10; «Demà» became «Dia» on 22-11, option A): two tear-off calendar sheets over the ruler, hanging
+# from one cardboard that prints the month in dots (drawing A, Àlex 15-10; the sheets lost their weekday, H2 18-10). The
+# day looked at is pressed flat, the other raised; «dia» opens a calendar of the days with a timetable (#dies) and, once
+# a day is chosen, carries its number: that day's train at this time of day with that day's ruler. «Avui» goes back to now
 DAYS = """(() => { const f = [...document.querySelectorAll('#days .full')], t = document.getElementById('t'), n = s => s.replace(/\\s+/g, ' ').trim();
   const box = e => { const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
   return {sheets: f.map(b => ({dia: b.dataset.dia, text: n(b.textContent), pressed: b.getAttribute('aria-pressed'), name: b.getAttribute('aria-label'),
-            shadow: getComputedStyle(b).filter, wd: b.querySelector('.pp svg')?.dataset.t ?? null, mark: b.classList.contains('on') && getComputedStyle(b, '::after').content !== 'none', inCap: !!b.closest('#cap'), ...box(b)})),
+            shadow: getComputedStyle(b).filter, cal: !!b.querySelector('.pp svg.cal'), mark: b.classList.contains('on') && getComputedStyle(b, '::after').content !== 'none', inCap: !!b.closest('#cap'), ...box(b)})),
           head: document.querySelector('#days .taco svg')?.dataset.t ?? null,
-          focus: document.activeElement?.dataset?.dia ?? null, ticks: document.querySelectorAll('#ticks i').length, on: [...document.querySelectorAll('#ticks i.on')].length,
+          focus: document.activeElement?.dataset?.dia ?? document.activeElement?.dataset?.day ?? null, ticks: document.querySelectorAll('#ticks i').length, on: [...document.querySelectorAll('#ticks i.on')].length,
           knob: +t.value, nowline: !!document.querySelector('.nowline'), clock: !document.getElementById('nowBtn').hidden,
           dia: document.querySelector('.tk .fecha')?.dataset.dia, ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')),
-          track: box(document.querySelector('.track'))}; })()"""
+          track: box(document.querySelector('.track')), open: document.getElementById('dies').open,
+          cells: [...document.querySelectorAll('#dies .dd:not(.buit)')].map(d => ({day: d.dataset.day ?? null, off: d.disabled, current: d.getAttribute('aria-current'), w: d.getBoundingClientRect().width, h: d.getBoundingClientRect().height})),
+          sheetBox: (s => s ? box(s) : null)(document.querySelector('#dies .sheet')), vw: innerWidth}; })()"""
 
 HITS = """[...document.querySelectorAll('#days .full')].map(b => { const r = b.getBoundingClientRect(), x = r.left + r.width / 2; let n = 0;
   for(let y = r.top - 30; y < r.bottom + 30; y++) if(document.elementFromPoint(x, y)?.closest('.full') === b) n++; return n; })"""
 
+async def closed(page):
+    # the calendar leaves the way paper would (sheet.ts): wait until it has closed
+    for _ in range(50):
+        if not await page.evaluate("document.getElementById('dies').open"): return True
+        await page.wait_for_timeout(200)
+    return False
+
 async def check_days(browser):
     errs = []
-    for w, h in ((1440, 900), (390, 844)):
+    for w, h in ((1440, 900), (390, 844), (320, 568)):
         page = await hero_page(browser, w, h)
         d = await page.evaluate(DAYS)
         texts = [x["text"] for x in d["sheets"]]
-        if texts != ["avui 28", "demà 29"]: errs.append(f"{w}x{h}: the day sheets read {texts}, expected «avui 28» and «demà 29»"); await page.close(); continue
+        if texts != ["avui 28", "dia"] or not d["sheets"][1]["cal"]: errs.append(f"{w}x{h}: the day sheets read {texts}, expected «avui 28» and «dia» with its little calendar"); await page.close(); continue
         if [x["pressed"] for x in d["sheets"]] != ["true", "false"]: errs.append(f"{w}x{h}: at load «Avui» is not the sheet pressed")
-        if [x["name"] for x in d["sheets"]] != ["Avui, dilluns, 28 de setembre", "Demà, dimarts, 29 de setembre"]: errs.append(f"{w}x{h}: the sheets are called {[x['name'] for x in d['sheets']]}")
-        if d["head"] != "SETEMBRE 2026" or [x["wd"] for x in d["sheets"]] != [None, None]: errs.append(f"{w}x{h}: the pad prints «{d['head']}» on its cardboard and {[x['wd'] for x in d['sheets']]} on its sheets (no weekday since H2)")
-        # on a phone the days are flat tabs heading the board (P2 on one line, Àlex 19-10): «Compra» is the one thing
+        if [x["name"] for x in d["sheets"]] != ["Avui, dilluns, 28 de setembre", "Dia, tria un altre dia"]: errs.append(f"{w}x{h}: the sheets are called {[x['name'] for x in d['sheets']]}")
+        if d["head"] != "SETEMBRE 2026": errs.append(f"{w}x{h}: the pad prints «{d['head']}» on its cardboard")
+        # on a phone the days are flat tabs heading the board (P2 on one line, Àlex 19-10): «Agafa’l» is the one thing
         # raised, and the day looked at is underlined
-        if w > 600 and ("drop-shadow" in d["sheets"][0]["shadow"] or "drop-shadow" not in d["sheets"][1]["shadow"]): errs.append(f"{w}x{h}: «Avui» should lie flat and «Demà» be raised (shadows {d['sheets'][0]['shadow']} / {d['sheets'][1]['shadow']})")
+        if w > 600 and ("drop-shadow" in d["sheets"][0]["shadow"] or "drop-shadow" not in d["sheets"][1]["shadow"]): errs.append(f"{w}x{h}: «Avui» should lie flat and «Dia» be raised (shadows {d['sheets'][0]['shadow']} / {d['sheets'][1]['shadow']})")
         if w < 600 and (not all(x["inCap"] for x in d["sheets"]) or any("drop-shadow" in x["shadow"] for x in d["sheets"]) or [x["mark"] for x in d["sheets"]] != [True, False]): errs.append(f"{w}x{h}: over the board «Avui» should be underlined and neither day raised (in the head {[x['inCap'] for x in d['sheets']]}, marks {[x['mark'] for x in d['sheets']]}, shadows {[x['shadow'] for x in d['sheets']]})")
         if w < 600:
             hits = await page.evaluate(HITS)
@@ -2281,31 +2292,53 @@ async def check_days(browser):
         if any(x["b"] > d["track"]["t"] for x in d["sheets"]): errs.append(f"{w}x{h}: a day sheet reaches into the ruler")
         a = d["ara"]
         if a and any(x["l"] < a["r"] and a["l"] < x["r"] and x["t"] < a["b"] and a["t"] < x["b"] for x in d["sheets"]): errs.append(f"{w}x{h}: a day sheet covers «ara»")
-        await page.click('#days .full[data-dia="dema"]'); await page.wait_for_timeout(400)
+        # «dia» opens the calendar: today to the frozen timetable's last day (11-10), Monday to Sunday, the focus on tomorrow
+        await page.click('#days .full[data-dia="dia"]'); await page.wait_for_timeout(500)
+        d = await page.evaluate(DAYS)
+        days = [c["day"] for c in d["cells"] if c["day"]]
+        if not d["open"] or days[:2] != ["2026-09-28", "2026-09-29"] or days[-1] != "2026-10-11" or len(days) != 14: errs.append(f"{w}x{h}: «dia» opens {'a calendar of ' + str(days) if d['open'] else 'nothing'}, expected 28-09 to 11-10")
+        if d["focus"] != "2026-09-29": errs.append(f"{w}x{h}: the calendar opens with the focus on {d['focus']}, expected tomorrow")
+        small = [(round(c["w"]), round(c["h"])) for c in d["cells"] if c["w"] < 43.5 or c["h"] < 44]
+        if small: errs.append(f"{w}x{h}: days of the calendar under a finger's 44 px: {small[:3]}")
+        sb = d["sheetBox"]
+        if sb and (sb["l"] < -1 or sb["r"] > d["vw"] + 1): errs.append(f"{w}x{h}: the calendar leaves the screen ({sb['l']:.0f} to {sb['r']:.0f})")
+        await page.click('#dies .dd[data-day="2026-09-29"]')
+        if not await closed(page): errs.append(f"{w}x{h}: the calendar does not close after a day is chosen")
         d = await page.evaluate(DAYS); b = await page.evaluate(BOARD)
-        if [x["pressed"] for x in d["sheets"]] != ["false", "true"] or d["focus"] != "dema": errs.append(f"{w}x{h}: after «Demà» the sheets are pressed {[x['pressed'] for x in d['sheets']]} with the focus on {d['focus']}")
-        if w < 600 and [x["mark"] for x in d["sheets"]] != [False, True]: errs.append(f"{w}x{h}: after «Demà» the underlines are {[x['mark'] for x in d['sheets']]}, expected on «Demà»")
+        if [x["pressed"] for x in d["sheets"]] != ["false", "true"] or d["focus"] != "dia": errs.append(f"{w}x{h}: after tomorrow on the calendar the sheets are pressed {[x['pressed'] for x in d['sheets']]} with the focus on {d['focus']}")
+        if d["sheets"][1]["text"] != "dia 29" or d["sheets"][1]["name"] != "Dia, dimarts, 29 de setembre. Tria un altre dia": errs.append(f"{w}x{h}: after tomorrow «dia» reads «{d['sheets'][1]['text']}» ({d['sheets'][1]['name']})")
+        if w < 600 and [x["mark"] for x in d["sheets"]] != [False, True]: errs.append(f"{w}x{h}: after tomorrow the underlines are {[x['mark'] for x in d['sheets']]}, expected on «Dia»")
         if d["nowline"] or d["clock"]: errs.append(f"{w}x{h}: tomorrow's ruler still has «ara» or the clock on it")
-        if d["dia"] != "2026-09-29" or d["knob"] != 603 or d["on"] != 1: errs.append(f"{w}x{h}: «Demà» at 10:00 shows the day {d['dia']} with the knob at {d['knob']} ({d['on']} marks on), expected tomorrow's 10:03 (603)")
+        if d["dia"] != "2026-09-29" or d["knob"] != 603 or d["on"] != 1: errs.append(f"{w}x{h}: tomorrow at 10:00 shows the day {d['dia']} with the knob at {d['knob']} ({d['on']} marks on), expected tomorrow's 10:03 (603)")
         if w > 600:
-            if b["rows"][0] != "R15 10:03 demà → 11:33": errs.append(f"{w}x{h}: «Demà» at 10:00, the board reads {b['rows']}, expected «R15 10:03 demà → 11:33» first")
-            errs += [f"{w}x{h} «Demà»: {e}" for e in buy_link(b, SANTS_ID, REUS_TOWN, "29/09/2026")]
-        # the ruler keeps to tomorrow: its last train is tomorrow's
+            if b["rows"][0] != "R15 10:03 demà → 11:33": errs.append(f"{w}x{h}: tomorrow at 10:00, the board reads {b['rows']}, expected «R15 10:03 demà → 11:33» first")
+            errs += [f"{w}x{h} tomorrow: {e}" for e in buy_link(b, SANTS_ID, REUS_TOWN, "29/09/2026")]
+        # the ruler keeps to that day: its last train is that day's
         await page.focus("#t"); await page.keyboard.press("End"); await page.wait_for_timeout(300)
         d = await page.evaluate(DAYS)
-        if d["dia"] != "2026-09-29" or d["sheets"][1]["pressed"] != "true": errs.append(f"{w}x{h}: «Demà», End on the ruler goes back to the day {d['dia']}")
+        if d["dia"] != "2026-09-29" or d["sheets"][1]["pressed"] != "true": errs.append(f"{w}x{h}: tomorrow, End on the ruler goes back to the day {d['dia']}")
+        # a day further on: Thursday 01-10, stamped in the calendar when it opens again, its weekday on the board
+        await page.click('#days .full[data-dia="dia"]'); await page.wait_for_timeout(500)
+        d = await page.evaluate(DAYS)
+        if [c["day"] for c in d["cells"] if c["current"] == "true"] != ["2026-09-29"]: errs.append(f"{w}x{h}: the calendar opened again stamps {[c['day'] for c in d['cells'] if c['current']]}, expected the day looked at (29-09)")
+        await page.click('#dies .dd[data-day="2026-10-01"]'); await closed(page)
+        d = await page.evaluate(DAYS); b = await page.evaluate(BOARD)
+        if d["dia"] != "2026-10-01" or d["sheets"][1]["text"] != "dia 1": errs.append(f"{w}x{h}: Thursday 01-10 chosen shows the day {d['dia']} with «{d['sheets'][1]['text']}»")
+        if d["head"] != "SET · OCT 2026": errs.append(f"{w}x{h}: with 01-10 looked at the pad prints «{d['head']}», expected «SET · OCT 2026»")
+        if w > 600 and not re.match(r"\S+ \d\d:\d\d dijous ", b["rows"][0]): errs.append(f"{w}x{h}: Thursday 01-10 chosen, the board reads {b['rows']}, expected «dijous» on the train shown")
+        # Esc closes the calendar and changes nothing
+        await page.click('#days .full[data-dia="dia"]'); await page.wait_for_timeout(500); await page.keyboard.press("Escape")
+        if not await closed(page): errs.append(f"{w}x{h}: Esc does not close the calendar")
+        e = await page.evaluate(DAYS)
+        if (e["dia"], e["knob"]) != (d["dia"], d["knob"]): errs.append(f"{w}x{h}: closing the calendar with Esc moves the train shown to {e['dia']} {e['knob']}")
         await page.click('#days .full[data-dia="avui"]'); await page.wait_for_timeout(400)
         d = await page.evaluate(DAYS)
-        if d["dia"] != "2026-09-28" or not d["nowline"] or d["knob"] != 603 or d["sheets"][0]["pressed"] != "true": errs.append(f"{w}x{h}: «Avui» does not go back to now (day {d['dia']}, «ara» {d['nowline']}, knob {d['knob']})")
+        if d["dia"] != "2026-09-28" or not d["nowline"] or d["knob"] != 603 or d["sheets"][0]["pressed"] != "true" or d["sheets"][1]["text"] != "dia": errs.append(f"{w}x{h}: «Avui» does not go back to now (day {d['dia']}, «ara» {d['nowline']}, knob {d['knob']}, «{d['sheets'][1]['text']}»)")
         await page.close()
-        # at 23:30 no train is left today: the board shows tomorrow's first, and «demà» is the day pressed (Àlex 19-10);
-        # pressing it again changes nothing
+        # at 23:30 no train is left today: the board shows tomorrow's first, and «dia 29» is the day pressed (Àlex 19-10)
         page = await hero_page(browser, w, h, at="2026-09-28T21:30:00Z")
         d = await page.evaluate(DAYS)
-        if [x["pressed"] for x in d["sheets"]] != ["false", "true"] or d["dia"] != "2026-09-29": errs.append(f"{w}x{h} at 23:30: with tomorrow's first train on the board ({d['dia']}) the sheets pressed are {[x['pressed'] for x in d['sheets']]}, expected «Demà»")
-        await page.click('#days .full[data-dia="dema"]'); await page.wait_for_timeout(400)
-        e = await page.evaluate(DAYS)
-        if (e["dia"], e["knob"]) != (d["dia"], d["knob"]): errs.append(f"{w}x{h} at 23:30: pressing «Demà», already pressed, moves the train shown to {e['dia']} {e['knob']}")
+        if [x["pressed"] for x in d["sheets"]] != ["false", "true"] or d["dia"] != "2026-09-29" or d["sheets"][1]["text"] != "dia 29": errs.append(f"{w}x{h} at 23:30: with tomorrow's first train on the board ({d['dia']}) the sheets pressed are {[x['pressed'] for x in d['sheets']]} and «{d['sheets'][1]['text']}», expected «dia 29»")
         await page.close()
     return errs
 

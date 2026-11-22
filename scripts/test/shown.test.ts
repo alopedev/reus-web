@@ -295,9 +295,9 @@ test('a train shown that has already left says so on the board, on its way or ar
 // first trains, «demà» is the one pressed, not «avui»; today's last AVE is still today's
 test('the day sheet pressed is the day of the train shown', () => {
   assert.equal(looked(at('2026-10-01', '10:00', HOME), '2026-10-01'), 'avui');
-  assert.equal(looked(at('2026-10-01', '23:30', HOME), '2026-10-01'), 'dema');
+  assert.equal(looked(at('2026-10-01', '23:30', HOME), '2026-10-01'), 'dia');
   assert.equal(looked(at('2026-10-01', '21:30', BACK), '2026-10-01'), 'avui');
-  assert.equal(looked(at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 603, day: '2026-10-02' }), '2026-10-01'), 'dema');
+  assert.equal(looked(at('2026-10-01', '10:00', { ...HOME, useNow: false, minute: 603, day: '2026-10-02' }), '2026-10-01'), 'dia');
 });
 
 // «Recorda» (04-11, Àlex: option A): the train shown into the visitor's calendar, with an alarm 15 min before it leaves
