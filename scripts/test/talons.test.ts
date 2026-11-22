@@ -91,3 +91,15 @@ test('each stub is torn along its left edge, its right one straight, and no two 
   }
   assert.notDeepEqual(desk[0], desk[1]);
 });
+
+// option A of three (Àlex 22-11, «talones del billete, en grande»): on a desktop each stub prints, over its verb and
+// in the dots of the ticket's machine, what it is about: «Compra» the line and time of its train, «Recorda» its alarm.
+// The phone's «Agafa’l» stays as it was
+test('on a desktop the stubs print their train and their alarm in dots, over the verb', () => {
+  const s = train(at('2026-10-01', '09:30', HOME)), html = talons(s, false);
+  const printed = [...html.matchAll(/data-t="([^"]*)"/g)].map(m => m[1]);
+  assert.deepEqual(printed, [`${s.trip.line} · ${s.trip.dep}`, '15 MIN ABANS']);
+  assert.match(html, /<span class="tx"><span class="mx">.*?<\/span><span class="vb">Compra<\/span><\/span>/);
+  assert.equal(words(html), 'Compra Recorda');
+  assert.doesNotMatch(talons(s, true), /data-t=/);
+});

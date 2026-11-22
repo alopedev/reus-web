@@ -13,6 +13,7 @@ const GLYPH: Record<string, string> = {
   S:'01111100001000001110000010000111110', T:'11111001000010000100001000010000100', U:'10001100011000110001100011000101110',
   V:'10001100011000110001100010101000100', Y:'10001100010101000100001000010000100', 'Ç':'01110100011000010000100010111000100',
   ' ':'00000000000000000000000000000000000', '·':'00000000000000000100000000000000000',
+  ':':'00000011000110000000011000110000000',
 };
 const MONTH = ['GEN','FEB','MAR','ABR','MAI','JUN','JUL','AGO','SET','OCT','NOV','DES'];
 const MONTHS = ['GENER','FEBRER','MARÇ','ABRIL','MAIG','JUNY','JULIOL','AGOST','SETEMBRE','OCTUBRE','NOVEMBRE','DESEMBRE'];
@@ -20,7 +21,7 @@ const MONTHS = ['GENER','FEBRER','MARÇ','ABRIL','MAIG','JUNY','JULIOL','AGOST',
 // any word the machine knows, one 5×7 cell and a gap per letter; the colour is the ink's
 export function dotText(text: string, ink = '#3A2D3A'): string {
   let dots = '';
-  [...text].forEach((ch, k) => [...GLYPH[ch]].forEach((on, i) => {
+  [...text].forEach((ch, k) => [...(GLYPH[ch] ?? GLYPH[' '])].forEach((on, i) => {
     if(on === '1') dots += `<circle cx="${k * 6 + i % 5 + .5}" cy="${Math.floor(i / 5) + .5}" r=".42"/>`;
   }));
   return `<svg viewBox="0 0 ${text.length * 6 - 1} 7" data-t="${text}" aria-hidden="true"><g fill="${ink}">${dots}</g></svg>`;

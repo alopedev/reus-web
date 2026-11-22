@@ -138,20 +138,20 @@ dialog#selp.escriu .sheet .pp{ max-height:calc(var(--vv, 100dvh) - 1.6rem - env(
    raised (each day is a choice, as in the other choosers); today in red, the day looked at stamped in ink, a day with
    no train struck through. The days stand at least 48 px tall: on a 320 px phone the sheet runs nearly edge to edge
    so that seven of them still fit a finger */
-.sheet:has(.mes){ width:min(30rem, 94vw); }
-.mes{ display:grid; grid-template-columns:repeat(7, 1fr); gap:.2rem 0; }
-.mes .wd{ font:700 .8rem var(--texto); opacity:.6; text-align:center; padding-bottom:.3rem; text-transform:uppercase; letter-spacing:.06em; }
-.mes .dd{ all:unset; position:relative; box-sizing:border-box; min-height:max(3.1rem, 48px); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; border-radius:.3rem; }
-.mes .dd b{ font:400 1.35rem/1 var(--serif); } .mes .dd small{ font:700 .62rem/1 var(--texto); margin-top:.15rem; opacity:.7; }
-.mes .dd:not(.no):hover{ background:rgba(45,36,28,.07); }
-.mes .dd.avui b{ color:#B5361F; }
-.mes .dd.no{ cursor:default; opacity:.3; } .mes .dd.no b{ text-decoration:line-through; text-decoration-thickness:1px; }
-.mes .dd[aria-current="true"]::after{ content:""; position:absolute; inset:.1rem .15rem; border:3px solid #6E2A1C; border-radius:.3em; transform:rotate(-2deg);
+#dies .sheet{ width:min(30rem, 94vw); }
+#dies .mes{ display:grid; grid-template-columns:repeat(7, 1fr); gap:.2rem 0; }
+#dies .mes .wd{ font:700 .8rem var(--texto); opacity:.6; text-align:center; padding-bottom:.3rem; text-transform:uppercase; letter-spacing:.06em; }
+#dies .mes .dd{ all:unset; position:relative; box-sizing:border-box; min-height:max(3.1rem, 48px); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; border-radius:.3rem; }
+#dies .mes .dd b{ font:400 1.35rem/1 var(--serif); } #dies .mes .dd small{ font:700 .62rem/1 var(--texto); margin-top:.15rem; opacity:.7; }
+#dies .mes .dd:not(.no):hover{ background:rgba(45,36,28,.07); }
+#dies .mes .dd.avui b{ color:#B5361F; }
+#dies .mes .dd.no{ cursor:default; opacity:.3; } #dies .mes .dd.no b{ text-decoration:line-through; text-decoration-thickness:1px; }
+#dies .mes .dd[aria-current="true"]::after{ content:""; position:absolute; inset:.1rem .15rem; border:3px solid #6E2A1C; border-radius:.3em; transform:rotate(-2deg);
   -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:160px; mask-size:160px; pointer-events:none; }
-.mes .dd:focus-visible{ outline:2px solid var(--shadow); outline-offset:-2px; }
+#dies .mes .dd:focus-visible{ outline:2px solid var(--shadow); outline-offset:-2px; }
 .sheet .fins{ font:500 .85rem var(--texto); opacity:.75; margin:.9rem 0 0; }
 @media (max-width:380px){
-  .sheet:has(.mes){ width:calc(100vw - 4px); transform:none; }
-  .sheet:has(.mes) .pp{ padding-left:2px; padding-right:2px; }
-  .sheet:has(.mes) h3, .sheet:has(.mes) .fins{ margin-left:.7rem; }
+  #dies .sheet{ width:calc(100vw - 4px); transform:none; }
+  #dies .sheet .pp{ padding-left:2px; padding-right:2px; }
+  #dies .sheet h3, #dies .sheet .fins{ margin-left:.7rem; }
 }
