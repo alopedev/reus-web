@@ -232,6 +232,21 @@ button.talo{ appearance:none; background:none; border:0; padding:0; margin:0; fo
 .talo .xapa{ position:absolute; display:block; width:.42rem; height:.42rem; margin:-.21rem 0 0 -.21rem; border-radius:50%; background:#EFE6D2; pointer-events:none;
   animation:cau .52s cubic-bezier(.4,0,1,1) .06s both; }
 @keyframes cau{ from{ opacity:1; transform:translate(0,0) rotate(0); } 70%{ opacity:1; transform:translate(.3rem,1.6rem) rotate(160deg); } to{ opacity:0; transform:translate(.45rem,2.5rem) rotate(220deg); } }
+/* on a desktop the stubs are a ticket's, in large (Àlex 22-11, option A of three; mockups in escritorio-ui/): bigger
+   paper, a bigger drawing and verb, and over the verb, in the dots of the ticket's machine, what the stub is about:
+   the train («R15 · 11:03») on «Compra», the alarm («15 MIN ABANS») on «Recorda» (talons.ts). The phone's «Agafa’l»
+   lives in #cap and keeps its size */
+.rulerHead .talons{ gap:.9rem; margin-bottom:.9rem; }
+.rulerHead .talo{ filter:drop-shadow(.25rem .25rem 0 rgba(14,9,6,.9)); }
+.rulerHead .talo:hover{ filter:drop-shadow(.33rem .33rem 0 rgba(14,9,6,.9)); }
+.rulerHead .talo:active{ filter:none; }
+.rulerHead .talo .in{ gap:.6rem; min-height:3.6rem; padding:.45rem 1.05rem .45rem 1rem; font-size:1.25rem; }
+.rulerHead .talo svg{ height:1.5rem; }
+.rulerHead .talo i{ padding-right:.7rem; }
+.talo .tx{ display:flex; flex-direction:column; gap:.32rem; align-items:flex-start; }
+.talo .mx{ display:block; line-height:0; }
+.talo .mx svg{ height:.55rem; width:auto; opacity:.88; filter:blur(.12px); }
+.talo .vb{ line-height:1; }
 /* away from now, a station clock (Hilfiker's, the Swiss one) stands on the orange line of «ara» in place of its word,
    telling the time now; pressing it goes back to now (Àlex 09-10). Raised like the rest that can be pressed */
 .now{ position:absolute; z-index:1; bottom:calc(50% + .9rem); width:2.5rem; padding:0; border:0; background:none; cursor:pointer;
@@ -282,6 +297,17 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
 .pintada .in .tauler{ transform:none; transition:transform 1s ease; }
 @media (prefers-reduced-motion: reduce){ .pintada .tauler{ transform:none; transition:none; } }
 
+/* the desktop's type in five sizes (Àlex 22-11, option B of three; measures and mockups in escritorio-ui/): before,
+   ten sizes and the small words at 13–15 px on a laptop, nothing between them and the highlighted time. Now 1.15 for
+   every small word (rows, the trip's stops, the other station, the ruler's hours, «ara», the ticket's label), 1.45
+   for the other row's arrival, 1.8 for its time, 2.25 for the highlighted arrival and 4.6 for the highlighted time.
+   The phone keeps its own sizes (its block, below) */
+.trip .w, .rec .s, .rec .c, .trip .st, .hours, .tk .k, .ticks .nowline span{ font-size:1.15rem; }
+.trip:not(.big) .t{ font-size:1.8rem; }
+.trip:not(.big) .arr{ font-size:1.45rem; }
+.big .arr{ font-size:2.25rem; }
+#board .trip:not(.big) .pill{ font-size:1.3rem; }
+.board{ row-gap:.45rem; }
 /* a phone: PHONE in phone.ts, which phone.test.ts compares with this query */
 @media (max-width:700px), (max-aspect-ratio:4/5), (orientation:landscape) and (max-height:500px){
   /* stacked: the ticket sits under the name, as wide as its text */
@@ -289,6 +315,10 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   /* a phone keeps its board as it was: no halo, the pill at its old size */
   #hero{ --halo:0 0 transparent; }
   #board .big .pill, #board .trip:not(.big) .pill{ font-size:.93rem; }
+  /* and its own type: the desktop's five sizes (22-11) are not the phone's */
+  .hours, .tk .k, .ticks .nowline span{ font-size:.93rem; }
+  .trip:not(.big) .t{ font-size:1.2rem; } .trip:not(.big) .arr{ font-size:1.3rem; } .big .arr{ font-size:1.8rem; }
+  .board{ row-gap:.25rem; }
   .top{ flex-direction:column; align-items:flex-start; gap:.6rem; }
   .tauler{ font-size:2.1rem; } .sub{ font-size:1rem; }
   .tickets{ justify-content:flex-start; flex-wrap:wrap; row-gap:.5rem; }

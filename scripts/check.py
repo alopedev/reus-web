@@ -1801,6 +1801,54 @@ async def check_win_steady(browser):
         if got != first: errs.append(f"1440x900, {kind}: the window is {got[2]:.0f} x {got[3]:.0f} at ({got[0]:.0f}, {got[1]:.0f}), expected {first[2]:.0f} x {first[3]:.0f} at ({first[0]:.0f}, {first[1]:.0f})")
     return errs
 
+TYPE_SIZES = """(() => {
+  const root = parseFloat(getComputedStyle(document.documentElement).fontSize), out = [];
+  const seen = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; };
+  const add = (sel, role) => document.querySelectorAll(sel).forEach(el => { if(seen(el) && el.textContent.trim())
+    out.push({ sel, role, text: el.textContent.trim().slice(0, 24), rem: Math.round(parseFloat(getComputedStyle(el).fontSize) / root * 100) / 100 }); });
+  add('#board .trip .w', 'small'); add('#board .rec .s', 'small'); add('#board .rec .c', 'small'); add('#board .trip .st', 'small');
+  add('.hours span', 'small'); add('.ticks .nowline span', 'small'); add('.tk .k', 'small');
+  add('#board .trip:not(.big) .t:not(.arr)', 'other'); add('#board .trip:not(.big) .arr', 'otherArr');
+  add('#board .big .arr', 'bigArr'); add('#dep', 'dep'); add('#talons .talo .vb', 'verb');
+  const mx = [...document.querySelectorAll('#talons .talo .mx svg')].map(s => [s.dataset.t, Math.round(s.getBoundingClientRect().height / root * 100) / 100]);
+  const stub = [...document.querySelectorAll('#talons .talo .in')].map(s => Math.round(s.getBoundingClientRect().height / root * 100) / 100);
+  return { out, mx, stub };
+})()"""
+# the desktop's five sizes (Àlex 22-11, option B of three): what each piece of the board, the ruler and the ticket measures, in rem
+TYPE_SCALE = {"small": 1.15, "otherArr": 1.45, "other": 1.8, "bigArr": 2.25, "dep": 4.6}
+
+async def check_type_scale(browser):
+    """On a desktop the hero's type is five sizes (22-11, Àlex: option B of three): 1.15 rem for every small word of the
+    board, the ruler and the ticket (before, 13–15 px on a laptop), 1.45 and 1.8 for the other row, 2.25 and 4.6 for
+    the highlighted one; the stubs, a ticket's in large (option A), with their verb at 1.25 rem and, over it, their
+    train or alarm printed in dots. The phone keeps its own sizes."""
+    errs = []
+    for w, h in ((1280, 800), (1440, 900), (1920, 1080)):
+        page = await hero_page(browser, w, h, at="2026-09-28T07:20:00Z")
+        r = await page.evaluate(TYPE_SIZES); await page.close()
+        roles = {e["role"] for e in r["out"]}
+        for need in TYPE_SCALE:
+            if need not in roles: errs.append(f"{w}x{h}: nothing of «{need}» on the board to measure")
+        for e in r["out"]:
+            want = TYPE_SCALE.get(e["role"])
+            if want is not None and abs(e["rem"] - want) > .02:
+                errs.append(f"{w}x{h}: {e['sel']} «{e['text']}» is {e['rem']} rem, expected {want}")
+            if e["role"] == "verb" and abs(e["rem"] - 1.25) > .02:
+                errs.append(f"{w}x{h}: the stub's verb «{e['text']}» is {e['rem']} rem, expected 1.25")
+        printed = [t for t, _ in r["mx"]]
+        if len(printed) != 2 or not re.fullmatch(r"(R\d+[NS]?|AV) · \d\d:\d\d", printed[0] or "") or printed[1] != "15 MIN ABANS":
+            errs.append(f"{w}x{h}: the stubs print {printed}, expected the train («R15 · 10:33») and «15 MIN ABANS»")
+        if any(hh < .5 for _, hh in r["mx"]): errs.append(f"{w}x{h}: a stub's printed line is too small: {r['mx']}")
+        if any(hh < 3.55 for hh in r["stub"]): errs.append(f"{w}x{h}: a stub is {r['stub']} rem tall, expected 3.6")
+    page = await hero_page(browser, 390, 844, at="2026-09-28T07:20:00Z")
+    r = await page.evaluate(TYPE_SIZES); await page.close()
+    for e in r["out"]:
+        if e["sel"] in (".hours span", ".tk .k") and abs(e["rem"] - .93) > .02:
+            errs.append(f"phone: {e['sel']} «{e['text']}» is {e['rem']} rem, the phone's is .93")
+        if e["role"] == "dep" and abs(e["rem"] - 3.2) > .02: errs.append(f"phone: the highlighted time is {e['rem']} rem, the phone's is 3.2")
+    if r["mx"]: errs.append(f"phone: «Agafa’l» prints {r['mx']}: it stays as it was")
+    return errs
+
 async def check_retards(browser):
     """Desktop: a late train has its time struck in orange and the new one beside it, «+25 min» and the countdown to the
     new departure, and its arrival corrected; on time nothing changes; not in the feed yet or no answer, «sense dades en
@@ -2217,6 +2265,7 @@ async def check_hero(browser):
     # the big train's route, only on a desktop
     errs += [f"route: {e}" for e in await check_journey(browser)]
     errs += [f"window: {e}" for e in await check_win_steady(browser)]
+    errs += [f"type: {e}" for e in await check_type_scale(browser)]
     errs += [f"wagon: {e}" for e in await check_wagon(browser)]
     errs += [f"board: {e}" for e in await check_flaps(browser)]
     errs += [f"board: {e}" for e in await check_board_painted(browser)]
@@ -2361,6 +2410,7 @@ TALONS = """(() => { const box = e => { const r = e.getBoundingClientRect(); ret
   const n = s => s.replace(/\\s+/g, ' ').trim();
   return {stubs: [...document.querySelectorAll('#talons .talo, #board .talo')].map(a => ({cls: a.classList[1], tag: a.tagName, text: n(a.textContent), href: a.href ?? null, tab: a.target ?? null,
             label: a.getAttribute('aria-label'), shadow: getComputedStyle(a).filter, wrap: a.querySelector('.in').getBoundingClientRect().height,
+            lines: (v => { const r = document.createRange(); r.selectNodeContents(v); return new Set([...r.getClientRects()].map(x => Math.round(x.top))).size; })(a.querySelector('.vb') ?? a.querySelector('.in > span:last-child')),
             clip: getComputedStyle(a.querySelector('.in')).clipPath, dash: getComputedStyle(a.querySelector('i')).borderRightStyle, holes: getComputedStyle(a.querySelector('i')).backgroundImage, inCap: !!a.closest('#cap'), ...box(a)})),
           sheets: [...document.querySelectorAll('#days .full')].map(box), track: box(document.querySelector('.track')),
           ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')), vw: innerWidth, vh: innerHeight,
@@ -2391,7 +2441,8 @@ async def check_talons(browser):
         if not phone and ("venta.renfe.com" not in (c["href"] or "") or c["tab"] != "_blank" or "Renfe" not in (c["label"] or "")): errs.append(f"{w}x{h}: «Compra» is not a link to Renfe in a new tab ({c})")
         if phone and (c["tag"] != "BUTTON" or c["href"] or "Obre el tren de les" not in (c["label"] or "")): errs.append(f"{w}x{h}: «Agafa’l» is not a button naming the train ({c})")
         if "drop-shadow" not in c["shadow"]: errs.append(f"{w}x{h}: «{word}» is not raised ({c['shadow']})")
-        if c["wrap"] > 3.2 * t["rem"] + 2: errs.append(f"{w}x{h}: «{word}» breaks in two lines ({c['wrap']:.0f} px)")
+        # its verb on one line (on a desktop, since 22-11, the printed train stands over it: two lines by design)
+        if c["lines"] != 1 or c["wrap"] > (4.2 if not phone else 3.2) * t["rem"] + 2: errs.append(f"{w}x{h}: «{word}» breaks in two lines ({c['lines']} lines, {c['wrap']:.0f} px)")
         # torn off its ticket along the perforation (Àlex 06-11, option B): a torn left edge, a row of holes for the dashed line
         if not c["clip"].startswith("polygon") or c["dash"] != "none" or "radial-gradient" not in c["holes"]:
             errs.append(f"{w}x{h}: «{word}» is not torn along a perforation (clip {c['clip'][:30]}, line {c['dash']}, {c['holes'][:30]})")
@@ -2456,7 +2507,7 @@ async def check_talons(browser):
                 q = await page.evaluate("(a => ({path: new URL(a.href).pathname, download: a.hasAttribute('download')}))(document.querySelector('.talo.recorda'))")
                 if q["path"] != "/api/calendari" or not q["download"]: errs.append(f"{w}x{h}: «Recorda» does not download the train's calendar file ({q})")
                 if "drop-shadow" not in r["shadow"]: errs.append(f"{w}x{h}: «Recorda» is not raised")
-                if r["wrap"] > 3.2 * t["rem"] + 2: errs.append(f"{w}x{h}: «Recorda» breaks in two lines")
+                if r["lines"] != 1 or r["wrap"] > 4.2 * t["rem"] + 2: errs.append(f"{w}x{h}: «Recorda» breaks in two lines ({r['lines']} lines, {r['wrap']:.0f} px)")
                 if r["r"] > t["vw"]: errs.append(f"{w}x{h}: «Recorda» leaves the screen")
                 for name, o in [("the window", t["win"])] + [("a row of the board", y) for y in t["rows"]] + [("the ruler", t["track"])]:
                     if o and overlap(r, o): errs.append(f"{w}x{h}: «Recorda» covers {name}")
@@ -4058,6 +4109,9 @@ async def main():
         if sys.argv[1:] == ["finestra"]:
             failures += await check_win_steady(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · finestra"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["lletra"]:
+            failures += await check_type_scale(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · lletra"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["tauler"]:
             failures += await check_board_legible(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · tauler"); sys.exit(1 if failures else 0)

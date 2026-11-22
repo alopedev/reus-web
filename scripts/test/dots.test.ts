@@ -18,3 +18,11 @@ test('any of those words is drawn in dots, one 5×7 cell and a gap per letter', 
     assert.ok((svg.match(/<circle/g) ?? []).length > w.replace(/ /g, '').length * 5, `${w} has too few dots`);
   }
 });
+
+// the stubs of the desktop print their train like the ticket's machine (Àlex 22-11, option A): «R15 · 11:03» needs a colon
+test('the machine prints a time with its colon', () => {
+  const svg = dotText('R15 · 11:03');
+  assert.match(svg, /viewBox="0 0 65 7"/);
+  const colon = dotText(':');
+  assert.equal((colon.match(/<circle/g) ?? []).length, 8);   // two 2×2 dots, one above the other
+});
