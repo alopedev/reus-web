@@ -4220,7 +4220,7 @@ async def main():
               const r = s => document.querySelector(s).getBoundingClientRect();
               const f = s => { const c = getComputedStyle(document.querySelector(s)); return c.fontFamily.split(',')[0].replace(/"/g,''); };
               return {name: r('.tauler').bottom, winTop: r('#win').top, winBottom: r('#win').bottom, info: r('#info').top,
-                      texto: f('.soon'), serif: f('#dep')};
+                      texto: f('.soon, #board .nota'), serif: f('#dep')};
             })()""")
             if not box["name"] < box["winTop"]: failures.append(f"{name}: name overlaps window ({box['name']:.0f} ≥ {box['winTop']:.0f})")
             if not box["winBottom"] < box["info"]: failures.append(f"{name}: departure block overlaps window")
