@@ -2355,7 +2355,8 @@ DAYS = """(() => { const f = [...document.querySelectorAll('#days .full')], t = 
           focus: document.activeElement?.dataset?.dia ?? document.activeElement?.dataset?.day ?? null, ticks: document.querySelectorAll('#ticks i').length, on: [...document.querySelectorAll('#ticks i.on')].length,
           knob: +t.value, nowline: !!document.querySelector('.nowline'), clock: !document.getElementById('nowBtn').hidden,
           dia: document.querySelector('.tk .fecha')?.dataset.dia, days: getComputedStyle(document.getElementById('days')).display,
-          fecha: (f => ({tag: f.tagName, name: f.getAttribute('aria-label'), hidden: f.getAttribute('aria-hidden'), inert: f.inert, inCap: !!f.closest('#cap'), focus: document.activeElement === f}))(document.querySelector('.tk .fecha')), ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')),
+          fecha: (f => ({tag: f.tagName, name: f.getAttribute('aria-label'), hidden: f.getAttribute('aria-hidden'), inert: f.inert, inCap: !!f.closest('#cap'), focus: document.activeElement === f,
+            leaf: (l => l && l.checkVisibility() ? `${l.dataset.mes} ${l.dataset.dia}` : null)(f.querySelector('svg.hoja')), side: !!f.querySelector('svg:not(.hoja)')?.checkVisibility()}))(document.querySelector('.tk .fecha')), ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')),
           track: box(document.querySelector('.track')), open: document.getElementById('dies').open,
           cells: [...document.querySelectorAll('#dies .dd:not(.buit)')].map(d => ({day: d.dataset.day ?? null, off: d.disabled, current: d.getAttribute('aria-current'), w: d.getBoundingClientRect().width, h: d.getBoundingClientRect().height})),
           sheetBox: (s => s ? box(s) : null)(document.querySelector('#dies .sheet')), vw: innerWidth}; })()"""
@@ -2389,11 +2390,14 @@ async def check_days(browser):
             if d["days"] != "none": errs.append(f"{w}x{h}: «avui · dia» still show on a phone's wall")
             if f["tag"] != "BUTTON" or f["inert"] or f["hidden"] or not f["inCap"]: errs.append(f"{w}x{h}: the ticket's date is not a button heading the board ({f})")
             if f["name"] != "Dia: avui, dilluns 28 de setembre. Canviar el dia": errs.append(f"{w}x{h}: the ticket's date is called «{f['name']}»")
+            # printed as a calendar leaf read face on, not on its side (Àlex 22-11, B: the date on its side was not seen as a button)
+            if f["leaf"] != "SET 28" or f["side"]: errs.append(f"{w}x{h}: the ticket's date is not a calendar leaf with «SET 28» (leaf {f['leaf']}, on its side {f['side']})")
             hit = await page.evaluate(FECHA_HIT)
             if min(hit.values()) < 44: errs.append(f"{w}x{h}: the ticket's date answers a finger over less than 44 px ({hit})")
             opener = ".tk .fecha"
         else:
             if d["fecha"]["tag"] == "BUTTON" and not (d["fecha"]["inert"] and d["fecha"]["hidden"] == "true"): errs.append(f"{w}x{h}: on a desktop the ticket's date is a control ({d['fecha']}); only printed")
+            if d["fecha"]["leaf"] or not d["fecha"]["side"]: errs.append(f"{w}x{h}: on a desktop the ticket's date is not the machine's, on its side ({d['fecha']})")
             texts = [x["text"] for x in d["sheets"]]
             if texts != ["avui 28", "dia"] or not d["sheets"][1]["cal"]: errs.append(f"{w}x{h}: the day sheets read {texts}, expected «avui 28» and «dia» with its little calendar"); await page.close(); continue
             if [x["pressed"] for x in d["sheets"]] != ["true", "false"]: errs.append(f"{w}x{h}: at load «Avui» is not the sheet pressed")

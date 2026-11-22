@@ -11,7 +11,7 @@ import { crossing } from './cross';
 import { setupChooser } from './chooser';
 import { setupDetail, type Trip } from './detail';
 import { fitJourney } from './journey';
-import { dotDate, dotText, padMonth } from './dots';
+import { dateLeaf, dotDate, dotText, padMonth } from './dots';
 import { byId, find, redrawer } from './dom';
 import type { World } from './world';
 import type { Table } from './table';
@@ -130,7 +130,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   function dressDate(){ const f = dateEl(); f.inert = !narrow.matches; if(narrow.matches) f.removeAttribute('aria-hidden'); else f.setAttribute('aria-hidden', 'true'); }
   function setDate(iso: string){
     const today = madridNow().date; if(iso + today === dated) return; dated = iso + today;
-    const f = dateEl(); f.innerHTML = dotDate(iso); f.dataset.dia = iso; f.setAttribute('aria-label', dateLabel(iso, today));
+    const f = dateEl(); f.innerHTML = dotDate(iso) + dateLeaf(iso); f.dataset.dia = iso; f.setAttribute('aria-label', dateLabel(iso, today));
   }
   // a notice wins over a line nobody could read: one stamp only, and the one with something behind it
   function setStamp(ns: Notice[], unknown: string[]){

@@ -32,6 +32,26 @@ export function dotDate(iso: string): string {
   return dotText(`${d}-${MONTH[+m - 1]}-${y.slice(2)}`);
 }
 
+// on the phone the date is the button that opens the calendar of «Dia» (Àlex 22-11, B): a calendar leaf read face
+// on, the month in paper dots on its red band and the day in ink under it, a size larger (a day under ten, one figure)
+export function dateLeaf(iso: string, ink = '#2D241C', red = '#B9472A', paper = '#F3EBD8'): string {
+  const [, m, d] = iso.split('-'), mes = MONTH[+m - 1], dia = String(+d);
+  const cells = (text: string, x0: number, y0: number, k: number, r: number) => {
+    let dots = '';
+    [...text].forEach((ch, c) => [...(GLYPH[ch] ?? GLYPH[' '])].forEach((on, i) => {
+      if(on === '1') dots += `<circle cx="${+(x0 + (c * 6 + i % 5 + .5) * k).toFixed(2)}" cy="${+(y0 + (Math.floor(i / 5) + .5) * k).toFixed(2)}" r="${r}"/>`;
+    }));
+    return dots;
+  };
+  const wide = (n: number, k: number) => (n * 6 - 1) * k;
+  return `<svg class="hoja" viewBox="0 0 24 26" data-mes="${mes}" data-dia="${dia}" aria-hidden="true">`
+    + `<rect x="1" y="2" width="22" height="23" rx="2" fill="${paper}" stroke="${ink}" stroke-width="1.3"/>`
+    + `<path d="M1 4a2 2 0 0 1 2-2h18a2 2 0 0 1 2 2v8H1z" fill="${red}" stroke="${ink}" stroke-width="1.3"/>`
+    + `<path d="M7 .5v3.5M17 .5v3.5" stroke="${ink}" stroke-width="1.6" stroke-linecap="round"/>`
+    + `<g class="m" fill="${paper}">${cells(mes, 12 - wide(3, 1) / 2, 3.6, 1, .42)}</g>`
+    + `<g class="d" fill="${ink}">${cells(dia, 12 - wide(dia.length, 1.45) / 2, 13, 1.45, .6)}</g></svg>`;
+}
+
 // the tear-off pad of «Avui · Demà» (Àlex 15-10, A): the month on its cardboard (the sheets lost their weekday, H2 18-10)
 export function padMonth(today: string, tomorrow: string): string {
   const [y1, m1] = today.split('-'), [y2, m2] = tomorrow.split('-');

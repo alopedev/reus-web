@@ -36,6 +36,7 @@
 .tk .fecha{ position:absolute; top:0; bottom:0; right:0; width:1.9rem; display:flex; align-items:center; justify-content:center; pointer-events:none;
   font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; }
 .tk .fecha svg{ flex:none; width:4.1rem; transform:rotate(-90deg); opacity:.72; filter:blur(.15px); }
+.tk .fecha svg.hoja{ display:none; }
 .tk .k{ display:block; font-size:.93rem; opacity:.75; }
 .tk .route{ display:block; font-family:var(--serif); font-size:1.8rem; line-height:1.15; margin-top:.12rem; }
 /* «Sants ⇄ Reus» never wraps (it is far short of the cap); a long town name (Puigverd de Lleida-Artesa de
@@ -325,7 +326,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .top{ flex-direction:column; align-items:flex-start; gap:.6rem; }
   .tauler{ font-size:2.1rem; } .sub{ font-size:1rem; }
   .tickets{ justify-content:flex-start; flex-wrap:wrap; row-gap:.5rem; }
-  .tk .pp{ padding:.6rem 2.2rem .6rem .75rem; }
+  .tk .pp{ padding:.6rem 2.9rem .6rem .75rem; }
   .tk .route{ font-size:1.25rem; max-width:12.5rem; }
   .tk .fecha svg{ width:3.2rem; }
   /* panoramic: as wide as the stage and as tall as what is left, never taller than wide. The painted frame
@@ -368,9 +369,13 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   /* the ticket's date opens the calendar (B, Àlex 22-11): raised like the arrows, flat when pressed. A finger's reach of
      46 × 48 px that starts a little into the stub and runs out past the ticket's edge: the town's own reach (48 px)
      keeps the stub's first .2rem, so neither falls under 44 */
-  .tk .fecha{ cursor:pointer; pointer-events:none; z-index:1; }
-  .tk .fecha svg{ filter:drop-shadow(.05rem .05rem 0 rgba(45,36,28,.55)) blur(.15px); transition:filter .12s, transform .12s; }
-  .tk .fecha:active svg{ filter:blur(.15px); transform:rotate(-90deg) translate(-.05rem,.05rem); }
+  /* printed as a calendar leaf, read face on (Àlex 22-11, B of three: the date on its side was not seen as a button) */
+  .tk .stub{ right:2.5rem; }
+  .tk .fecha{ width:2.5rem; cursor:pointer; pointer-events:none; z-index:1; }
+  .tk .fecha svg:not(.hoja){ display:none; }
+  .tk .fecha svg.hoja{ display:block; width:1.75rem; transform:rotate(2deg); opacity:1;
+    filter:drop-shadow(.11rem .11rem 0 rgba(45,36,28,.85)); transition:filter .12s, transform .12s; }
+  .tk .fecha:active svg.hoja{ filter:none; transform:rotate(2deg) translate(.1rem,.1rem); }
   .tk .fecha:focus-visible{ outline:2px solid var(--shadow); outline-offset:-2px; border-radius:3px; }
   .tk .fecha::before{ content:""; position:absolute; left:.2rem; top:50%; width:46px; height:max(100%, 48px); transform:translateY(-50%); pointer-events:auto; }
   .cap .talons{ position:static; margin:0; }
@@ -379,7 +384,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   /* the narrowest phones (320 px): ticket and stub side by side, both a little smaller; the ticket keeps 44 px of
      height for its ends (check.py abast), the stub draws its wagon smaller */
   @media (max-width:350px){
-    .cap .tk .route{ font-size:1.18rem; } .cap .tk .pp{ padding:.72rem 2rem .72rem .65rem; }
+    .cap .tk .route{ font-size:1.18rem; } .cap .tk .pp{ padding:.72rem 2.75rem .72rem .65rem; }
     .cap .talo .in{ gap:.3rem; padding:.2rem .35rem; font-size:.85em; } .cap .talo svg{ height:.8rem; } .cap .talo i{ padding-right:.35rem; }
     .cap{ gap:.45rem; }
   }
@@ -397,7 +402,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   #win{ width:min(100cqw, 100cqh * 1.25); height:min(100cqh, 100cqw / 1.1); }
   .info{ grid-column:2; grid-row:2; align-content:end; }
   #dep{ font-size:3rem; } .trip .t{ font-size:1.25rem; } .big .arr{ font-size:1.4rem; }
-  .tk .route{ font-size:1.35rem; } .tk .pp{ padding:.5rem 2.4rem .5rem .8rem; }
+  .tk .route{ font-size:1.35rem; } .tk .pp{ padding:.5rem 2.9rem .5rem .8rem; }
 }
 /* the root's safe-area padding never reaches the fixed hero: on a phone its foot keeps clear of the home bar and of
    whatever inset Safari gives for its toolbar (Àlex, 09-10, option A) */
