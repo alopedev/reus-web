@@ -123,3 +123,12 @@ test('tomorrow looked at («Demà»): the train shown says «demà» where today
   const v: ViewState = { ...HOME, useNow: false, minute: 603, day: '2026-10-02' };
   assert.deepEqual(desk(v, '2026-10-01', '10:00'), ['R15 10:03 demà → 11:33', 'R15 11:03 després → 12:33']);
 });
+
+test('another date looked at («Dia»): the train shown says its weekday where tomorrow’s says «demà»', () => {
+  const v: ViewState = { ...HOME, useNow: false, minute: 21 * 60 + 33, ave: false, day: '2026-10-04' };
+  const rows = desk(v, '2026-10-01', '21:30');
+  assert.match(rows[0], /^R15 21:33 diumenge → /);
+  const s = at('2026-10-01', '21:30', v), html = board(s, true, true)[0];
+  assert.match(html, /diumenge/);
+  assert.doesNotMatch(html, /demà/);
+});

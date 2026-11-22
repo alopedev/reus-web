@@ -30,21 +30,21 @@ function trip(r: Row, ida: boolean, phone: boolean, rec: string, bus: Bus | null
   const arr = late ? (phone ? `→ <span class="nv">${hhmm(late.arr)}</span>` : `→ <s>${hhmm(r.arr)}</s> <span class="nv">${hhmm(late.arr)}</span>`) : `→ ${hhmm(r.arr)}`;
   const arrCls = live?.kind === 'cancel' ? 't arr off' : 't arr';
   if(phone){
-    const w = !big ? (morrow ? 'demà' : '') : late ? `<span class="nova">${hhmm(late.dep)}</span>${soonW}`
+    const w = !big ? morrow : late ? `<span class="nova">${hhmm(late.dep)}</span>${soonW}`
       : live?.kind === 'cancel' ? '<span class="mes">cancel·lat</span>' : bus ? `${soonW}<span class="gris">${bus.first ? 'bus + tren' : 'tren + bus'}</span>`
       : live?.kind === 'unknown' ? `${soonW}<span class="gris">sense dades</span>` : soonW;
     const cells = `<span class="pill" style="${lineStyle(r.line)}">${r.line}</span> <span class="t${struck}"${big ? ' id="dep"' : ''}>${hhmm(r.dep)}</span> `
       + `<span class="w${live ? ' viu' : bus ? ' dos' : ''}">${w}</span> <span class="${arrCls}">${arr}</span> <span class="mas" aria-hidden="true">›</span>`;
     const where = isAve ? (ida ? ' a ' : ' des de ') + r.other : '';
     const said = late ? `, amb ${late.min} min de retard, surt cap a les ${hhmm(late.dep)} i arriba a les ${hhmm(late.arr)}` : live?.kind === 'cancel' ? ', cancel·lat' : '';
-    const label = `${r.line} de les ${hhmm(r.dep)}${where}${said || (big && until ? ', surt en ' + until : morrow ? ', demà' : '') + `, arriba a les ${hhmm(r.arr)}`}${bus ? ', ' + busWords(bus) : ''}. Veure el detall i comprar`;
+    const label = `${r.line} de les ${hhmm(r.dep)}${where}${said || (big && until ? ', surt en ' + until : morrow ? ', ' + morrow : '') + `, arriba a les ${hhmm(r.arr)}`}${bus ? ', ' + busWords(bus) : ''}. Veure el detall i comprar`;
     return `<button type="button" class="trip${big ? ' big' : ' tt'}" data-m="${r.dep}" data-d="${r.day}"${isAve ? ' data-ave' : ''} aria-haspopup="dialog" aria-label="${label}">${cells}</button>`;
   }
   const soon = big ? soonW : '';
   const lead = late ? `<span class="nova">${hhmm(late.dep)}</span><span class="nx"><span class="mes">+${late.min} min</span>${until ? ', ' : ''}</span>${soon}`
     : live?.kind === 'cancel' ? '<span class="nx mes">cancel·lat</span>'
-    : `<span class="nx">${r.gone ? 'ja ha sortit' : morrow ? 'demà' : 'el pròxim'}${until ? ', ' : ''}</span>${soon}${live?.kind === 'unknown' ? ' <span class="gris">· sense dades</span>' : ''}`;
-  const where = big ? lead : morrow ? 'demà' : 'després';
+    : `<span class="nx">${r.gone ? 'ja ha sortit' : morrow || 'el pròxim'}${until ? ', ' : ''}</span>${soon}${live?.kind === 'unknown' ? ' <span class="gris">· sense dades</span>' : ''}`;
+  const where = big ? lead : morrow || 'després';
   // the big train's words keep to one line, and its route takes the rest of the gap up to the arrival
   const w = big ? `<span class="lead">${where}</span>${rec}` : where;
   const camp = isAve ? ` <span class="st">${ida ? 'fins a' : 'des de'} ${r.other}</span>` : '';

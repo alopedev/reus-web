@@ -1,15 +1,15 @@
 /* the pueblo chooser: a sheet of paper laid over the darkened scene (prototype B, rewritten). Touch targets are
    at least 44 px whatever the poster scale: a finger does not shrink with the screen */
 /* overflow visible: the browser's own dialog clips, and would cut the sheet's offset shadow */
-dialog#selp, dialog#avis, dialog#privacitat{ border:0; padding:0; margin:auto; background:transparent; max-width:none; max-height:none; overflow:visible; color:var(--shadow); }
-dialog#selp::backdrop, dialog#avis::backdrop, dialog#privacitat::backdrop{ background:rgba(30,22,16,.45); }
-dialog#selp:not([open]), dialog#avis:not([open]), dialog#privacitat:not([open]){ display:none; }
+dialog#selp, dialog#avis, dialog#privacitat, dialog#dies{ border:0; padding:0; margin:auto; background:transparent; max-width:none; max-height:none; overflow:visible; color:var(--shadow); }
+dialog#selp::backdrop, dialog#avis::backdrop, dialog#privacitat::backdrop, dialog#dies::backdrop{ background:rgba(30,22,16,.45); }
+dialog#selp:not([open]), dialog#avis:not([open]), dialog#privacitat:not([open]), dialog#dies:not([open]){ display:none; }
 /* option B «De papel» (Àlex 20-10): the sheet is laid down like paper, coming up from below and settling at its tilt
    (Vaul's curve), the backdrop darkening with it; it leaves the way it came, down and fading, faster (sheet.ts closes
    the dialog once that ends). The backdrop's timings are written out: older browsers give ::backdrop no variables */
-dialog#selp, dialog#avis, dialog#privacitat{ --entra:cubic-bezier(.32,.72,0,1); --entra-ms:.32s; --sale:cubic-bezier(.3,0,.8,.15); --sale-ms:.2s; }
-dialog#selp::backdrop, dialog#avis::backdrop, dialog#privacitat::backdrop{ animation:fosc .32s ease-out; }
-dialog#selp.sale::backdrop, dialog#avis.sale::backdrop, dialog#privacitat.sale::backdrop{ animation:aclara .2s ease-in forwards; }
+dialog#selp, dialog#avis, dialog#privacitat, dialog#dies{ --entra:cubic-bezier(.32,.72,0,1); --entra-ms:.32s; --sale:cubic-bezier(.3,0,.8,.15); --sale-ms:.2s; }
+dialog#selp::backdrop, dialog#avis::backdrop, dialog#privacitat::backdrop, dialog#dies::backdrop{ animation:fosc .32s ease-out; }
+dialog#selp.sale::backdrop, dialog#avis.sale::backdrop, dialog#privacitat.sale::backdrop, dialog#dies.sale::backdrop{ animation:aclara .2s ease-in forwards; }
 dialog[open] .sheet{ animation:deixa var(--entra-ms) var(--entra); }
 dialog.sale .sheet{ animation:retira var(--sale-ms) var(--sale) forwards; }
 @keyframes deixa{ from{ opacity:0; transform:translateY(3.5rem) rotate(-2.2deg); } 35%{ opacity:1; } to{ opacity:1; transform:rotate(-.6deg); } }
@@ -29,7 +29,7 @@ dialog.sale.pas .sheet:not(.va){ animation:retira var(--sale-ms) var(--sale) for
 @keyframes fosc{ from{ opacity:0; } to{ opacity:1; } }
 @keyframes aclara{ from{ opacity:1; } to{ opacity:0; } }
 @media (prefers-reduced-motion: reduce){
-  dialog[open] .sheet, dialog.sale .sheet, dialog.pas .sheet, dialog#selp::backdrop, dialog#avis::backdrop, dialog#privacitat::backdrop{ animation:none; }
+  dialog[open] .sheet, dialog.sale .sheet, dialog.pas .sheet, dialog#selp::backdrop, dialog#avis::backdrop, dialog#privacitat::backdrop, dialog#dies::backdrop{ animation:none; }
 }
 
 /* the sheet carries the shadow and the tilt; its paper (.pp) is cut with scissors like the ticket (--cut, rag() in
@@ -132,4 +132,26 @@ dialog#selp.escriu .sheet .pp{ max-height:calc(var(--vv, 100dvh) - 1.6rem - env(
   .sheet .pp{ padding:1.2rem 1.1rem 1.1rem; max-height:min(88vh, 42rem); }
   .strip, .strip.llarga{ columns:1; }
   .sheet:has(.strip), .sheet:has(.strip.llarga){ width:min(44rem, 92vw); }
+}
+
+/* «Dia» (22-11, option A of three, Àlex; dies.ts): a calendar of the days with a timetable, Monday to Sunday. No row is
+   raised (each day is a choice, as in the other choosers); today in red, the day looked at stamped in ink, a day with
+   no train struck through. The days stand at least 48 px tall: on a 320 px phone the sheet runs nearly edge to edge
+   so that seven of them still fit a finger */
+#dies .sheet{ width:min(30rem, 94vw); }
+#dies .mes{ display:grid; grid-template-columns:repeat(7, 1fr); gap:.2rem 0; }
+#dies .mes .wd{ font:700 .8rem var(--texto); opacity:.6; text-align:center; padding-bottom:.3rem; text-transform:uppercase; letter-spacing:.06em; }
+#dies .mes .dd{ all:unset; position:relative; box-sizing:border-box; min-height:max(3.1rem, 48px); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; border-radius:.3rem; }
+#dies .mes .dd b{ font:400 1.35rem/1 var(--serif); } #dies .mes .dd small{ font:700 .62rem/1 var(--texto); margin-top:.15rem; opacity:.7; }
+#dies .mes .dd:not(.no):hover{ background:rgba(45,36,28,.07); }
+#dies .mes .dd.avui b{ color:#B5361F; }
+#dies .mes .dd.no{ cursor:default; opacity:.3; } #dies .mes .dd.no b{ text-decoration:line-through; text-decoration-thickness:1px; }
+#dies .mes .dd[aria-current="true"]::after{ content:""; position:absolute; inset:.1rem .15rem; border:3px solid #6E2A1C; border-radius:.3em; transform:rotate(-2deg);
+  -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:160px; mask-size:160px; pointer-events:none; }
+#dies .mes .dd:focus-visible{ outline:2px solid var(--shadow); outline-offset:-2px; }
+.sheet .fins{ font:500 .85rem var(--texto); opacity:.75; margin:.9rem 0 0; }
+@media (max-width:380px){
+  #dies .sheet{ width:calc(100vw - 4px); transform:none; }
+  #dies .sheet .pp{ padding-left:2px; padding-right:2px; }
+  #dies .sheet h3, #dies .sheet .fins{ margin-left:.7rem; }
 }
