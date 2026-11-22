@@ -85,3 +85,15 @@ test('the case and the backpack on the rack: over the window\'s right half, a li
   assert.ok(near(plan(A, desk, true).bags, .565*A));
   assert.ok(near(plan(a, phone, false).bags, .565*a + .021), 'moved 19 px right on a 390 × 844 phone (Àlex, 08-11)');
 });
+
+// on a phone the ticket heads the board since 22-11 (B of «simplify the phone»), so the window rises under the name's
+// board, and the rack with it: what would show half behind the board is left out, as at the screen's top edge
+test('on a phone, the rack and its luggage stay whole under the name\'s board', () => {
+  const AA = 360/740, win = { x: .094, y: .426, z: .906, w: .807 }, board = .911;
+  assert.ok(plan(AA, win, false).luggage, 'under the screen\'s top edge alone the case fits');
+  const p = plan(AA, win, false, board);
+  assert.equal(p.luggage, false, 'the case would stand behind the board');
+  if(p.rack !== null) assert.ok(seen(p.rack, .36*p.m) < board, 'the rack\'s front rail under the board');
+  const d = plan(A, desk, true, .5);
+  assert.ok(d.rack !== null && d.luggage, 'a desktop keeps both: its board stands beside the rack, not over it');
+});

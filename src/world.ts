@@ -230,7 +230,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
     // the board cancels their rise with a transform of its own, so it never moves on the wall
     const b = document.querySelector('.tauler')?.getBoundingClientRect();
     if(b) U.brd.value.set(b.left/cw, 1-b.bottom/ch, b.right/cw, 1-b.top/ch);
-    // where small text sits on the wall (the subtitle, the board's rows, the phone's day tabs, the ruler's hours): the shader keeps the
+    // where small text sits on the wall (the subtitle, the board's rows, the phone's board head, the ruler's hours): the shader keeps the
     // sunlit paint behind it from going pale, so the cream letters still read (Àlex 08-11: the sun's white patch hid
     // «el pròxim» and the subtitle in the afternoon). Measured without the texts' own entrance rise
     const rise = [...document.querySelectorAll<HTMLElement>('.top, .info')].map(e => [e, e.style.transform, e.style.transition] as const);
@@ -252,7 +252,7 @@ function rng(seed: number){ let s = seed>>>0; return ()=>{ s = (s*1664525 + 1013
       wallKept = wetKept = false;
       // a wide screen has a bay of seats either side of the window; a phone (or any screen with no room at the
       // sides) our seat alone, close up over the window's lower-left corner (carriage.ts)
-      room.layout(W/H, {x:U.win.value.x, y:U.win.value.y, z:U.win.value.z, w:U.win.value.w}, U.wrad.value, U.seats.value > .5);
+      room.layout(W/H, {x:U.win.value.x, y:U.win.value.y, z:U.win.value.z, w:U.win.value.w}, U.wrad.value, U.seats.value > .5, U.brd.value.w > 0 ? U.brd.value.y : .99);
       U.overWin.value = U.seats.value > .5 ? 0 : 1;
       if(lit) room.render(W, H);
     }

@@ -16,7 +16,7 @@ export interface Room {
   raw: WebGLRenderTarget;      // the carriage as rendered: its alpha, where there is something in front of the wall
   painted: WebGLRenderTarget;  // painted with brush strokes: the colour, and in alpha its edges
   paper: WebGLRenderTarget;    // the paper's tooth and washes, as a factor on the paint (r, less a half)
-  layout(A: number, win: Win, r: number, wide: boolean): void;
+  layout(A: number, win: Win, r: number, wide: boolean, under?: number): void;
   light(p: Light, night: number): void;
   render(W: number, H: number): void;
   compile(): void;
@@ -59,11 +59,11 @@ export function createRoom(renderer: WebGLRenderer): Room {
   const U = { tRoom:{value:raw.texture}, tRoomN:{value:normal.texture}, sres:{value:new Vector2(2, 2)}, aspect:{value:1}, win:{value:new Vector4(0, 0, 1, 1)}, sunS:{value:new Vector3(.82, .82, 1)} };
   const brushScene = quad({}), paperScene = quad({PAPER_PASS: ''}), flat = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-  function layout(A: number, win: Win, r: number, wide: boolean){
+  function layout(A: number, win: Win, r: number, wide: boolean, under = .99){
     scene.remove(group); group.traverse(o => { if(o instanceof Mesh) o.geometry.dispose(); });
     group = new Group(); scene.add(group);
     U.win.value.set(win.x, win.y, win.z, win.w); U.aspect.value = A; box = win; boxA = A; boxR = r;
-    const P = plan(A, win, wide), { m, floorY, cx } = P, rf = P.rack ?? 0;
+    const P = plan(A, win, wide, under), { m, floorY, cx } = P, rf = P.rack ?? 0;
     sunK = wide ? 1 : .5;                                // on a phone the lit cushion sits under the texts
     // the wall, with the window's opening; under the sill a darker panel
     add(new ShapeGeometry(wallShape(A, win, r), 24), mats.wall, 0, 0, 0);

@@ -1,7 +1,7 @@
 import { reduce, state } from './state';
 import { madridNow, firstDay, lastDay, source, NET, bcnName, bcnShort, addDays } from './time';
 import { shown, looked, pickable, type Mark } from './shown';
-import { calendar } from './dies';
+import { calendar, dateLabel } from './dies';
 import { closeSheet, closesSoftly } from './sheet';
 import { choose, type Choice } from './choose';
 import { board } from './board';
@@ -122,9 +122,16 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   function setRoute(html: string){ routeDraw.draw(html); }
   // the stamp sits on the ticket, outside its route, so a new route never takes it away; redrawn only when it changes
   let stamped = '', noticed = '[]', shownNotices: Notice[] = [];
-  // the stub's printed date: the day of the train shown (tomorrow's when the board has moved on to tomorrow)
+  // the stub's printed date: the day of the train shown (tomorrow's when the board has moved on to tomorrow). On a phone
+  // it is the way into the calendar (option B of «simplify the phone», Àlex 22-11: «avui · dia» left the wall), so it
+  // says which day and what it does; on a desktop the pad does that, and the date is only printed
   let dated = '';
-  function setDate(iso: string){ if(iso === dated) return; const f = byId('tickets').querySelector<HTMLElement>('.fecha')!; f.innerHTML = dotDate(dated = iso); f.dataset.dia = iso; }
+  const dateEl = () => byId('tickets').querySelector<HTMLButtonElement>('.fecha')!;
+  function dressDate(){ const f = dateEl(); f.inert = !narrow.matches; if(narrow.matches) f.removeAttribute('aria-hidden'); else f.setAttribute('aria-hidden', 'true'); }
+  function setDate(iso: string){
+    const today = madridNow().date; if(iso + today === dated) return; dated = iso + today;
+    const f = dateEl(); f.innerHTML = dotDate(iso); f.dataset.dia = iso; f.setAttribute('aria-label', dateLabel(iso, today));
+  }
   // a notice wins over a line nobody could read: one stamp only, and the one with something behind it
   function setStamp(ns: Notice[], unknown: string[]){
     const html = ns.length ? stamp(ns) : unknown.length ? blank(unknown) : ''; shownNotices = ns;
@@ -175,7 +182,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     closeSheet(dies);
     pick(d.dataset.day === madridNow().date ? { kind: 'now' } : { kind: 'day', day: d.dataset.day! });
   });
-  dies.addEventListener('close', () => days.querySelector<HTMLElement>('[data-dia="dia"]')?.focus({ preventScroll: true }));
+  dies.addEventListener('close', () => (narrow.matches ? dateEl() : days.querySelector<HTMLElement>('[data-dia="dia"]'))?.focus({ preventScroll: true }));
   // the stubs by the pad (A3, Àlex 18-10; talons.ts): redrawn only when they change, so a stub keeps the focus
   const talonsEl = byId('talons');
   const talonsDraw = redrawer(talonsEl, f => f.classList[1] ? '.' + f.classList[1] : null);
@@ -249,14 +256,21 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   byId('tickets').innerHTML = `
     <div class="tk" style="--cut:${cut(7)}">
       <span class="pp"><span class="k">Bitllet</span>
-      <span class="route"></span></span><span class="stub" aria-hidden="true"></span><span class="fecha" aria-hidden="true"></span>
+      <span class="route"></span></span><span class="stub" aria-hidden="true"></span><button type="button" class="fecha" aria-haspopup="dialog" aria-hidden="true"></button>
     </div>`;
   // the route is only rebuilt when it changes (the arrows, a new town), never on the countdown's refresh; a rebuilt
   // control hands the focus to its new self, so the arrows keep it after turning the trip around
   const routeDraw = redrawer(find('#tickets .route'), f => '.' + f.className.split(' ').join('.'));
-  // on a phone the days and «Compra» head the board, like a platform's board (Àlex 19-10, P2 on one line): the window
-  // keeps its height; on a desktop the pad hangs over the ruler and «Compra» stands over the highlighted time
-  const placeDays = () => { if(narrow.matches) byId('cap').append(days, talonsEl); else { find('.rulerHead').prepend(days); find('.rulerHead').append(talonsEl); } };
+  // on a phone the ticket and «Agafa’l» head the board, side by side over the highlighted time (option B of «simplify
+  // the phone», Àlex 22-11): the trip, its date and the way to the train in one place, and no «avui · dia» on the wall
+  // (the date opens the calendar). On a desktop the ticket stays under the name, the pad hangs over the ruler and
+  // «Compra» stands over the highlighted time
+  const placeDays = () => {
+    find('.rulerHead').prepend(days);
+    if(narrow.matches) byId('cap').append(byId('tickets'), talonsEl);
+    else { find('.top').append(byId('tickets')); find('.rulerHead').append(talonsEl); }
+    dressDate();
+  };
   placeDays(); narrow.addEventListener('change', placeDays);
   const detail = setupDetail(), notice = setupNotice();
   const chooser = setupChooser(
@@ -274,6 +288,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     }
     else if(t.closest('.end.town')) chooser.open();
     else if(t.closest('.end.bcn')) chooser.openStation();
+    else if(t.closest('.fecha')) openDies();
     else if(t.closest('.segell:not(.blanc)')) notice.open(shownNotices, avisos.read());
   });
   // on the minute, like the clock: the countdown, «ara» and the clock's hands move together (away from now too)

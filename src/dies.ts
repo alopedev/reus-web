@@ -29,3 +29,10 @@ export function calendar(today: string, days: { day: string, trains: boolean }[]
   return `<h3 id="diesH">Quin dia?</h3><div class="mes">${HEAD.map(h => `<span class="wd" aria-hidden="true">${h}</span>`).join('')}${cells}</div>`
     + `<p class="fins">Encara no hi ha horaris després ${ofDay(last)}.</p>`;
 }
+
+// on a phone the date printed on the ticket is the way into this sheet (option B of «simplify the phone», Àlex 22-11):
+// what a screen reader hears on it, the day looked at and what pressing it does
+export function dateLabel(day: string, today: string): string {
+  const when = day === today ? `avui, ${dayLong(day)}` : day === addDays(today, 1) ? `demà, ${dayLong(day)}` : dayLong(day);
+  return `Dia: ${when}. Canviar el dia`;
+}

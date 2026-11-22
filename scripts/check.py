@@ -794,8 +794,10 @@ FIT = """(() => {
     const win = q('#win').getBoundingClientRect(), rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
     // the glass leaves 1.1rem on each side for its frame
     if(win.width < inner - 2.2 * rem - 1) errs.push(`window only ${Math.round(win.width)} of ${Math.round(inner - 2.2 * rem)} px wide on the stacked hero`);
-    const low = Math.max(...[...document.querySelectorAll('.tk')].map(t => t.getBoundingClientRect().bottom));
-    if(low > win.top - .022 * innerHeight - 4) errs.push(`a ticket touches the window's frame (${Math.round(low)} vs frame at ${Math.round(win.top - .022 * innerHeight)})`);
+    // above it or, since 22-11 (B of «simplify the phone»), heading the board under it
+    const f = .022 * innerHeight + 4;
+    document.querySelectorAll('.tk').forEach(t => { const b = t.getBoundingClientRect();
+      if(b.bottom > win.top - f && b.top < win.bottom + f) errs.push(`a ticket touches the window's frame (${Math.round(b.top)}–${Math.round(b.bottom)} vs frame ${Math.round(win.top - f)}–${Math.round(win.bottom + f)})`); });
   }
   // the ticket never lies over the name's board: a square window (between 4/5 and 1/1) once took the portrait root size
   // with the wide layout, and the ticket covered «CAPACASA»
@@ -1251,7 +1253,7 @@ async def check_landscape(browser):
     """A phone held sideways keeps the window painted and readable (option A, Àlex 12-10): two columns, the window
     on the left as tall as the screen allows, the name, the ticket, the board and the ruler on the right. Before, the
     window shrank to a slit (844 x 390: 0 px; 667 x 375: a strip) and the ticket covered the name's board. Its rows
-    are the phone's (a button per trip, «›»), and the train's sheet fits the screen: its two buttons can be reached."""
+    are the phone's (the highlighted trip, a button), and the train's sheet fits the screen: its two buttons can be reached."""
     errs = []
     for name, (w, h) in LANDSCAPE.items():
         page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce", is_mobile=True, has_touch=True, device_scale_factor=2)
@@ -1266,7 +1268,7 @@ async def check_landscape(browser):
         if win["width"] < .35 * w: errs.append(f"{name}: the window is {win['width']:.0f} px wide, under 35% of the screen")
         meet = lambda a, b: min(a["right"], b["right"]) - max(a["left"], b["left"]) > 0 and min(a["bottom"], b["bottom"]) - max(a["top"], b["top"]) > 0
         for n1, a, n2, b in [("the ticket", tk, "the name's board", brd), ("the name's board", brd, "the window", win),
-                             ("the ticket", tk, "the window", win), ("the board", info, "the window", win), ("the ticket", tk, "the board", info)]:
+                             ("the ticket", tk, "the window", win), ("the board", info, "the window", win)]:   # the ticket heads the board since 22-11 (B), inside it
             if meet(a, b): errs.append(f"{name}: {n1} overlaps {n2}")
         # its small window is painted twice as fine, as upright (Àlex 21-10): with a desktop's grain the strokes read as pixels
         k = await page.evaluate("window.reus.paisaje ? reus.paisaje() : null")
@@ -2352,10 +2354,17 @@ DAYS = """(() => { const f = [...document.querySelectorAll('#days .full')], t = 
           head: document.querySelector('#days .taco svg')?.dataset.t ?? null,
           focus: document.activeElement?.dataset?.dia ?? document.activeElement?.dataset?.day ?? null, ticks: document.querySelectorAll('#ticks i').length, on: [...document.querySelectorAll('#ticks i.on')].length,
           knob: +t.value, nowline: !!document.querySelector('.nowline'), clock: !document.getElementById('nowBtn').hidden,
-          dia: document.querySelector('.tk .fecha')?.dataset.dia, ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')),
+          dia: document.querySelector('.tk .fecha')?.dataset.dia, days: getComputedStyle(document.getElementById('days')).display,
+          fecha: (f => ({tag: f.tagName, name: f.getAttribute('aria-label'), hidden: f.getAttribute('aria-hidden'), inert: f.inert, inCap: !!f.closest('#cap'), focus: document.activeElement === f}))(document.querySelector('.tk .fecha')), ara: (l => l ? box(l) : null)(document.querySelector('.nowline span')),
           track: box(document.querySelector('.track')), open: document.getElementById('dies').open,
           cells: [...document.querySelectorAll('#dies .dd:not(.buit)')].map(d => ({day: d.dataset.day ?? null, off: d.disabled, current: d.getAttribute('aria-current'), w: d.getBoundingClientRect().width, h: d.getBoundingClientRect().height})),
           sheetBox: (s => s ? box(s) : null)(document.querySelector('#dies .sheet')), vw: innerWidth}; })()"""
+
+# on a phone the ticket's date is the way into the calendar (B of «simplify the phone», Àlex 22-11): what answers a
+# finger round it, up and down through its middle, and never «Agafa’l» or the ends of the ticket
+FECHA_HIT = """(f => { const r = f.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2; let v = 0, h = 0;
+  for(let i = -40; i < 40; i++){ if(document.elementFromPoint(x, y + i)?.closest('.fecha') === f) v++; if(document.elementFromPoint(x + i, y)?.closest('.fecha') === f) h++; }
+  return {v, h}; })(document.querySelector('.tk .fecha'))"""
 
 HITS = """[...document.querySelectorAll('#days .full')].map(b => { const r = b.getBoundingClientRect(), x = r.left + r.width / 2; let n = 0;
   for(let y = r.top - 30; y < r.bottom + 30; y++) if(document.elementFromPoint(x, y)?.closest('.full') === b) n++; return n; })"""
@@ -2370,25 +2379,34 @@ async def closed(page):
 async def check_days(browser):
     errs = []
     for w, h in ((1440, 900), (390, 844), (320, 568)):
+        phone = w < 600
         page = await hero_page(browser, w, h)
         d = await page.evaluate(DAYS)
-        texts = [x["text"] for x in d["sheets"]]
-        if texts != ["avui 28", "dia"] or not d["sheets"][1]["cal"]: errs.append(f"{w}x{h}: the day sheets read {texts}, expected «avui 28» and «dia» with its little calendar"); await page.close(); continue
-        if [x["pressed"] for x in d["sheets"]] != ["true", "false"]: errs.append(f"{w}x{h}: at load «Avui» is not the sheet pressed")
-        if [x["name"] for x in d["sheets"]] != ["Avui, dilluns, 28 de setembre", "Dia, tria un altre dia"]: errs.append(f"{w}x{h}: the sheets are called {[x['name'] for x in d['sheets']]}")
-        if d["head"] != "SETEMBRE 2026": errs.append(f"{w}x{h}: the pad prints «{d['head']}» on its cardboard")
-        # on a phone the days are flat tabs heading the board (P2 on one line, Àlex 19-10): «Agafa’l» is the one thing
-        # raised, and the day looked at is underlined
-        if w > 600 and ("drop-shadow" in d["sheets"][0]["shadow"] or "drop-shadow" not in d["sheets"][1]["shadow"]): errs.append(f"{w}x{h}: «Avui» should lie flat and «Dia» be raised (shadows {d['sheets'][0]['shadow']} / {d['sheets'][1]['shadow']})")
-        if w < 600 and (not all(x["inCap"] for x in d["sheets"]) or any("drop-shadow" in x["shadow"] for x in d["sheets"]) or [x["mark"] for x in d["sheets"]] != [True, False]): errs.append(f"{w}x{h}: over the board «Avui» should be underlined and neither day raised (in the head {[x['inCap'] for x in d['sheets']]}, marks {[x['mark'] for x in d['sheets']]}, shadows {[x['shadow'] for x in d['sheets']]})")
-        if w < 600:
-            hits = await page.evaluate(HITS)
-            if min(hits) < 44: errs.append(f"{w}x{h}: a day answers a finger over less than 44 px ({hits} px)")
-        if any(x["b"] > d["track"]["t"] for x in d["sheets"]): errs.append(f"{w}x{h}: a day sheet reaches into the ruler")
-        a = d["ara"]
-        if a and any(x["l"] < a["r"] and a["l"] < x["r"] and x["t"] < a["b"] and a["t"] < x["b"] for x in d["sheets"]): errs.append(f"{w}x{h}: a day sheet covers «ara»")
-        # «dia» opens the calendar: today to the frozen timetable's last day (11-10), Monday to Sunday, the focus on tomorrow
-        await page.click('#days .full[data-dia="dia"]'); await page.wait_for_timeout(500)
+        # on a desktop the pad hangs over the ruler; on a phone «avui · dia» left the wall and the ticket's date opens
+        # the calendar (B of «simplify the phone», Àlex 22-11)
+        if phone:
+            f = d["fecha"]
+            if d["days"] != "none": errs.append(f"{w}x{h}: «avui · dia» still show on a phone's wall")
+            if f["tag"] != "BUTTON" or f["inert"] or f["hidden"] or not f["inCap"]: errs.append(f"{w}x{h}: the ticket's date is not a button heading the board ({f})")
+            if f["name"] != "Dia: avui, dilluns 28 de setembre. Canviar el dia": errs.append(f"{w}x{h}: the ticket's date is called «{f['name']}»")
+            hit = await page.evaluate(FECHA_HIT)
+            if min(hit.values()) < 44: errs.append(f"{w}x{h}: the ticket's date answers a finger over less than 44 px ({hit})")
+            opener = ".tk .fecha"
+        else:
+            if d["fecha"]["tag"] == "BUTTON" and not (d["fecha"]["inert"] and d["fecha"]["hidden"] == "true"): errs.append(f"{w}x{h}: on a desktop the ticket's date is a control ({d['fecha']}); only printed")
+            texts = [x["text"] for x in d["sheets"]]
+            if texts != ["avui 28", "dia"] or not d["sheets"][1]["cal"]: errs.append(f"{w}x{h}: the day sheets read {texts}, expected «avui 28» and «dia» with its little calendar"); await page.close(); continue
+            if [x["pressed"] for x in d["sheets"]] != ["true", "false"]: errs.append(f"{w}x{h}: at load «Avui» is not the sheet pressed")
+            if [x["name"] for x in d["sheets"]] != ["Avui, dilluns, 28 de setembre", "Dia, tria un altre dia"]: errs.append(f"{w}x{h}: the sheets are called {[x['name'] for x in d['sheets']]}")
+            if d["head"] != "SETEMBRE 2026": errs.append(f"{w}x{h}: the pad prints «{d['head']}» on its cardboard")
+            if "drop-shadow" in d["sheets"][0]["shadow"] or "drop-shadow" not in d["sheets"][1]["shadow"]: errs.append(f"{w}x{h}: «Avui» should lie flat and «Dia» be raised (shadows {d['sheets'][0]['shadow']} / {d['sheets'][1]['shadow']})")
+            if any(x["b"] > d["track"]["t"] for x in d["sheets"]): errs.append(f"{w}x{h}: a day sheet reaches into the ruler")
+            a = d["ara"]
+            if a and any(x["l"] < a["r"] and a["l"] < x["r"] and x["t"] < a["b"] and a["t"] < x["b"] for x in d["sheets"]): errs.append(f"{w}x{h}: a day sheet covers «ara»")
+            opener = '#days .full[data-dia="dia"]'
+        # «dia» (the date, on a phone) opens the calendar: today to the frozen timetable's last day (11-10), Monday to
+        # Sunday, the focus on tomorrow
+        await page.click(opener); await page.wait_for_timeout(500)
         d = await page.evaluate(DAYS)
         days = [c["day"] for c in d["cells"] if c["day"]]
         if not d["open"] or days[:2] != ["2026-09-28", "2026-09-29"] or days[-1] != "2026-10-11" or len(days) != 14: errs.append(f"{w}x{h}: «dia» opens {'a calendar of ' + str(days) if d['open'] else 'nothing'}, expected 28-09 to 11-10")
@@ -2400,45 +2418,56 @@ async def check_days(browser):
         await page.click('#dies .dd[data-day="2026-09-29"]')
         if not await closed(page): errs.append(f"{w}x{h}: the calendar does not close after a day is chosen")
         d = await page.evaluate(DAYS); b = await page.evaluate(BOARD)
-        if [x["pressed"] for x in d["sheets"]] != ["false", "true"] or d["focus"] != "dia": errs.append(f"{w}x{h}: after tomorrow on the calendar the sheets are pressed {[x['pressed'] for x in d['sheets']]} with the focus on {d['focus']}")
-        if d["sheets"][1]["text"] != "dia 29" or d["sheets"][1]["name"] != "Dia, dimarts, 29 de setembre. Tria un altre dia": errs.append(f"{w}x{h}: after tomorrow «dia» reads «{d['sheets'][1]['text']}» ({d['sheets'][1]['name']})")
-        if w < 600 and [x["mark"] for x in d["sheets"]] != [False, True]: errs.append(f"{w}x{h}: after tomorrow the underlines are {[x['mark'] for x in d['sheets']]}, expected on «Dia»")
-        if d["nowline"] or d["clock"]: errs.append(f"{w}x{h}: tomorrow's ruler still has «ara» or the clock on it")
-        if d["dia"] != "2026-09-29" or d["knob"] != 603 or d["on"] != 1: errs.append(f"{w}x{h}: tomorrow at 10:00 shows the day {d['dia']} with the knob at {d['knob']} ({d['on']} marks on), expected tomorrow's 10:03 (603)")
-        if w > 600:
+        if phone:
+            if not d["fecha"]["focus"]: errs.append(f"{w}x{h}: after tomorrow on the calendar the focus is not back on the ticket's date")
+            if d["fecha"]["name"] != "Dia: demà, dimarts 29 de setembre. Canviar el dia": errs.append(f"{w}x{h}: after tomorrow the ticket's date is called «{d['fecha']['name']}»")
+            if b["rows"] != ["R15 10:03 → 11:33 demà"]: errs.append(f"{w}x{h}: tomorrow at 10:00, the board reads {b['rows']}, expected «R15 10:03 → 11:33 demà»")
+        else:
+            if [x["pressed"] for x in d["sheets"]] != ["false", "true"] or d["focus"] != "dia": errs.append(f"{w}x{h}: after tomorrow on the calendar the sheets are pressed {[x['pressed'] for x in d['sheets']]} with the focus on {d['focus']}")
+            if d["sheets"][1]["text"] != "dia 29" or d["sheets"][1]["name"] != "Dia, dimarts, 29 de setembre. Tria un altre dia": errs.append(f"{w}x{h}: after tomorrow «dia» reads «{d['sheets'][1]['text']}» ({d['sheets'][1]['name']})")
             if b["rows"][0] != "R15 10:03 demà → 11:33": errs.append(f"{w}x{h}: tomorrow at 10:00, the board reads {b['rows']}, expected «R15 10:03 demà → 11:33» first")
             errs += [f"{w}x{h} tomorrow: {e}" for e in buy_link(b, SANTS_ID, REUS_TOWN, "29/09/2026")]
+        if d["nowline"] or d["clock"]: errs.append(f"{w}x{h}: tomorrow's ruler still has «ara» or the clock on it")
+        if d["dia"] != "2026-09-29" or d["knob"] != 603 or d["on"] != 1: errs.append(f"{w}x{h}: tomorrow at 10:00 shows the day {d['dia']} with the knob at {d['knob']} ({d['on']} marks on), expected tomorrow's 10:03 (603)")
         # the ruler keeps to that day: its last train is that day's
         await page.focus("#t"); await page.keyboard.press("End"); await page.wait_for_timeout(300)
         d = await page.evaluate(DAYS)
-        if d["dia"] != "2026-09-29" or d["sheets"][1]["pressed"] != "true": errs.append(f"{w}x{h}: tomorrow, End on the ruler goes back to the day {d['dia']}")
+        if d["dia"] != "2026-09-29" or (not phone and d["sheets"][1]["pressed"] != "true"): errs.append(f"{w}x{h}: tomorrow, End on the ruler goes back to the day {d['dia']}")
         # a day further on: Thursday 01-10, stamped in the calendar when it opens again, its weekday on the board
-        await page.click('#days .full[data-dia="dia"]'); await page.wait_for_timeout(500)
+        await page.click(opener); await page.wait_for_timeout(500)
         d = await page.evaluate(DAYS)
         if [c["day"] for c in d["cells"] if c["current"] == "true"] != ["2026-09-29"]: errs.append(f"{w}x{h}: the calendar opened again stamps {[c['day'] for c in d['cells'] if c['current']]}, expected the day looked at (29-09)")
         await page.click('#dies .dd[data-day="2026-10-01"]'); await closed(page)
         d = await page.evaluate(DAYS); b = await page.evaluate(BOARD)
-        if d["dia"] != "2026-10-01" or d["sheets"][1]["text"] != "dia 1": errs.append(f"{w}x{h}: Thursday 01-10 chosen shows the day {d['dia']} with «{d['sheets'][1]['text']}»")
-        if d["head"] != "SET · OCT 2026": errs.append(f"{w}x{h}: with 01-10 looked at the pad prints «{d['head']}», expected «SET · OCT 2026»")
-        if w > 600 and not re.match(r"\S+ \d\d:\d\d dijous ", b["rows"][0]): errs.append(f"{w}x{h}: Thursday 01-10 chosen, the board reads {b['rows']}, expected «dijous» on the train shown")
+        if phone:
+            if d["dia"] != "2026-10-01" or not re.match(r"\S+ \d\d:\d\d → \d\d:\d\d dijous$", b["rows"][0]): errs.append(f"{w}x{h}: Thursday 01-10 chosen shows the day {d['dia']} and the board reads {b['rows']}, expected «dijous» under the times")
+        else:
+            if d["dia"] != "2026-10-01" or d["sheets"][1]["text"] != "dia 1": errs.append(f"{w}x{h}: Thursday 01-10 chosen shows the day {d['dia']} with «{d['sheets'][1]['text']}»")
+            if d["head"] != "SET · OCT 2026": errs.append(f"{w}x{h}: with 01-10 looked at the pad prints «{d['head']}», expected «SET · OCT 2026»")
+            if not re.match(r"\S+ \d\d:\d\d dijous ", b["rows"][0]): errs.append(f"{w}x{h}: Thursday 01-10 chosen, the board reads {b['rows']}, expected «dijous» on the train shown")
         # Esc closes the calendar and changes nothing
-        await page.click('#days .full[data-dia="dia"]'); await page.wait_for_timeout(500); await page.keyboard.press("Escape")
+        await page.click(opener); await page.wait_for_timeout(500); await page.keyboard.press("Escape")
         if not await closed(page): errs.append(f"{w}x{h}: Esc does not close the calendar")
         e = await page.evaluate(DAYS)
         if (e["dia"], e["knob"]) != (d["dia"], d["knob"]): errs.append(f"{w}x{h}: closing the calendar with Esc moves the train shown to {e['dia']} {e['knob']}")
-        await page.click('#days .full[data-dia="avui"]'); await page.wait_for_timeout(400)
+        # back to now: «avui» on the pad; on a phone, today in the calendar
+        if phone: await page.click(opener); await page.wait_for_timeout(500); await page.click('#dies .dd.avui'); await closed(page)
+        else: await page.click('#days .full[data-dia="avui"]'); await page.wait_for_timeout(400)
         d = await page.evaluate(DAYS)
-        if d["dia"] != "2026-09-28" or not d["nowline"] or d["knob"] != 603 or d["sheets"][0]["pressed"] != "true" or d["sheets"][1]["text"] != "dia": errs.append(f"{w}x{h}: «Avui» does not go back to now (day {d['dia']}, «ara» {d['nowline']}, knob {d['knob']}, «{d['sheets'][1]['text']}»)")
+        if d["dia"] != "2026-09-28" or not d["nowline"] or d["knob"] != 603 or (not phone and (d["sheets"][0]["pressed"] != "true" or d["sheets"][1]["text"] != "dia")): errs.append(f"{w}x{h}: «avui» does not go back to now (day {d['dia']}, «ara» {d['nowline']}, knob {d['knob']})")
         await page.close()
         # at 23:30 no train is left today: the board shows tomorrow's first, and «dia 29» is the day pressed (Àlex 19-10)
         page = await hero_page(browser, w, h, at="2026-09-28T21:30:00Z")
         d = await page.evaluate(DAYS)
-        if [x["pressed"] for x in d["sheets"]] != ["false", "true"] or d["dia"] != "2026-09-29" or d["sheets"][1]["text"] != "dia 29": errs.append(f"{w}x{h} at 23:30: with tomorrow's first train on the board ({d['dia']}) the sheets pressed are {[x['pressed'] for x in d['sheets']]} and «{d['sheets'][1]['text']}», expected «dia 29»")
+        if phone:
+            if d["dia"] != "2026-09-29" or d["fecha"]["name"] != "Dia: demà, dimarts 29 de setembre. Canviar el dia": errs.append(f"{w}x{h} at 23:30: with tomorrow's first train on the board ({d['dia']}) the ticket's date is called «{d['fecha']['name']}»")
+        elif [x["pressed"] for x in d["sheets"]] != ["false", "true"] or d["dia"] != "2026-09-29" or d["sheets"][1]["text"] != "dia 29": errs.append(f"{w}x{h} at 23:30: with tomorrow's first train on the board ({d['dia']}) the sheets pressed are {[x['pressed'] for x in d['sheets']]} and «{d['sheets'][1]['text']}», expected «dia 29»")
         await page.close()
     return errs
 
 # the stubs (A3, Àlex 18-10; talons.ts): what the highlighted time leads to. On a desktop «Compra» over the
-# highlighted time; on a phone (P2 on one line, Àlex 19-10) heading the board at the right, the days at its left
+# highlighted time; on a phone (P2 on one line, Àlex 19-10) heading the board at the right, the ticket at its left
+# (B of «simplify the phone», Àlex 22-11; before, the days)
 TALONS = """(() => { const box = e => { const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
   const n = s => s.replace(/\\s+/g, ' ').trim();
   return {stubs: [...document.querySelectorAll('#talons .talo, #board .talo')].map(a => ({cls: a.classList[1], tag: a.tagName, text: n(a.textContent), href: a.href ?? null, tab: a.target ?? null,
@@ -2450,7 +2479,7 @@ TALONS = """(() => { const box = e => { const r = e.getBoundingClientRect(); ret
           dep: box(document.getElementById('dep')), win: box(document.getElementById('win')), rows: [...document.querySelectorAll('#board .trip')].map(box),
           sub: getComputedStyle(document.querySelector('.sub')).display, lbl: getComputedStyle(document.getElementById('lbl')).display,
           route: box(document.querySelector('.tk .route')), tk: box(document.querySelector('.tk')), onTicket: !!document.querySelector('.tk #days'),
-          fecha: getComputedStyle(document.querySelector('.tk .fecha')).display, taco: getComputedStyle(document.querySelector('#days .taco')).display,
+          fecha: getComputedStyle(document.querySelector('.tk .fecha')).display, taco: document.querySelector('#days .taco').checkVisibility() ? 'block' : 'none', tkCap: !!document.querySelector('#cap .tk'),
           avisa: [...document.querySelectorAll('.avisa')].filter(a => !a.closest('#detalle')).length,
           rem: parseFloat(getComputedStyle(document.documentElement).fontSize)}; })()"""
 
@@ -2461,7 +2490,8 @@ async def check_talons(browser):
     highlighted time, clear of the window (Àlex 18-10). On a phone the window first (P2 on one line, Àlex 19-10;
     ventanilla/filosofias.md): no subtitle, the board one line, and «Compra» heading it at the right, the days at its
     left, both above the highlighted time; the one thing raised, and no «Avisa» on the wall (it stays in the train's
-    sheet). The ticket as it was, with its printed date. Raised, on one line, a finger big, inside the screen and clear
+    sheet). Since 22-11 (B of «simplify the phone») the ticket heads the board beside the stub and its printed date
+    opens the calendar; no day pad on a phone's wall. Raised, on one line, a finger big, inside the screen and clear
     of what is around it, from 320 px to the phone held sideways. Since 05-11 (Àlex: B of three, with his word) the
     phone's stub says «Agafa’l», a wagon behind its dotted line: a button that opens the train's sheet, as the time does. On a 390 × 726 phone (an iPhone with Safari's bars)
     the window is at least 265 px tall, as before the day pad, day and night."""
@@ -2491,12 +2521,12 @@ async def check_talons(browser):
                 errs.append(f"{w}x{h}: «{word}» is not just over the time (stub {c['l']:.0f}–{c['r']:.0f} × {c['t']:.0f}–{c['b']:.0f}, time {d['l']:.0f}–{d['r']:.0f} from {d['t']:.0f})")
             if t["taco"] == "none": errs.append(f"{w}x{h}: a desktop lost its day pad")
         else:
-            sh, rows = t["sheets"], t["rows"]
+            tk, rows = t["tk"], t["rows"]
             if len(rows) != 1: errs.append(f"{w}x{h}: the phone's board has {len(rows)} rows, expected the highlighted time alone")
-            if not c["inCap"]: errs.append(f"{w}x{h}: «{word}» does not head the board")
-            # the days at the left, «{word}» at the right, on one line over the highlighted time
-            elif max(x["r"] for x in sh) > c["l"] or any(x["b"] < c["t"] or x["t"] > c["b"] for x in sh) or c["b"] > rows[0]["t"] + 2 or c["r"] < rows[0]["r"] - 3 * t["rem"]:
-                errs.append(f"{w}x{h}: the days and «{word}» do not head the board on one line (days {sh}, stub {c}, row {rows[0]})")
+            if not c["inCap"] or not t["tkCap"]: errs.append(f"{w}x{h}: «{word}» and the ticket do not head the board (stub {c['inCap']}, ticket {t['tkCap']})")
+            # the ticket at the left, «{word}» at the right, side by side over the highlighted time (B, Àlex 22-11)
+            elif tk["r"] > c["l"] or tk["b"] < c["t"] or tk["t"] > c["b"] or max(c["b"], tk["b"]) > rows[0]["t"] + 2 or c["r"] < rows[0]["r"] - 3 * t["rem"]:
+                errs.append(f"{w}x{h}: the ticket and «{word}» do not head the board side by side (ticket {tk}, stub {c}, row {rows[0]})")
             if t["taco"] != "none": errs.append(f"{w}x{h}: a phone still hangs the day pad")
             if w < 600 and h > 500 and t["sub"] != "none": errs.append(f"{w}x{h}: a phone still has the subtitle")
             if t["lbl"] != "none": errs.append(f"{w}x{h}: a phone still has the label over the board")
@@ -2625,7 +2655,7 @@ HOURS = """(() => { const row = document.querySelector('.hours'), c = getCompute
   return {color: c, row: box(row), labels: [...row.querySelectorAll('span')].map(box)}; })()"""
 
 async def check_text_sun(browser):
-    """The small cream letters on the wall (the subtitle, the board's rows, the phone's day tabs) read when the sun
+    """The small cream letters on the wall (the subtitle, the board's rows, the phone's line under its times) read when the sun
     comes in (Àlex 08-11: in the afternoon its white patch on the seats hid «el pròxim» and the subtitle): the wall
     behind each, with the texts hidden, against the text's colour, its brighter pixels (p90), at least 3:1 (with
     their shadow they read as large text). Morning and afternoon, desk and phone."""
@@ -2633,11 +2663,11 @@ async def check_text_sun(browser):
     for w, h in ((1440, 900), (390, 844)):
         for at in ("2026-09-28T08:00:00Z", "2026-09-28T13:30:00Z", "2026-09-28T15:00:00Z"):
             page = await hero_page(browser, w, h, at); await page.wait_for_timeout(1500)
-            boxes = await page.evaluate("""[...document.querySelectorAll('.sub, #cap .full, #board .w')]
+            boxes = await page.evaluate("""[...document.querySelectorAll('.sub, #cap .full, #board .w, #board .nota')]
               .filter(e => e.getBoundingClientRect().width > 0 && getComputedStyle(e).visibility !== 'hidden')
               .map(e => { const r = e.getBoundingClientRect(), c = getComputedStyle(e).color.match(/\\d+/g).map(Number);
                 return {name: e.className || e.tagName, color: c, box: [r.left, r.top, r.right, r.bottom]}; })""")
-            await page.add_style_tag(content=".sub, #cap .full, #board .w{visibility:hidden !important}")
+            await page.add_style_tag(content=".sub, #cap .full, #board .w, #board .nota{visibility:hidden !important}")
             await page.wait_for_timeout(300)
             shot = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
             for b in boxes:
@@ -3851,7 +3881,8 @@ async def check_paper_motion(browser):
 
 async def check_phone_board(browser):
     """6B (Àlex, 06-10): on a phone the board keeps only the times, the countdown and a «›»; since 19-10 (P2 on
-    one line) it is the highlighted time alone, a button that opens a paper sheet with its detail and «Compra a Renfe ↗».
+    one line) it is the highlighted time alone, and since 22-11 (B of «simplify the phone») in two lines, the times and
+    under them the countdown and where a fast train arrives when it is not the town, with no «›»: a button that opens a paper sheet with its detail and «Compra a Renfe ↗».
     Another train picked on the ruler is the one the sheet tells. Esc, ✕ and the backdrop close the sheet and hand the focus
     back to the big train. On a wide screen the board is unchanged (check_hero_board). The sheet also says «Avisar a
     casa» (Àlex 06-10, only on a phone): a link to WhatsApp (wa.me, no number) with the train written as a message."""
@@ -3859,7 +3890,8 @@ async def check_phone_board(browser):
     page = await hero_page(browser, 390, 844)
     b = await page.evaluate(PHONE)
     # the window first (P2 on one line, Àlex 19-10): the highlighted time alone; the next one is on the ruler
-    want = ["R15 10:03 en 3 min → 11:33 ›"]
+    # in two lines, the times and under them the countdown; no «›» (B of «simplify the phone», Àlex 22-11)
+    want = ["R15 10:03 → 11:33 en 3 min"]
     if b["rows"] != want: errs.append(f"at 10:00 the phone board reads {b['rows']}, expected {want}")
     if b["buttons"] != [True]: errs.append(f"on a phone the trip should be a button, got {b['buttons']}")
     if b["buy"]: errs.append("on a phone the board's row holds a link (the way to Renfe is «Compra» over it and in the sheet)")
@@ -3901,6 +3933,8 @@ async def check_phone_board(browser):
     # from Reus at 21:30 the train shown is today's last AVE, from Camp de Tarragona: the message says where it leaves
     page = await hero_page(browser, 390, 844, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    row = (await page.evaluate(PHONE))["rows"]
+    if row != ["AV 22:17 → 22:59 en 47 min · surt de Camp de Tarragona"]: errs.append(f"from Reus at 21:30 the phone board reads {row}, expected the AV saying it leaves from Camp de Tarragona")
     b = await tap("#board button.big", "the AVE from Reus at 21:30")
     if b: home(b, "the AVE from Reus at 21:30", "Agafo l’AV de les 22:17 a Camp de Tarragona. Arribo a Sants a les 22:59.")
     await page.close()

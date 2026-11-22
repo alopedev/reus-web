@@ -33,7 +33,8 @@
 .tk .pp{ display:block; background:#EFE6D2 var(--grain); padding:.75rem 2.75rem .75rem 1rem; clip-path:var(--cut); }
 .tk .stub{ position:absolute; top:.5rem; bottom:.5rem; right:1.9rem; border-left:1.5px dashed rgba(45,36,28,.45); }
 /* on the stub, the day printed by the machine in dot matrix, on its side (dots.ts) */
-.tk .fecha{ position:absolute; top:0; bottom:0; right:0; width:1.9rem; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+.tk .fecha{ position:absolute; top:0; bottom:0; right:0; width:1.9rem; display:flex; align-items:center; justify-content:center; pointer-events:none;
+  font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; }
 .tk .fecha svg{ flex:none; width:4.1rem; transform:rotate(-90deg); opacity:.72; filter:blur(.15px); }
 .tk .k{ display:block; font-size:.93rem; opacity:.75; }
 .tk .route{ display:block; font-family:var(--serif); font-size:1.8rem; line-height:1.15; margin-top:.12rem; }
@@ -334,26 +335,18 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .info{ row-gap:.3rem; }
   .board{ column-gap:.6rem; }
   #dep{ font-size:3.2rem; } .trip .t{ font-size:1.2rem; }
-  /* never under 13 px: the root's floor (15 px) puts .85rem just under it on a 320 px screen; from 360 px up the rem wins */
-  .trip .w{ font-size:max(.85rem, 13px); }
   /* the narrowest phones (320 px): a smaller big time leaves room for the countdown beside it (option A, Àlex 11-10) */
   @media (max-width:350px){ #dep{ font-size:2.4rem; } }
-  /* the live delay on a phone: the new time over the countdown, in the narrow column between the two times */
-  .big .w.viu{ display:flex; flex-direction:column; white-space:nowrap; line-height:1.08; }
-  /* a trip by bus part of its way: «bus + tren» under the countdown, on one line each; under 370 px a
-     countdown of hours takes two */
-  .big .w.dos{ display:flex; flex-direction:column; white-space:nowrap; line-height:1.08; }
-  @media (max-width:370px){ .big .w.dos .soon{ white-space:normal; } }
+  /* the live delay on a phone: the new time beside the struck one */
   .big .nova{ font-size:1.45rem; line-height:1; margin:0; vertical-align:baseline; }
-  /* on a phone the board keeps only the times (6B, Àlex 06-10): every trip is a button ending in «›», the big one
-     too, and opens its detail in a sheet (detail.ts). The «›» stands in a column of its own, so the arrivals still
-     line up */
-  .board{ grid-template-columns:auto auto minmax(0,1fr) auto auto; }
+  /* on a phone the board is one row, the highlighted time, in two lines (B, Àlex 22-11): the times, and under them the
+     countdown, where a fast train arrives when it is not the town, the bus and «sense dades» (board.ts). The row is a
+     button that opens its detail in a sheet (detail.ts); no «›»: «Agafa’l» is the sign */
+  #board .trip{ display:flex; flex-wrap:wrap; align-items:baseline; column-gap:.6rem; row-gap:.15rem; }
+  #board .nota{ flex-basis:100%; font:500 max(.95rem, 13px)/1.25 var(--texto); color:var(--paper); }
   button.big{ font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; text-align:left; cursor:pointer; text-shadow:inherit; }
   button.big:active #dep{ transform:translate(.04em,.04em); }
   button.big:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
-  .mas{ font:700 1.35rem/1 var(--texto); color:var(--paper); padding-left:.15rem; }
-  /* «›» is the one sign a row presses (Àlex, 06-10): the times stay flat, like the arrivals */
   #board .tt .t:not(.arr){ text-shadow:inherit; }
   /* a finger needs about 44 px: the short rows reach further up and down than they show, without moving anything */
   #board .tt{ position:relative; }
@@ -361,34 +354,29 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .ruler{ margin-top:.4rem; }
   .now{ width:1.75rem; }
   /* the window first (Àlex 19-10, P2 on one line; the study in ventanilla/filosofias.md): no subtitle, the board is one
-     line, and the day and «Compra» head it like a platform's board. Nothing over the ruler but «ara» and the clock */
+     row, and the ticket and «Agafa’l» head it (B, Àlex 22-11). Nothing over the ruler but «ara» and the clock: «avui ·
+     dia» left the wall, the ticket's date opens the calendar */
   .sub{ display:none; }
+  .rulerHead .days{ display:none; }
   .rulerHead{ margin-bottom:1.6rem; }
   /* the board says it all with a train on it; the label stays for the board left empty (no direct train) */
   .info:has(#board .trip) #lbl{ display:none; }
-  .cap{ display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:-.2rem 0 .1rem; }
+  .cap{ display:flex; align-items:center; justify-content:space-between; gap:.7rem; margin:.1rem 0 .35rem; }
   /* its 44 px zones over the highlighted row's own (which reaches up into them): the head is the one thing a finger aims at there */
   .cap{ position:relative; z-index:1; }
-  /* «avui · demà» as flat tabs in ink on the wall, the day looked at in orange and underlined: a tab, not a paper, so
-     «Compra» is the one thing raised on a phone's wall. A finger answers over 44 px around each */
-  .cap .days{ display:flex; gap:1.1rem; padding:0; }
-  .cap .taco{ display:none; }
-  .cap .full, .cap .full:hover{ filter:none; }
-  .cap .full .pp{ clip-path:none !important; background:none; width:auto; padding:0; transform:none; flex-direction:row; align-items:baseline; gap:.3rem; opacity:.72; }
-  .cap .full .perf{ display:none; }
-  .cap .full i{ font:700 max(.95rem, 13px)/1 var(--texto); color:var(--paper); }
-  .cap .full b{ font:400 1.15rem/1 var(--serif); color:var(--paper); margin:0; }
-  .cap .full b .cal{ height:.95rem; margin:0 0 -.05rem; }
-  .cap .full i, .cap .full b{ text-shadow:0 1px 2px rgba(0,0,0,.45); }
-  .cap .full:not(.on):hover .pp{ opacity:.9; }
-  .cap .full.on .pp{ opacity:1; background:none; } .cap .full.on b{ color:#F3A25B; }
-  .cap .full::after, .cap .full:not(.on)::after{ content:none; }
-  .cap .full.on::after{ content:''; position:absolute; left:0; right:0; bottom:-.35rem; width:auto; height:.18rem; border-radius:.1rem; background:#E07A1F; transform:none; filter:none; }
-  .cap .full::before{ content:''; position:absolute; left:-.4rem; right:-.4rem; top:50%; height:max(2.75rem, 44px); transform:translateY(-50%); }
+  .cap .tickets{ flex:0 1 auto; min-width:0; }
+  /* the ticket's date opens the calendar (B, Àlex 22-11): raised like the arrows, flat when pressed, 48 px for a finger like the ends */
+  .tk .fecha{ cursor:pointer; pointer-events:auto; z-index:1; }
+  .tk .fecha svg{ filter:drop-shadow(.05rem .05rem 0 rgba(45,36,28,.55)) blur(.15px); transition:filter .12s, transform .12s; }
+  .tk .fecha:active svg{ filter:blur(.15px); transform:rotate(-90deg) translate(-.05rem,.05rem); }
+  .tk .fecha:focus-visible{ outline:2px solid var(--shadow); outline-offset:-2px; border-radius:3px; }
+  .tk .fecha::before{ content:""; position:absolute; left:50%; top:50%; width:max(100%, 48px); height:max(100%, 48px); transform:translate(-50%, -50%); }
   .cap .talons{ position:static; margin:0; }
   .cap .talo{ position:relative; }
   .cap .talo .in{ min-height:0; padding:.25rem .7rem .25rem .6rem; }
-  .cap .talo::before{ content:''; position:absolute; left:-.2rem; right:-.2rem; top:50%; height:max(2.75rem, 44px); transform:translateY(-50%); }
+  /* the narrowest phones (320 px): ticket and stub side by side, a little smaller */
+  @media (max-width:350px){ .cap .tk .route{ font-size:1.05rem; } .cap .tk .pp{ padding-left:.65rem; padding-right:2rem; } .cap .talo .in{ padding:.2rem .5rem .2rem .45rem; font-size:.92em; } .cap{ gap:.45rem; } }
+  .cap .talo::before{ content:''; position:absolute; left:0; right:-.2rem; top:50%; height:max(2.75rem, 44px); transform:translateY(-50%); }
 }
 /* a phone held sideways (Àlex 12-10, option A): too short for the stacked hero, whose window shrank to a slit. Two
    columns: the window on the left, as tall as the screen allows; the name, the ticket, the board and the ruler on the

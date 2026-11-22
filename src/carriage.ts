@@ -28,18 +28,19 @@ export const ARMREST = .68;   // the armrest's height in a seat's metres (room.t
 const seen = (y: number, z: number) => .5 + (y - .5)*1.7/(1.7 - z);
 // the rack 1.72 m over the floor, 36 cm deep; the case on it 19 cm high to its handle, 31 cm out. Either whole under
 // the screen's top edge or not at all: a phone held sideways has no wall over its window, and a cut rack reads as
-// pieces left half drawn
-function rack(floorY: number, m: number){
+// pieces left half drawn. On a phone the name's board is that edge too (`ceil`, its bottom; 22-11): with the ticket
+// heading the board the window rises under the name, and the case would stand half behind it
+function rack(floorY: number, m: number, ceil = .99){
   const rf = floorY + 1.72*m;
-  if(seen(rf, .36*m) >= .99) return { rack: null, luggage: false };
-  return { rack: rf, luggage: seen(rf + .19*m, .31*m) < .99 };
+  if(seen(rf, .36*m) >= ceil) return { rack: null, luggage: false };
+  return { rack: rf, luggage: seen(rf + .19*m, .31*m) < ceil };
 }
 
 // A wide screen: a bay of two seats facing each other either side of the window, each backed by the next bay's seat.
 // A phone (Àlex, 07-11): our seat alone, close up and in profile at the window's lower-left corner, a fixed size on
 // the screen, cut by the bottom edge below its armrest (its base would show how little there is under it), with the
 // back of the next bay's seat behind it, partly off the left edge
-export function plan(A: number, win: Win, wide: boolean): Plan {
+export function plan(A: number, win: Win, wide: boolean, ceil = .99): Plan {
   const m = (win.w - win.y)/.75, floorY = win.y - .9*m, cx = (win.x + win.z)/2*A;
   const eye: Plan['eye'] = [A/2, .5, 1.7];
   if(wide){
@@ -60,5 +61,5 @@ export function plan(A: number, win: Win, wide: boolean): Plan {
     { x: x - .17*scale, y0, scale, dir: -1, handle: false },
   ];
   // the case 19 px further right than on a desktop (Àlex, 08-11)
-  return { m, floorY, cx, seats, eye, lamp: [win.x*A + .002 - .07*m, floorY + 1.2*m, .7, 1.6*m], ...rack(floorY, m), bags: .565*A + .021 };
+  return { m, floorY, cx, seats, eye, lamp: [win.x*A + .002 - .07*m, floorY + 1.2*m, .7, 1.6*m], ...rack(floorY, m, Math.min(.99, ceil)), bags: .565*A + .021 };
 }

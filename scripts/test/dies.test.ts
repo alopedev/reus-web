@@ -2,7 +2,7 @@
 // button per day with a timetable (src/dies.ts). Against the frozen timetable (28-09 to 11-10). `npm test`, no browser
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calendar } from '../../src/dies.ts';
+import { calendar, dateLabel } from '../../src/dies.ts';
 
 const TODAY = '2026-10-01';   // a Thursday; the frozen timetable ends on Sunday 11-10
 const days = (missing: string[] = []) => ['02', '03', '04', '05', '06', '07', '08', '09', '10', '11'].map(d => ({ day: `2026-10-${d}`, trains: !missing.includes(`2026-10-${d}`) }));
@@ -33,4 +33,12 @@ test('a week that runs past the timetable ends with its days struck through, and
   assert.match(html, /aria-label="Dissabte 5 de desembre, sense horari"><b>5<\/b>/);
   assert.match(html, /<b>1<\/b><small>des\.<\/small>/);
   assert.match(html, /després del 4 de desembre\./);
+});
+
+// On a phone (option B of «simplify the phone», Àlex 22-11) «avui · dia» leave the wall: the date printed on the ticket
+// is the button that opens this calendar, so it says which day it is and what it does
+test('the date on the ticket says the day looked at and that it changes it', () => {
+  assert.equal(dateLabel('2026-10-01', TODAY), 'Dia: avui, dijous 1 d’octubre. Canviar el dia');
+  assert.equal(dateLabel('2026-10-02', TODAY), 'Dia: demà, divendres 2 d’octubre. Canviar el dia');
+  assert.equal(dateLabel('2026-10-06', TODAY), 'Dia: dimarts 6 d’octubre. Canviar el dia');
 });
