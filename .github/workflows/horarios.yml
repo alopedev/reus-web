@@ -26,8 +26,9 @@ jobs:
       - run: python scripts/extract_trains.py
       - run: python scripts/extract_red.py
       - run: python scripts/check_datos.py
-      # every other Rodalies line (data/rodalies.json, 08-11-2026): the web does not read it yet, so a file that fails its
-      # checks never holds red.json back: it stays as it was, with a warning in the run
+      # every other Rodalies line (data/rodalies.json, 08-11-2026): a file that fails its checks never holds red.json
+      # back: it stays as it was, with a warning in the run. A later day Renfe has not published yet is only a warning
+      # (22-11-2026: a week missing kept the file back from 16 to 22-11); the site borrows a day of the same kind
       - name: check rodalies.json
         run: |
           python scripts/check_datos.py --rodalies || {

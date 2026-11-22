@@ -142,6 +142,42 @@ class RodaliesChecks(unittest.TestCase):
         self.assertEqual(check_datos.avisos_dia_incompleto(d, check_datos.PRODUCTOS_RODALIES,
                                                            check_datos.FAMILIA_RODALIES), [])
 
+    def without(self, *offsets):
+        d = self.good()
+        for i in offsets:
+            d["dias"].pop((D1 + extract_red.dt.timedelta(days=i)).isoformat())
+        return d
+
+    def test_a_week_renfe_has_not_published_yet_does_not_hold_the_file_back(self):
+        # 22-11-2026: Renfe's feed had Rodalies trains up to 29-11 and from 05-12, none on the weekdays between; the
+        # whole file was kept back a week, and the site's ran out on 28-11. Now it goes out, with a warning, and the site
+        # borrows a day of the same kind for the hole (addPart in src/time.ts)
+        d = self.without(8, 9, 10)
+        self.assertEqual(self.check(d), [])
+        holes = check_datos.avisos_dias_rodalies(d)
+        self.assertEqual(len(holes), 1)
+        self.assertIn("2026-11-17, 2026-11-18, 2026-11-19", holes[0])
+
+    def test_today_or_tomorrow_missing_holds_the_file_back(self):
+        self.assertTrue(any("2026-11-09" in e for e in self.check(self.without(0))))
+        self.assertTrue(any("2026-11-10" in e for e in self.check(self.without(1))))
+        self.assertEqual(check_datos.avisos_dias_rodalies(self.good()), [])
+
+    def test_a_day_short_of_two_lines_is_left_out_and_the_rest_goes_out(self):
+        # 16 to 20-11-2026: Renfe's feed had a day with the R1, the R2 and the R4 at under half, and the whole file was
+        # kept back. Now that day goes (the site borrows another), a day short of one line alone stays (works), and
+        # the file goes out
+        d = self.good()
+        dia = lambda i: (D1 + extract_red.dt.timedelta(days=i)).isoformat()
+        r1 = lambda i: [j for j in d["dias"][dia(i)] if d["trenes"][j]["p"] == "R1"]
+        d["dias"][dia(3)] = []
+        d["dias"][dia(4)] = r1(4)
+        fuera = extract_red.quita_dias_rotos(d)
+        self.assertEqual(fuera, [dia(3)])
+        self.assertNotIn(dia(3), d["dias"])
+        self.assertEqual(d["dias"][dia(4)], r1(4))
+        self.assertEqual(self.check(d), [])
+
     def test_a_missing_town_fails(self):
         d = self.good()
         with tempfile.TemporaryDirectory() as tmp:

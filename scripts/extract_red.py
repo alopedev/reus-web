@@ -1089,6 +1089,18 @@ def main():
     write_rodalies(rod_trains, trenes, dias, stop_names, stop_ll, start)
 
 
+def quita_dias_rotos(data):
+    """Quita de rodalies.json los dias con dos lineas o mas por debajo de la mitad de sus trenes (regla 12 de
+    check_datos.py): parecen un feed roto (del 16 al 20-11-2026, un dia con la R1, la R2 y la R4 a medias retuvo el
+    fichero entero). La web toma para ese dia otro del mismo tipo y dice «horari aproximat». Devuelve los dias quitados."""
+    import check_datos
+    rotos = [dia for dia, m in check_datos.lineas_cortas(data, check_datos.PRODUCTOS_RODALIES,
+                                                          check_datos.FAMILIA_RODALIES).items() if len(m) >= 2]
+    for dia in rotos:
+        del data["dias"][dia]
+    return rotos
+
+
 def write_rodalies(rod_trains, red_trenes, red_dias, stop_names, stop_ll, start):
     """data/rodalies.json: las demas lineas de Rodalies (rodalies). La web aun no lo lee: si falla (una estacion nueva
     sin comarca), red.json se publica igual y rodalies.json se queda como estaba, con un aviso en el run del robot."""
@@ -1110,6 +1122,11 @@ def write_rodalies(rod_trains, red_trenes, red_dias, stop_names, stop_ll, start)
         "trenes": trenes,
         "dias": {d: sorted(idxs) for d, idxs in sorted(dias.items())},
     }
+    for dia in quita_dias_rotos(data):
+        msg = f"rodalies.json sin el {dia}: dos lineas o mas a menos de la mitad de sus trenes; la web toma otro dia"
+        print(f"  aviso: {msg}", file=sys.stderr)
+        if os.environ.get("GITHUB_ACTIONS"):
+            print(f"::warning title=Día roto en rodalies.json::{msg}")
     out_rod.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     size_gzip = len(gzip.compress(out_rod.read_bytes()))
     print(f"{len(estaciones)} estaciones, {len(trenes)} trenes de Rodalies -> {out_rod} ({size_gzip / 1024:.1f} KB gzip)",
