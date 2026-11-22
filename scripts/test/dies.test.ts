@@ -2,7 +2,7 @@
 // button per day with a timetable (src/dies.ts). Against the frozen timetable (28-09 to 11-10). `npm test`, no browser
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calendar } from '../../src/dies.ts';
+import { calendar, pad } from '../../src/dies.ts';
 
 const TODAY = '2026-10-01';   // a Thursday; the frozen timetable ends on Sunday 11-10
 const days = (missing: string[] = []) => ['02', '03', '04', '05', '06', '07', '08', '09', '10', '11'].map(d => ({ day: `2026-10-${d}`, trains: !missing.includes(`2026-10-${d}`) }));
@@ -33,4 +33,26 @@ test('a week that runs past the timetable ends with its days struck through, and
   assert.match(html, /aria-label="Dissabte 5 de desembre, sense horari"><b>5<\/b>/);
   assert.match(html, /<b>1<\/b><small>des\.<\/small>/);
   assert.match(html, /després del 4 de desembre\./);
+});
+
+// «Un altre dia» (22-11 evening, Àlex: the words, and drawing C of three): the pad over the ruler, two sheets hanging
+// from its cardboard. Before a day is chosen the second sheet says «un altre dia» over a tiny wall calendar in colour
+// (the pad's own cardboard, two staples and a day in red), the same world as the pad above; once chosen, its number
+const sheet = (html: string, key: string) => html.match(new RegExp(`<button[^>]*data-dia="${key}"[\\s\\S]*?</button>`))![0];
+test('«un altre dia» with a tiny wall calendar, then the day chosen', () => {
+  const html = pad('2026-09-28', 'avui', '2026-09-28');
+  const s = sheet(html, 'dia');
+  assert.match(s, /<i>un altre dia<\/i>/);
+  assert.match(s, /aria-label="Un altre dia"/);
+  assert.match(s, /aria-haspopup="dialog"/);
+  assert.match(s, /<svg class="cal"[^>]*aria-hidden="true"/);
+  assert.match(s, /fill="#6E4232"/);   // the cardboard of the pad
+  assert.match(s, /fill="#C8432B"/);   // a day in red
+  assert.match(sheet(html, 'avui'), /<i>avui<\/i> <b>28<\/b>/);
+  assert.match(sheet(html, 'avui'), /aria-pressed="true"/);
+  const chosen = sheet(pad('2026-09-28', 'dia', '2026-10-01'), 'dia');
+  assert.match(chosen, /<i>un altre dia<\/i> <b>1<\/b>/);
+  assert.match(chosen, /aria-label="Dijous, 1 d’octubre\. Tria un altre dia"/);
+  assert.match(chosen, /aria-pressed="true"/);
+  assert.doesNotMatch(chosen, /<svg class="cal"/);
 });
