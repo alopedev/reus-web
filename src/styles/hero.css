@@ -84,6 +84,12 @@
 .trip .arr{ color:var(--soft); font-size:1.3rem; white-space:nowrap; }
 /* the AVE leaves from (or goes to) Camp de Tarragona, not the town: said under its arrival, on a line of its own */
 .trip .st{ grid-column:3 / -1; justify-self:end; font-size:.93rem; line-height:1.1; color:var(--soft); white-space:nowrap; }
+/* ...hanging under it, out of the flow (22-11): in the flow it made the board a line taller, so the window shrank and
+   the carriage was repainted with another framing at every step of the ruler that met a fast train (check_win_steady).
+   Tucked up into the arrival's line, under its figures; the second row's hangs into the room over the ruler */
+.trip{ position:relative; }
+.trip .st{ position:absolute; top:100%; right:0; margin-top:-.35rem; }
+.big .st{ margin-top:-.6rem; }
 /* the train shown is the one pressed: flat on the wall, no offset shadow and no frame (the inked stamp around it was
    dropped, Àlex 06-10). It is only a time: the stubs say what it leads to (Àlex 18-10) */
 #dep{ font-size:4.6rem; line-height:.9; letter-spacing:-.02em; text-shadow:0 1px 2px rgba(0,0,0,.35), var(--halo); justify-self:start; }
@@ -105,7 +111,7 @@
 #dep.tach::after{ content:""; position:absolute; left:-4%; right:-4%; top:52%; height:.075em; background:#E8A35C; transform:rotate(-8deg);
   box-shadow:.03em .03em 0 var(--shadow); border-radius:.05em; pointer-events:none;
   -webkit-mask-image:var(--grano-sello); mask-image:var(--grano-sello); -webkit-mask-size:120px; mask-size:120px; }
-.big .nova{ font-family:var(--serif); font-weight:400; font-size:2.5rem; line-height:1; color:#E8A35C; text-shadow:.06em .06em 0 var(--shadow), var(--halo); margin-right:.35em; vertical-align:-.12em; }
+.big .nova{ font-family:var(--serif); font-weight:400; font-size:2.5rem; line-height:0; color:#E8A35C; text-shadow:.06em .06em 0 var(--shadow), var(--halo); margin-right:.35em; vertical-align:-.12em; }
 .big .mes{ color:#E8A35C; font-weight:700; }
 .big .gris{ color:var(--soft); opacity:.8; }
 .big .arr s{ font-size:.8em; opacity:.6; text-decoration-color:#E8A35C; text-decoration-thickness:.09em; margin-right:.25em; }
@@ -307,7 +313,7 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
      countdown of hours takes two */
   .big .w.dos{ display:flex; flex-direction:column; white-space:nowrap; line-height:1.08; }
   @media (max-width:370px){ .big .w.dos .soon{ white-space:normal; } }
-  .big .nova{ font-size:1.45rem; margin:0; vertical-align:baseline; }
+  .big .nova{ font-size:1.45rem; line-height:1; margin:0; vertical-align:baseline; }
   /* on a phone the board keeps only the times (6B, Àlex 06-10): every trip is a button ending in «›», the big one
      too, and opens its detail in a sheet (detail.ts). The «›» stands in a column of its own, so the arrivals still
      line up */

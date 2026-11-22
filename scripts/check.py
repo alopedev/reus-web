@@ -1756,6 +1756,39 @@ async def retards_page(browser, kind, w, h):
     await page.goto(parity_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(2500)
     return page
 
+WIN_RECT = """(() => { const r = document.getElementById('win').getBoundingClientRect();
+  return [r.left, r.top, r.width, r.height].map(v => Math.round(v * 10) / 10); })()"""
+WIN_TRAIN = "[document.querySelector('#dep')?.textContent, document.querySelector('#board .big .pill')?.textContent].join(' ')"
+
+async def check_win_steady(browser):
+    """On a desktop the window never changes size or place while the visitor moves along the day (22-11, Àlex's video):
+    a fast train from the town's other station says «des de Camp de Tarragona» under its arrival, and that line made
+    the board one line taller, the window smaller and the carriage repainted with another framing at every step of the
+    ruler. Every train of the day with the ruler's arrow keys, tomorrow's first, and the live delay's states."""
+    errs = []
+    for w, h in ((1280, 800), (1440, 900), (1920, 1080)):
+        page = await hero_page(browser, w, h)
+        first = await page.evaluate(WIN_RECT); moved = {}
+        await page.focus('#t')
+        for _ in range(45):
+            await page.keyboard.press('ArrowRight'); await page.wait_for_timeout(40)
+            got = await page.evaluate(WIN_RECT)
+            if got != first: moved.setdefault(tuple(got), await page.evaluate(WIN_TRAIN))
+        days = await page.query_selector_all('#days .full')
+        if len(days) > 1:
+            await days[1].click(); await page.wait_for_timeout(200)
+            got = await page.evaluate(WIN_RECT)
+            if got != first: moved.setdefault(tuple(got), "demà " + await page.evaluate(WIN_TRAIN))
+        for rect, train in moved.items():
+            errs.append(f"{w}x{h}: with {train} the window is {rect[2]:.0f} x {rect[3]:.0f} at ({rect[0]:.0f}, {rect[1]:.0f}), "
+                        f"expected {first[2]:.0f} x {first[3]:.0f} at ({first[0]:.0f}, {first[1]:.0f})")
+        await page.close()
+    page = await hero_page(browser); first = await page.evaluate(WIN_RECT); await page.close()
+    for kind in ("late", "notyet", "cancel"):
+        page = await retards_page(browser, kind, 1440, 900); got = await page.evaluate(WIN_RECT); await page.close()
+        if got != first: errs.append(f"1440x900, {kind}: the window is {got[2]:.0f} x {got[3]:.0f} at ({got[0]:.0f}, {got[1]:.0f}), expected {first[2]:.0f} x {first[3]:.0f} at ({first[0]:.0f}, {first[1]:.0f})")
+    return errs
+
 async def check_retards(browser):
     """Desktop: a late train has its time struck in orange and the new one beside it, «+25 min» and the countdown to the
     new departure, and its arrival corrected; on time nothing changes; not in the feed yet or no answer, «sense dades en
@@ -2171,6 +2204,7 @@ async def check_hero(browser):
     errs += [f"station: {e}" for e in await check_station(browser)]
     # the big train's route, only on a desktop
     errs += [f"route: {e}" for e in await check_journey(browser)]
+    errs += [f"window: {e}" for e in await check_win_steady(browser)]
     errs += [f"wagon: {e}" for e in await check_wagon(browser)]
     errs += [f"board: {e}" for e in await check_flaps(browser)]
     errs += [f"board: {e}" for e in await check_board_painted(browser)]
@@ -4009,6 +4043,9 @@ async def main():
         if sys.argv[1:] == ["abast"]:
             failures += await check_reach(browser) + await check_remember(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · abast"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["finestra"]:
+            failures += await check_win_steady(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · finestra"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["tauler"]:
             failures += await check_board_legible(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · tauler"); sys.exit(1 if failures else 0)
