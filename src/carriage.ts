@@ -55,7 +55,9 @@ export function plan(A: number, win: Win, wide: boolean, ceil = .99): Plan {
   // its backrest's back just left of the window's left edge and its armrest a fifth up the screen: where Àlex placed
   // it on the canvas (08-11; on a 390 × 844 phone, 40 px left and 43 px lower than before). Its cushion lands behind
   // the day's ruler: room.ts keeps it in shade so the ruler's hours read (Àlex, 08-11, check_ruler_foot)
-  const scale = .6, x = win.x*A - .015, y0 = .204 - ARMREST*scale;
+  // A short phone whose window stands high over the board (the ticket heads the board since 22-11): the seat rises with
+  // it, no closer than .2 of the screen under the window's bottom, so it still reaches the corner
+  const scale = .6, x = win.x*A - .015, y0 = Math.max(.204, win.y - .2) - ARMREST*scale;
   const seats: Seat[] = [
     { x, y0, scale, dir: 1, handle: true },
     { x: x - .17*scale, y0, scale, dir: -1, handle: false },

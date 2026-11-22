@@ -97,3 +97,12 @@ test('on a phone, the rack and its luggage stay whole under the name\'s board', 
   const d = plan(A, desk, true, .5);
   assert.ok(d.rack !== null && d.luggage, 'a desktop keeps both: its board stands beside the rack, not over it');
 });
+
+// with the ticket heading the board (22-11) a short phone's window stands high over the board: the seat rises with it,
+// just enough to reach the window's lower-left corner, as Àlex placed it (320 × 568: the window's bottom at .456)
+test('on a short phone whose window stands high, our seat rises to still reach the window\'s corner', () => {
+  const AA = 320/568, win = { x: .105, y: .456, z: .895, w: .812 };
+  const s = plan(AA, win, false).seats.find(t => t.handle)!;
+  assert.ok(s.y0 + .68*s.scale > .204, 'its armrest higher than a fifth up the screen');
+  assert.ok(s.y0 + .68*s.scale <= win.y - .2 + 1e-9, 'never closer than that to the window\'s bottom');
+});

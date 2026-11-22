@@ -365,17 +365,24 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   /* its 44 px zones over the highlighted row's own (which reaches up into them): the head is the one thing a finger aims at there */
   .cap{ position:relative; z-index:1; }
   .cap .tickets{ flex:0 1 auto; min-width:0; }
-  /* the ticket's date opens the calendar (B, Àlex 22-11): raised like the arrows, flat when pressed, 48 px for a finger like the ends */
-  .tk .fecha{ cursor:pointer; pointer-events:auto; z-index:1; }
+  /* the ticket's date opens the calendar (B, Àlex 22-11): raised like the arrows, flat when pressed. A finger's reach of
+     46 × 48 px that starts a little into the stub and runs out past the ticket's edge: the town's own reach (48 px)
+     keeps the stub's first .2rem, so neither falls under 44 */
+  .tk .fecha{ cursor:pointer; pointer-events:none; z-index:1; }
   .tk .fecha svg{ filter:drop-shadow(.05rem .05rem 0 rgba(45,36,28,.55)) blur(.15px); transition:filter .12s, transform .12s; }
   .tk .fecha:active svg{ filter:blur(.15px); transform:rotate(-90deg) translate(-.05rem,.05rem); }
   .tk .fecha:focus-visible{ outline:2px solid var(--shadow); outline-offset:-2px; border-radius:3px; }
-  .tk .fecha::before{ content:""; position:absolute; left:50%; top:50%; width:max(100%, 48px); height:max(100%, 48px); transform:translate(-50%, -50%); }
+  .tk .fecha::before{ content:""; position:absolute; left:.2rem; top:50%; width:46px; height:max(100%, 48px); transform:translateY(-50%); pointer-events:auto; }
   .cap .talons{ position:static; margin:0; }
   .cap .talo{ position:relative; }
   .cap .talo .in{ min-height:0; padding:.25rem .7rem .25rem .6rem; }
-  /* the narrowest phones (320 px): ticket and stub side by side, a little smaller */
-  @media (max-width:350px){ .cap .tk .route{ font-size:1.05rem; } .cap .tk .pp{ padding-left:.65rem; padding-right:2rem; } .cap .talo .in{ padding:.2rem .5rem .2rem .45rem; font-size:.92em; } .cap{ gap:.45rem; } }
+  /* the narrowest phones (320 px): ticket and stub side by side, both a little smaller; the ticket keeps 44 px of
+     height for its ends (check.py abast), the stub draws its wagon smaller */
+  @media (max-width:350px){
+    .cap .tk .route{ font-size:1.18rem; } .cap .tk .pp{ padding:.72rem 2rem .72rem .65rem; }
+    .cap .talo .in{ gap:.3rem; padding:.2rem .35rem; font-size:.85em; } .cap .talo svg{ height:.8rem; } .cap .talo i{ padding-right:.35rem; }
+    .cap{ gap:.45rem; }
+  }
   .cap .talo::before{ content:''; position:absolute; left:0; right:-.2rem; top:50%; height:max(2.75rem, 44px); transform:translateY(-50%); }
 }
 /* a phone held sideways (Àlex 12-10, option A): too short for the stacked hero, whose window shrank to a slit. Two
