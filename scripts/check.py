@@ -340,6 +340,10 @@ async def check_wash(page, name):
     async def at(f):
         await page.evaluate(f"scrollTo({{top: innerHeight * {f}, behavior: 'instant'}})"); await page.wait_for_timeout(300)
         await hinge_caught_up(page); await page.wait_for_timeout(600)
+    # the readings are of the wall's paint, so the hero's texts are hidden meanwhile (visibility: the layout and the
+    # window stay put): since the desktop's larger type (#106, 22-11) the journey's line can cross the spot near the
+    # hinge, and a DOM line only dims with .stage's filter (CI 22-11: «no wash at the hinge» at 71 → 64, 65 → 60)
+    await page.evaluate("document.head.insertAdjacentHTML('beforeend', '<style id=sin-textos>#stage *:not(.winCell):not(#win){visibility:hidden !important}</style>')")
     await at(0)
     # two bare-wall spots beside the window (clear of the seats): one just above where the hinge will be at 30%, one high up
     # a panoramic window (stacked hero) leaves no bare wall beside its frame: then the high spot sits just above the frame
@@ -363,6 +367,7 @@ async def check_wash(page, name):
     await at(0)
     back = await steady_reading(page, [near, far])
     if max(abs(back[0] - base[0]), abs(back[1] - base[1])) > 10: errs.append(f"the wash leaves a trace back at the top ({base[0]:.0f}/{base[1]:.0f} → {back[0]:.0f}/{back[1]:.0f})")
+    await page.evaluate("document.getElementById('sin-textos').remove()")
     return errs
 
 # every draw onto the screen of the landscape's canvas (#gl), keyed by the frame it belongs to: the document
