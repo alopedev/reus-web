@@ -443,6 +443,48 @@ def avisos_dia_incompleto(d, productos=PRODUCTOS, familia=None):
     return [f"{day}: {m[0]}" for day, m in lineas_cortas(d, productos, familia).items() if len(m) == 1]
 
 
+RODALIES_DIAS_FIJOS = 2   # rodalies.json must have today and tomorrow; a later day Renfe has not published is a warning
+
+
+def rodalies_sin_dia(d):
+    """The days in rodalies.json's 14 from actualizado with no trains: Renfe's feed has holes (22-11-2026: no Rodalies
+    trains on the weekdays from 30-11 to 04-12, while it had the weekend before and after)."""
+    import datetime as dt
+    try:
+        start = iso_date(d.get("actualizado", ""))
+    except ValueError:
+        return []
+    dias = d.get("dias") if isinstance(d.get("dias"), dict) else {}
+    return [x for x in ((start + dt.timedelta(days=i)).isoformat() for i in range(14)) if x not in dias]
+
+
+def check_dias_rodalies(d):
+    """Rule 2 for rodalies.json: indices point to real trains, and today and tomorrow are there. A later day missing does
+    not hold the file back (it did, from 16 to 22-11-2026, and the site's ran out): the site borrows a day of the same
+    kind for it and says the timetable is approximate (addPart in src/time.ts)."""
+    errs = [e for e in check_dias(d) if not e.startswith("dias does not cover")]
+    import datetime as dt
+    try:
+        start = iso_date(d.get("actualizado", ""))
+    except ValueError:
+        return errs
+    pronto = [x for x in rodalies_sin_dia(d) if iso_date(x) < start + dt.timedelta(days=RODALIES_DIAS_FIJOS)]
+    if pronto:
+        errs.append(f"no trains on {', '.join(pronto)}: today and tomorrow must be there")
+    return errs
+
+
+def avisos_dias_rodalies(d):
+    """The later days missing from rodalies.json, in one warning: published anyway."""
+    import datetime as dt
+    try:
+        start = iso_date(d.get("actualizado", ""))
+    except ValueError:
+        return []
+    luego = [x for x in rodalies_sin_dia(d) if iso_date(x) >= start + dt.timedelta(days=RODALIES_DIAS_FIJOS)]
+    return [f"Renfe has no Rodalies trains yet on {', '.join(luego)}: the site borrows a day of the same kind"] if luego else []
+
+
 def check_tamano(path):
     """Rule 11: <= 150 KB gzip-compressed."""
     try:
@@ -494,7 +536,7 @@ def run_rodalies(path, towns=PUEBLOS_RODALIES):
     failures = []
     for prefix, fn in (
         ("shape", lambda: check_top_level(d)),
-        ("dias", lambda: check_dias(d)),
+        ("dias", lambda: check_dias_rodalies(d)),
         ("trenes", lambda: check_trenes(d, PRODUCTOS_RODALIES)),
         ("barcelona", lambda: check_toca_barcelona(d, BARCELONA_CIUTAT)),
         ("duplicados", lambda: check_duplicados(d)),
@@ -507,14 +549,15 @@ def run_rodalies(path, towns=PUEBLOS_RODALIES):
     return failures
 
 
-def avisos(lines, fichero="red.json"):
+def avisos(lines, fichero="red.json", titulo="Día con pocos trenes",
+           forma="día incompleto: {} (published anyway: one line alone, probably works)"):
     """Warnings that do not stop the robot: on stderr and, in GitHub Actions, as an annotation and in the run summary."""
     import os
     for line in lines:
-        msg = f"día incompleto: {line} (published anyway: one line alone, probably works)"
+        msg = forma.format(line)
         print(f"aviso: {msg}", file=sys.stderr)
         if os.environ.get("GITHUB_ACTIONS"):
-            print(f"::warning title=Día con pocos trenes en {fichero}::{msg}")
+            print(f"::warning title={titulo} en {fichero}::{msg}")
         if os.environ.get("GITHUB_STEP_SUMMARY"):
             with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
                 f.write(f"- ⚠️ {msg}\n")
@@ -559,6 +602,7 @@ if __name__ == "__main__":
         failures = run_rodalies(rod_path)
         d, _ = load(rod_path)
         avisos(avisos_dia_incompleto(d or {}, PRODUCTOS_RODALIES, FAMILIA_RODALIES), "rodalies.json")
+        avisos(avisos_dias_rodalies(d or {}), "rodalies.json", "Días sin trenes", "{}")
         if failures:
             print("FAIL\n  " + "\n  ".join(failures))
             sys.exit(1)

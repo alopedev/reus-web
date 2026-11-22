@@ -34,17 +34,30 @@ export const PATTERNS: NetTrain[] = rodalies.patrons;
 export const RODALIES_FILES: Record<string, string> = rodalies.f;
 
 // a town's Rodalies trains join the network: each train once (two towns share most of theirs), on the days the
-// timetable has. True if anything was added
+// timetable has. A day the town's file lacks (Renfe's feed had no Rodalies trains on the weekdays from 30-11 to 04-12-
+// 2026) borrows the file's latest day of the same kind, like any day missing from the data (dayData), and that town's
+// board says the timetable is approximate that day. True if anything was added
 const trainKey = (t: NetTrain): string => t.n + '|' + t.p + '|' + t.s.map(x => x.join('.')).join(',');
-let known: Set<string> | null = null;
-export function addPart(part: Part): boolean {
-  known ??= new Set(NET.trenes.map(trainKey));
-  const at = part.t.map(t => { const k = trainKey(t); if(known!.has(k)) return -1; known!.add(k); return NET.trenes.push(t) - 1; });
-  for(const [day, ids] of Object.entries(part.dias)){
-    const list = NET.dias[day]; if(!list) continue;
-    for(const j of ids) if(at[j] >= 0) list.push(at[j]);
+let known: Map<string, number> | null = null;
+const borrowed = new Map<string, Set<string>>();
+export function addPart(part: Part, town?: string): boolean {
+  known ??= new Map(NET.trenes.map((t, i) => [trainKey(t), i]));
+  let added = false;
+  const at = part.t.map(t => {
+    const k = trainKey(t); let i = known!.get(k);
+    if(i === undefined){ i = NET.trenes.push(t) - 1; known!.set(k, i); added = true; }
+    return i;
+  });
+  const own = Object.keys(part.dias).sort().reverse(), lent = new Set<string>();
+  for(const [day, list] of Object.entries(NET.dias)){
+    let from: string | undefined = day in part.dias ? day : undefined;
+    if(!from && own.length){ from = own.find(x => kind(x) === kind(day)); if(from) lent.add(day); }
+    if(!from) continue;
+    const has = new Set(list);
+    for(const j of part.dias[from]) if(!has.has(at[j])){ list.push(at[j]); has.add(at[j]); added = true; }
   }
-  return at.some(i => i >= 0);
+  if(town && lent.size) borrowed.set(town, new Set([...borrowed.get(town) ?? [], ...lent]));
+  return added;
 }
 // the Barcelona end of the trip (3.5): Sants first, the default. El Clot left out (Àlex, 05-10: nobody asks for it)
 // `short` is the name on the ticket, where «Passeig de Gràcia» does not fit (Àlex, 06-10); everywhere else, `name`
@@ -139,14 +152,16 @@ export function madridNow(): {date: string, min: number} {
 }
 export const addDays = (iso: string, n: number): string => { const d=new Date(iso+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); };
 export const weekday = (iso: string): number => new Date(iso+'T12:00:00Z').getUTCDay();
+// the kind of day a timetable has: weekday (1), Saturday (6) or Sunday (0)
+const kind = (x: string): number => { const w = weekday(x); return w===6 ? 6 : w===0 ? 0 : 1; };
 export const hhmm = (m: number): string => { m=((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); };
 export const dur = (m: number): string => { if(m<1) return 'ara'; const h=Math.floor(m/60), r=m%60; return h?(r?`${h} h ${r} min`:`${h} h`):`${r} min`; };
 
 // days missing from the data borrow the latest known day of the same kind (weekday, Saturday or Sunday). `station`
 // is the Barcelona end of the trip (Sants by default; a parameter already, for 3.5's choice of station)
 export function dayData(iso: string, town: string, station: string = SANTS): {d: DayTimetable, exact: boolean} {
-  const kind = (x: string) => { const w = weekday(x); return w===6 ? 6 : w===0 ? 0 : 1; };
-  const exact = iso in NET.dias, day = exact ? iso : Object.keys(NET.dias).sort().reverse().find(x => kind(x)===kind(iso))!;
+  const known = iso in NET.dias, day = known ? iso : Object.keys(NET.dias).sort().reverse().find(x => kind(x)===kind(iso))!;
+  const exact = known && !borrowed.get(town)?.has(iso);
   const alt = altOf(town), r = direct(day, station, town), b = direct(day, town, station);
   // a fast train that calls at the town itself is already in r/b
   const elsewhere = (from: string, to: string, own: Train[]) => direct(day, from, to).filter(t => t[3] === FAST && !own.some(x => x[2] === t[2]));
