@@ -38,8 +38,8 @@ test('a trip only on the train part has no bus', () => {
 test('on a phone, the board says «bus + tren» where it would say nothing, and a screen reader hears it', () => {
   const [row] = board(at('10:32'), false, true);
   assert.match(row, /<span class="gris">bus \+ tren<\/span>/);
-  // stacked under the countdown, as a delay is: a countdown of hours would otherwise wrap round it
-  assert.match(row, /<span class="w dos">/);
+  // on the row's second line, after the countdown (C, Àlex 24-11)
+  assert.match(row, /<span class="nota">en 4 min · <span class="gris">bus \+ tren<\/span><\/span>/);
   assert.match(row, /aria-label="R15 de les 10:36, surt en 4 min, arriba a les 12:07, en autobús fins a Tarragona\./);
 });
 

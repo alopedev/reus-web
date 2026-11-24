@@ -2,6 +2,7 @@ import { hhmm, type Bus } from './time';
 import { lineStyle } from './towns';
 import { journey } from './journey';
 import { busWords, type Row, type Shown } from './shown';
+import { atPlace, ofPlace } from './ca';
 
 // the board's trips as they read: one row's HTML per trip, the train shown first. Every word of a row is decided here
 // («el pròxim» or «ja ha sortit», «després» or «demà», a delay, «cancel·lat», «sense dades», the other station, what a
@@ -17,10 +18,9 @@ export function board(v: Extract<Shown, { kind: 'train' }>, ida: boolean, phone:
 // after today's last fast train from the other station, and on the train shown when tomorrow is looked at), arrival. A fast
 // train from or to the town's other station says so under its arrival, as the AVE did (Àlex, 08-11): Camp de Tarragona,
 // Figueres-Vilafant, not the town. The train shown is big; the other is a button that shows it
-// On a phone only the times are left, with the countdown on the big train and «demà» where it applies; every trip
-// is a button with a «›» that opens its detail, the big one included
+// On a phone only the times are left, and a line under them; the trip is a button that opens its detail
 // a trip that runs part of its way by bus (works on the line, option A, Àlex 05-11): on a phone, «bus + tren» (or
-// «tren + bus») under the countdown, where «sense dades» would go; a delay or a cancellation keeps its own words
+// «tren + bus») on that line
 function trip(r: Row, ida: boolean, phone: boolean, rec: string, bus: Bus | null): string {
   const {big, ave: isAve, until, morrow, live} = r;
   // the live delay (option A, Àlex 10-10): the time struck in orange and the new one beside it, the arrival
@@ -30,11 +30,18 @@ function trip(r: Row, ida: boolean, phone: boolean, rec: string, bus: Bus | null
   const arr = late ? (phone ? `→ <span class="nv">${hhmm(late.arr)}</span>` : `→ <s>${hhmm(r.arr)}</s> <span class="nv">${hhmm(late.arr)}</span>`) : `→ ${hhmm(r.arr)}`;
   const arrCls = live?.kind === 'cancel' ? 't arr off' : 't arr';
   if(phone){
-    const w = !big ? morrow : late ? `<span class="nova">${hhmm(late.dep)}</span>${soonW}`
-      : live?.kind === 'cancel' ? '<span class="mes">cancel·lat</span>' : bus ? `${soonW}<span class="gris">${bus.first ? 'bus + tren' : 'tren + bus'}</span>`
-      : live?.kind === 'unknown' ? `${soonW}<span class="gris">sense dades</span>` : soonW;
-    const cells = `<span class="pill" style="${lineStyle(r.line)}">${r.line}</span> <span class="t${struck}"${big ? ' id="dep"' : ''}>${hhmm(r.dep)}</span> `
-      + `<span class="w${live ? ' viu' : bus ? ' dos' : ''}">${w}</span> <span class="${arrCls}">${arr}</span> <span class="mas" aria-hidden="true">›</span>`;
+    // two lines (C of «simplify the phone», Àlex 24-11): the times, and under them the countdown, where the train arrives when it is not the
+    // town (a fast train to Camp de Tarragona or Figueres-Vilafant), the bus and «sense dades». No «›»: «Agafa’l» is the
+    // sign. A delay keeps its new time beside the struck one; a cancellation says so in place of the countdown
+    const nova = late ? ` <span class="nova">${hhmm(late.dep)}</span>` : '';
+    const words = live?.kind === 'cancel' ? ['<span class="mes">cancel·lat</span>'] : [
+      big ? (until ? 'en ' + until : r.gone ? 'ja ha sortit' : morrow) : morrow,
+      isAve ? (ida ? 'baixa ' + atPlace(r.other) : 'surt ' + ofPlace(r.other)) : '',
+      bus ? `<span class="gris">${bus.first ? 'bus + tren' : 'tren + bus'}</span>` : '',
+      live?.kind === 'unknown' ? '<span class="gris">sense dades</span>' : '',
+    ].filter(Boolean);
+    const cells = `<span class="pill" style="${lineStyle(r.line)}">${r.line}</span> <span class="t${struck}"${big ? ' id="dep"' : ''}>${hhmm(r.dep)}</span>${nova} `
+      + `<span class="${arrCls}">${arr}</span> <span class="nota">${words.join(' · ')}</span>`;
     const where = isAve ? (ida ? ' a ' : ' des de ') + r.other : '';
     const said = late ? `, amb ${late.min} min de retard, surt cap a les ${hhmm(late.dep)} i arriba a les ${hhmm(late.arr)}` : live?.kind === 'cancel' ? ', cancel·lat' : '';
     const label = `${r.line} de les ${hhmm(r.dep)}${where}${said || (big && until ? ', surt en ' + until : morrow ? ', ' + morrow : '') + `, arriba a les ${hhmm(r.arr)}`}${bus ? ', ' + busWords(bus) : ''}. Veure el detall i comprar`;

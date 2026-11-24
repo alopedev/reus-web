@@ -1256,13 +1256,14 @@ async def check_landscape(browser):
     """A phone held sideways keeps the window painted and readable (option A, Àlex 12-10): two columns, the window
     on the left as tall as the screen allows, the name, the ticket, the board and the ruler on the right. Before, the
     window shrank to a slit (844 x 390: 0 px; 667 x 375: a strip) and the ticket covered the name's board. Its rows
-    are the phone's (a button per trip, «›»), and the train's sheet fits the screen: its two buttons can be reached."""
+    are the phone's (the highlighted trip, a button), and the train's sheet fits the screen: its two buttons can be reached."""
     errs = []
     for name, (w, h) in LANDSCAPE.items():
         page = await open_page(browser, viewport={"width": w, "height": h}, reduced_motion="reduce", is_mobile=True, has_touch=True, device_scale_factor=2)
         await page.goto(page_url); await page.evaluate("document.fonts.ready"); await page.wait_for_timeout(1500)
         # the hero's part of FIT: the table's notebook, two pages of 226 px at 932 x 430, reads well and is not this check's
         errs += [f"{name}: {e}" for e in await page.evaluate(FIT) if not e.startswith("notebook page")]
+        errs += [f"{name}: {e}" for e in await page.evaluate(PHONE_LOW)]
         g = await page.evaluate("""(() => { const r = s => document.querySelector(s).getBoundingClientRect().toJSON();
           return {win: r('#win'), brd: r('.tauler'), tk: r('.tk'), info: r('#info'), hours: r('.hours'), phone: !!document.querySelector('#board button.big')}; })()""")
         win, brd, tk, info = g["win"], g["brd"], g["tk"], g["info"]
@@ -1833,6 +1834,8 @@ async def check_type_scale(browser):
         page = await hero_page(browser, w, h, at="2026-09-28T07:20:00Z")
         r = await page.evaluate(TYPE_SIZES); await page.close()
         roles = {e["role"] for e in r["out"]}
+        # «Bitllet» leaves only the phone's ticket (C of «simplify the phone», Àlex 24-11)
+        if not any(e["sel"] == ".tk .k" for e in r["out"]): errs.append(f"{w}x{h}: the ticket no longer says «Bitllet»")
         for need in TYPE_SCALE:
             if need not in roles: errs.append(f"{w}x{h}: nothing of «{need}» on the board to measure")
         for e in r["out"]:
@@ -2630,7 +2633,7 @@ HOURS = """(() => { const row = document.querySelector('.hours'), c = getCompute
   return {color: c, row: box(row), labels: [...row.querySelectorAll('span')].map(box)}; })()"""
 
 async def check_text_sun(browser):
-    """The small cream letters on the wall (the subtitle, the board's rows, the phone's day tabs) read when the sun
+    """The small cream letters on the wall (the subtitle, the board's rows, the phone's line under its times) read when the sun
     comes in (Àlex 08-11: in the afternoon its white patch on the seats hid «el pròxim» and the subtitle): the wall
     behind each, with the texts hidden, against the text's colour, its brighter pixels (p90), at least 3:1 (with
     their shadow they read as large text). Morning and afternoon, desk and phone."""
@@ -2638,11 +2641,11 @@ async def check_text_sun(browser):
     for w, h in ((1440, 900), (390, 844)):
         for at in ("2026-09-28T08:00:00Z", "2026-09-28T13:30:00Z", "2026-09-28T15:00:00Z"):
             page = await hero_page(browser, w, h, at); await page.wait_for_timeout(1500)
-            boxes = await page.evaluate("""[...document.querySelectorAll('.sub, #cap .full, #board .w')]
+            boxes = await page.evaluate("""[...document.querySelectorAll('.sub, #cap .full, #board .w, #board .nota')]
               .filter(e => e.getBoundingClientRect().width > 0 && getComputedStyle(e).visibility !== 'hidden')
               .map(e => { const r = e.getBoundingClientRect(), c = getComputedStyle(e).color.match(/\\d+/g).map(Number);
                 return {name: e.className || e.tagName, color: c, box: [r.left, r.top, r.right, r.bottom]}; })""")
-            await page.add_style_tag(content=".sub, #cap .full, #board .w{visibility:hidden !important}")
+            await page.add_style_tag(content=".sub, #cap .full, #board .w, #board .nota{visibility:hidden !important}")
             await page.wait_for_timeout(300)
             shot = Image.open(io.BytesIO(await page.screenshot())).convert("RGB")
             for b in boxes:
@@ -3854,9 +3857,28 @@ async def check_paper_motion(browser):
             await page.close()
     return errs
 
+# C of «simplify the phone» (Àlex 24-11): the row in two lines, the times on the first (the arrival on the right) and
+# one sentence under the departure; the ticket without the word «Bitllet», a line lower, its printed date still inside
+PHONE_LOW = """(() => { const errs = [], box = e => e.getBoundingClientRect(), q = s => document.querySelector(s);
+  const row = q('#board .trip.big'), dep = q('#dep'), arr = q('#board .big .arr'), nota = q('#board .big .nota');
+  if(!row || !nota) return ['no highlighted row with its sentence (.nota)'];
+  const d = box(dep), a = box(arr), n = box(nota), r = box(row);
+  if(n.top < d.bottom - 2) errs.push(`the sentence (${Math.round(n.top)}) is not under the departure (${Math.round(d.bottom)})`);
+  if(Math.abs(n.left - d.left) > 2) errs.push(`the sentence starts at ${Math.round(n.left)}, not under the departure (${Math.round(d.left)})`);
+  if(a.bottom > n.top + 2) errs.push(`the arrival (${Math.round(a.top)}–${Math.round(a.bottom)}) is not on the first line, over the sentence (${Math.round(n.top)})`);
+  if(r.right - a.right > 2) errs.push(`the arrival ends at ${Math.round(a.right)}, not at the row's right (${Math.round(r.right)})`);
+  if(row.textContent.includes('›')) errs.push('the row still ends in «›»');
+  const k = q('.tk .k'), pp = box(q('.tk .pp')), f = box(q('.tk .fecha svg'));
+  if(k && getComputedStyle(k).display !== 'none') errs.push(`the ticket still says «${k.textContent.trim()}»`);
+  if(pp.height > 50) errs.push(`the ticket is ${Math.round(pp.height)} px tall, expected a line lower (≤ 50)`);
+  if(f.top < pp.top - .5 || f.bottom > pp.bottom + .5) errs.push(`the ticket's printed date (${Math.round(f.top)}–${Math.round(f.bottom)}) leaves the ticket (${Math.round(pp.top)}–${Math.round(pp.bottom)})`);
+  return errs; })()"""
+
 async def check_phone_board(browser):
     """6B (Àlex, 06-10): on a phone the board keeps only the times, the countdown and a «›»; since 19-10 (P2 on
-    one line) it is the highlighted time alone, a button that opens a paper sheet with its detail and «Compra a Renfe ↗».
+    one line) it is the highlighted time alone, and since 24-11 (C of «simplify the phone») in two lines, the times and
+    under them one sentence (the countdown, where a fast train arrives when it is not the town), with no «›»: a button
+    that opens a paper sheet with its detail and «Compra a Renfe ↗».
     Another train picked on the ruler is the one the sheet tells. Esc, ✕ and the backdrop close the sheet and hand the focus
     back to the big train. On a wide screen the board is unchanged (check_hero_board). The sheet also says «Avisar a
     casa» (Àlex 06-10, only on a phone): a link to WhatsApp (wa.me, no number) with the train written as a message."""
@@ -3864,10 +3886,12 @@ async def check_phone_board(browser):
     page = await hero_page(browser, 390, 844)
     b = await page.evaluate(PHONE)
     # the window first (P2 on one line, Àlex 19-10): the highlighted time alone; the next one is on the ruler
-    want = ["R15 10:03 en 3 min → 11:33 ›"]
+    # in two lines, the times and under them the countdown; no «›» (C of «simplify the phone», Àlex 24-11)
+    want = ["R15 10:03 → 11:33 en 3 min"]
     if b["rows"] != want: errs.append(f"at 10:00 the phone board reads {b['rows']}, expected {want}")
     if b["buttons"] != [True]: errs.append(f"on a phone the trip should be a button, got {b['buttons']}")
     if b["buy"]: errs.append("on a phone the board's row holds a link (the way to Renfe is «Compra» over it and in the sheet)")
+    errs += [f"390x844: {e}" for e in await page.evaluate(PHONE_LOW)]
     async def tap(sel, when):
         try: await page.click(sel, timeout=CLICK_MS)
         except Exception: errs.append(f"{when}: {sel} is not clickable"); return None
@@ -3906,6 +3930,8 @@ async def check_phone_board(browser):
     # from Reus at 21:30 the train shown is today's last AVE, from Camp de Tarragona: the message says where it leaves
     page = await hero_page(browser, 390, 844, at="2026-09-28T19:30:00Z")
     await page.click(".tk .swap"); await page.wait_for_timeout(300)
+    row = (await page.evaluate(PHONE))["rows"]
+    if row != ["AV 22:17 → 22:59 en 47 min · surt de Camp de Tarragona"]: errs.append(f"from Reus at 21:30 the phone board reads {row}, expected the AV saying it leaves from Camp de Tarragona")
     b = await tap("#board button.big", "the AVE from Reus at 21:30")
     if b: home(b, "the AVE from Reus at 21:30", "Agafo l’AV de les 22:17 a Camp de Tarragona. Arribo a Sants a les 22:59.")
     await page.close()
@@ -4191,7 +4217,7 @@ async def main():
               const r = s => document.querySelector(s).getBoundingClientRect();
               const f = s => { const c = getComputedStyle(document.querySelector(s)); return c.fontFamily.split(',')[0].replace(/"/g,''); };
               return {name: r('.tauler').bottom, winTop: r('#win').top, winBottom: r('#win').bottom, info: r('#info').top,
-                      texto: f('.soon'), serif: f('#dep')};
+                      texto: f('.soon, #board .nota'), serif: f('#dep')};
             })()""")
             if not box["name"] < box["winTop"]: failures.append(f"{name}: name overlaps window ({box['name']:.0f} ≥ {box['winTop']:.0f})")
             if not box["winBottom"] < box["info"]: failures.append(f"{name}: departure block overlaps window")
