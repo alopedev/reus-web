@@ -39,7 +39,7 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   let marks: Mark[] = [], said: string | null = null;
   // the countdown redraws the board every minute: a finger or a key on the big trip keeps its place
   const boardDraw = redrawer(byId('board'), f => f.matches('button.big') ? 'button.big' : null);
-  // on a phone (phone.ts: the stacked hero) the board is pared down to times and a «›» per trip; tapping one opens its detail
+  // on a phone (phone.ts: the stacked hero) the board is pared down to the highlighted trip in two lines; tapping it opens its detail
   // (6B, Àlex 06-10). The board is redrawn when the screen crosses over
   const narrow = matchMedia(PHONE);
   let cur: Trip | null = null;

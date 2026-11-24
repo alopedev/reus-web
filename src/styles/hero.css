@@ -321,15 +321,22 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   #hero{ --halo:0 0 transparent; }
   #board .big .pill, #board .trip:not(.big) .pill{ font-size:.93rem; }
   /* and its own type: the desktop's five sizes (22-11) are not the phone's */
-  .hours, .tk .k, .ticks .nowline span{ font-size:.93rem; }
+  .hours, .ticks .nowline span{ font-size:.93rem; }
   .trip:not(.big) .t{ font-size:1.2rem; } .trip:not(.big) .arr{ font-size:1.3rem; } .big .arr{ font-size:1.8rem; }
   .board{ row-gap:.25rem; }
   .top{ flex-direction:column; align-items:flex-start; gap:.6rem; }
   .tauler{ font-size:2.1rem; } .sub{ font-size:1rem; }
   .tickets{ justify-content:flex-start; flex-wrap:wrap; row-gap:.5rem; }
-  .tk .pp{ padding:.6rem 2.2rem .6rem .75rem; }
+  /* the ticket a line lower (C of «simplify the phone», Àlex 24-11): without the word «Bitllet» (the cut paper, the
+     arrows and the printed date already say it is a ticket), less paper above and below, the date printed smaller to fit */
+  .tk .k{ display:none; }
+  .tk .pp{ padding:.5rem 2.2rem .5rem .75rem; }
+  /* the paper is cut on its own layer: cut on .pp, a ticket this low clipped the 48 px a finger needs round its ends and
+     arrows to under 44 (check_reach) */
+  .tk .pp{ position:relative; z-index:0; background:none; clip-path:none; }
+  .tk .pp::before{ content:""; position:absolute; inset:0; z-index:-1; background:#EFE6D2 var(--grain); clip-path:var(--cut); }
   .tk .route{ font-size:1.25rem; max-width:12.5rem; }
-  .tk .fecha svg{ width:3.2rem; }
+  .tk .fecha svg{ width:2.25rem; }
   /* panoramic: as wide as the stage and as tall as what is left, never taller than wide. The painted frame
      (.022 of the screen's height around #win, watercolor.frag) needs room above and below, or it touches the tickets */
   #win{ width:calc(100cqw - 2.2rem); height:min(100cqh - 4.4vh - 1rem, (100cqw - 2.2rem) / 1.05); aspect-ratio:auto; border-radius:1.75rem; }
@@ -337,26 +344,23 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   .info{ row-gap:.3rem; }
   .board{ column-gap:.6rem; }
   #dep{ font-size:3.2rem; } .trip .t{ font-size:1.2rem; }
-  /* never under 13 px: the root's floor (15 px) puts .85rem just under it on a 320 px screen; from 360 px up the rem wins */
-  .trip .w{ font-size:max(.85rem, 13px); }
-  /* the narrowest phones (320 px): a smaller big time leaves room for the countdown beside it (option A, Àlex 11-10) */
+  /* the narrowest phones (320 px): a smaller big time (option A, Àlex 11-10) */
   @media (max-width:350px){ #dep{ font-size:2.4rem; } }
-  /* the live delay on a phone: the new time over the countdown, in the narrow column between the two times */
-  .big .w.viu{ display:flex; flex-direction:column; white-space:nowrap; line-height:1.08; }
-  /* a trip by bus part of its way: «bus + tren» under the countdown, on one line each; under 370 px a
-     countdown of hours takes two */
-  .big .w.dos{ display:flex; flex-direction:column; white-space:nowrap; line-height:1.08; }
-  @media (max-width:370px){ .big .w.dos .soon{ white-space:normal; } }
-  .big .nova{ font-size:1.45rem; line-height:1; margin:0; vertical-align:baseline; }
-  /* on a phone the board keeps only the times (6B, Àlex 06-10): every trip is a button ending in «›», the big one
-     too, and opens its detail in a sheet (detail.ts). The «›» stands in a column of its own, so the arrivals still
-     line up */
-  .board{ grid-template-columns:auto auto minmax(0,1fr) auto auto; }
+  /* the highlighted trip in two lines (C of «simplify the phone», Àlex 24-11): the times on the first, the arrival
+     on the right; under the departure, one sentence: the countdown, where a fast train arrives when it is not the town,
+     the bus, «sense dades», «cancel·lat». No «›»: «Agafa’l» says the row opens the train's sheet (detail.ts) */
+  .board{ grid-template-columns:minmax(0,1fr); }
+  #board .trip.big{ grid-template-columns:auto auto auto minmax(0,1fr) auto; grid-template-rows:auto auto; column-gap:.55rem; row-gap:.1rem; }
+  #board .big .pill{ grid-column:1; grid-row:1; align-self:center; }
+  #board .big #dep{ grid-column:2; grid-row:1; }
+  #board .big .nova{ grid-column:3; grid-row:1; font-size:1.45rem; line-height:1; margin:0; vertical-align:baseline; }
+  #board .big .arr{ grid-column:5; grid-row:1; justify-self:end; }
+  /* never under 13 px: the root's floor puts .95rem near it on a 320 px screen */
+  #board .big .nota{ grid-column:2 / -1; grid-row:2; font:700 max(.95rem, 13px)/1.25 var(--texto); color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.45); }
   button.big{ font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; text-align:left; cursor:pointer; text-shadow:inherit; }
   button.big:active #dep{ transform:translate(.04em,.04em); }
   button.big:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
-  .mas{ font:700 1.35rem/1 var(--texto); color:var(--paper); padding-left:.15rem; }
-  /* «›» is the one sign a row presses (Àlex, 06-10): the times stay flat, like the arrivals */
+  /* the times stay flat, like the arrivals: «Agafa’l» is the one raised thing */
   #board .tt .t:not(.arr){ text-shadow:inherit; }
   /* a finger needs about 44 px: the short rows reach further up and down than they show, without moving anything */
   #board .tt{ position:relative; }
