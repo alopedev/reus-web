@@ -11,6 +11,7 @@ import { crossing } from './cross';
 import { setupChooser } from './chooser';
 import { setupDetail, type Trip } from './detail';
 import { fitJourney } from './journey';
+import { fitNote } from './nota';
 import { dotDate } from './dots';
 import { byId, find, redrawer } from './dom';
 import type { World } from './world';
@@ -96,6 +97,8 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
     if(boardDraw.draw(html)){
       if(turn && !reduce) byId('dep').classList.add('swap');
       const rec = byId('board').querySelector<HTMLElement>('.rec'); if(rec) laid.observe(rec);
+      // a phone's sentence in one line (nota.ts), and again whenever its width changes (the screen, the fonts)
+      const nota = byId('board').querySelector<HTMLElement>('.nota'); if(nota){ fitNote(nota); noted.observe(nota); }
     }
     const told = said !== v.key;
     if(told){ byId('aviso').textContent = v.say; said = v.key; }
@@ -209,7 +212,8 @@ export function setupTimetable({ world, table, scenery, weather, avisos, retards
   narrow.addEventListener('change', ()=>{ boardDraw.reset(); render(); });
   // the route's labels are laid out again whenever its line changes width (a new board, the screen, the fonts)
   const laid = new ResizeObserver(es => { for(const e of es) if(e.target.isConnected) fitJourney(e.target as HTMLElement); else laid.unobserve(e.target); });
-  document.fonts?.ready.then(() => { const rec = byId('board').querySelector<HTMLElement>('.rec'); if(rec) fitJourney(rec); });
+  document.fonts?.ready.then(() => { const rec = byId('board').querySelector<HTMLElement>('.rec'); if(rec) fitJourney(rec); fitNote(byId('board').querySelector<HTMLElement>('.nota')); });
+  const noted = new ResizeObserver(es => { for(const e of es) if(e.target.isConnected) fitNote(e.target as HTMLElement); else noted.unobserve(e.target); });
   // dragging or tapping the ruler lands on the nearest train, never between two
   let rq = 0;
   function snap(){

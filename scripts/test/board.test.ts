@@ -69,6 +69,13 @@ test('on a desktop the other trip is a button that names itself', () => {
 const live = (k: Known) => ({ train: (n: string) => n === '15005' ? k : undefined });
 const atLive = (k: Known, phone: boolean) => board(shown({ date: '2026-10-01', min: 600 }, HOME, quiet, live(k)) as Extract<Shown, { kind: 'train' }>, true, phone);
 
+// on a phone the sentence is one line, always (25-11, Àlex's video): nota.ts leaves out what does not fit, least needed
+// first, so each part is its own piece with its priority (station 0, bus 1, countdown 2, «sense dades» 3); the dots stay text
+test('on a phone, each part of the sentence is its own piece, with its priority', () => {
+  const nota = atLive({ estat: 'sense' }, true)[0].match(/<span class="nota">(.*)<\/span><\/button>/)?.[1];
+  assert.equal(nota, '<span data-p="2">en 3 min</span><span class="sep"> · </span><span data-p="3"><span class="gris">sense dades</span></span>');
+});
+
 test('a late train: its time struck, the new one beside it with the countdown to it, and its arrival corrected', () => {
   const late: Known = { estat: 'circula', retard: 25, parada: '71802' };
   assert.equal(read(atLive(late, false)[0]), 'R15 10:03 10:28 +25 min, en 28 min → 11:33 11:58');

@@ -34,14 +34,17 @@ function trip(r: Row, ida: boolean, phone: boolean, rec: string, bus: Bus | null
     // town (a fast train to Camp de Tarragona or Figueres-Vilafant), the bus and «sense dades». No «›»: «Agafa’l» is the
     // sign. A delay keeps its new time beside the struck one; a cancellation says so in place of the countdown
     const nova = late ? ` <span class="nova">${hhmm(late.dep)}</span>` : '';
-    const words = live?.kind === 'cancel' ? ['<span class="mes">cancel·lat</span>'] : [
-      big ? (until ? 'en ' + until : r.gone ? 'ja ha sortit' : morrow) : morrow,
-      isAve ? (ida ? 'baixa ' + atPlace(r.other) : 'surt ' + ofPlace(r.other)) : '',
-      bus ? `<span class="gris">${bus.first ? 'bus + tren' : 'tren + bus'}</span>` : '',
-      live?.kind === 'unknown' ? '<span class="gris">sense dades</span>' : '',
-    ].filter(Boolean);
+    // one line, always (25-11): each part is a piece with its priority, and nota.ts leaves out what does not fit,
+    // highest first; where a fast train arrives (0) never leaves, nor a cancellation
+    const words: [string, number][] = live?.kind === 'cancel' ? [['<span class="mes">cancel·lat</span>', 0]] : ([
+      [big ? (until ? 'en ' + until : r.gone ? 'ja ha sortit' : morrow) : morrow, 2],
+      [isAve ? (ida ? 'baixa ' + atPlace(r.other) : 'surt ' + ofPlace(r.other)) : '', 0],
+      [bus ? `<span class="gris">${bus.first ? 'bus + tren' : 'tren + bus'}</span>` : '', 1],
+      [live?.kind === 'unknown' ? '<span class="gris">sense dades</span>' : '', 3],
+    ] as [string, number][]).filter(([w]) => w);
+    const note = words.map(([w, p]) => `<span data-p="${p}">${w}</span>`).join('<span class="sep"> · </span>');
     const cells = `<span class="pill" style="${lineStyle(r.line)}">${r.line}</span> <span class="t${struck}"${big ? ' id="dep"' : ''}>${hhmm(r.dep)}</span>${nova} `
-      + `<span class="${arrCls}">${arr}</span> <span class="nota">${words.join(' · ')}</span>`;
+      + `<span class="${arrCls}">${arr}</span> <span class="nota">${note}</span>`;
     const where = isAve ? (ida ? ' a ' : ' des de ') + r.other : '';
     const said = late ? `, amb ${late.min} min de retard, surt cap a les ${hhmm(late.dep)} i arriba a les ${hhmm(late.arr)}` : live?.kind === 'cancel' ? ', cancel·lat' : '';
     const label = `${r.line} de les ${hhmm(r.dep)}${where}${said || (big && until ? ', surt en ' + until : morrow ? ', ' + morrow : '') + `, arriba a les ${hhmm(r.arr)}`}${bus ? ', ' + busWords(bus) : ''}. Veure el detall i comprar`;

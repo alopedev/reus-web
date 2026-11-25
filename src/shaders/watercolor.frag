@@ -27,8 +27,11 @@ vec3 sky(vec2 w, float t){
   vec3 grey = vec3(dot(s, vec3(.3,.5,.2)))*vec3(.92,.94,1.)*.92;
   vec3 cl = mix(grey, grey*.78, smoothstep(.45,.75,fbm(w*vec2(1.6,4.)+vec2(t*.01,0.)))*.6);
   s = mix(s, cl, ov*.85);
-  // the disc: a falling edge, written 1 - smoothstep (smoothstep(.09,.08,…) is undefined in GLSL: on the iPhone no disc)
-  return mix(s, sunCol, (1. - smoothstep(.08,.09,rr))*sunA*(1.-ov));
+  // the disc: a falling edge, written 1 - smoothstep (smoothstep(.09,.08,…) is undefined in GLSL). An overcast sky
+  // (wx 1) veils it, paler and softer behind the clouds (25-11, A of three: Reus overcast hid the sun on Àlex's iPhone);
+  // rain and fog still hide it
+  float veil = ov*(1. - step(1.5, wx));
+  return mix(s, mix(sunCol, cl*1.15 + .08, veil*.25), (1. - smoothstep(.08 - veil*.01, .09 + veil*.025, rr))*sunA*(1. - ov + veil*.75));
 }
 // what the window shows, before it becomes paint
 float ring(float sd, float w){ return 1. - smoothstep(0., w, abs(sd)); }

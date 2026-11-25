@@ -357,6 +357,9 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--paper); outli
   #board .big .arr{ grid-column:5; grid-row:1; justify-self:end; }
   /* never under 13 px: the root's floor puts .95rem near it on a 320 px screen */
   #board .big .nota{ grid-column:2 / -1; grid-row:2; font:700 max(.95rem, 13px)/1.25 var(--texto); color:var(--paper); text-shadow:0 1px 2px rgba(0,0,0,.45); }
+  /* one line, always, written or not (25-11, Àlex's video; B of two): empty or in two lines it made the window grow and
+     shrink as the finger slid along the ruler. What does not fit is left out whole, least needed first (nota.ts) */
+  #board .big .nota{ height:calc(1.25 * max(.95rem, 13px)); white-space:nowrap; overflow:hidden; }
   button.big{ font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; text-align:left; cursor:pointer; text-shadow:inherit; }
   button.big:active #dep{ transform:translate(.04em,.04em); }
   button.big:focus-visible{ outline:2px solid var(--paper); outline-offset:3px; border-radius:3px; }
