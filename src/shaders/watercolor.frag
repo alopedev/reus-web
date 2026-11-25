@@ -27,7 +27,11 @@ vec3 sky(vec2 w, float t){
   vec3 grey = vec3(dot(s, vec3(.3,.5,.2)))*vec3(.92,.94,1.)*.92;
   vec3 cl = mix(grey, grey*.78, smoothstep(.45,.75,fbm(w*vec2(1.6,4.)+vec2(t*.01,0.)))*.6);
   s = mix(s, cl, ov*.85);
-  return mix(s, sunCol, smoothstep(.09,.08,rr)*sunA*(1.-ov));
+  // the disc: a falling edge, written 1 - smoothstep (smoothstep(.09,.08,…) is undefined in GLSL). An overcast sky
+  // (wx 1) veils it, paler and softer behind the clouds (25-11, A of three: Reus overcast hid the sun on Àlex's iPhone);
+  // rain and fog still hide it
+  float veil = ov*(1. - step(1.5, wx));
+  return mix(s, mix(sunCol, cl*1.15 + .08, veil*.25), (1. - smoothstep(.08 - veil*.01, .09 + veil*.025, rr))*sunA*(1. - ov + veil*.75));
 }
 // what the window shows, before it becomes paint
 float ring(float sd, float w){ return 1. - smoothstep(0., w, abs(sd)); }
@@ -38,7 +42,7 @@ vec2 brushDir(vec2 s, vec2 w, out vec4 dd){
   dd = texture2D(tDir, s);
   if(dd.a < .5){
     vec2 F = normalize(vec2(1., (fbm(w*vec2(1.5,2.5)+5.)-.5)*.6));
-    vec2 d = (w - sunPos)*vec2(waspect,1.); vec2 round = normalize(vec2(-d.y, d.x)); F = normalize(mix(F, round*sign(dot(round,F)+1e-4), smoothstep(.45,.12,length(d))));
+    vec2 d = (w - sunPos)*vec2(waspect,1.); vec2 round = normalize(vec2(-d.y, d.x)); F = normalize(mix(F, round*sign(dot(round,F)+1e-4), (1. - smoothstep(.12,.45,length(d)))));
     return F;
   }
   float a = atan(dd.g*2.-1., dd.r*2.-1.)*.5;

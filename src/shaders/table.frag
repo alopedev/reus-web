@@ -21,7 +21,7 @@ void main(){
     float g = fbm(vec2(q.x*.0022, q.y*.05) + 7.);
     float lines = .5 + .5*sin(q.y*.11 + g*10.);
     col = wood*1.45 * (.86 + .26*g) * (.93 + .1*lines);
-    col = mix(col, col*1.12 + hor*.1, smoothstep(tbl.x + 300., tbl.x, q.y)*.7);
+    col = mix(col, col*1.12 + hor*.1, (1. - smoothstep(tbl.x, tbl.x + 300., q.y))*.7);
     col *= .9 + .1*smoothstep(0., 70., d);
     // the two hinge plates where the table meets the wall
     float b1 = sdBox(q - vec2(brk.x, tbl.x + 12.), vec2(26., 8.), 3.), b2 = sdBox(q - vec2(brk.y, tbl.x + 12.), vec2(26., 8.), 3.);

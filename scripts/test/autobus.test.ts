@@ -39,7 +39,7 @@ test('on a phone, the board says «bus + tren» where it would say nothing, and 
   const [row] = board(at('10:32'), false, true);
   assert.match(row, /<span class="gris">bus \+ tren<\/span>/);
   // on the row's second line, after the countdown (C, Àlex 24-11)
-  assert.match(row, /<span class="nota">en 4 min · <span class="gris">bus \+ tren<\/span><\/span>/);
+  assert.match(row, /<span class="nota"><span data-p="2">en 4 min<\/span><span class="sep"> · <\/span><span data-p="1"><span class="gris">bus \+ tren<\/span><\/span><\/span>/);
   assert.match(row, /aria-label="R15 de les 10:36, surt en 4 min, arriba a les 12:07, en autobús fins a Tarragona\./);
 });
 

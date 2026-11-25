@@ -1109,6 +1109,64 @@ async def check_mist(browser):
     await page.close()
     return errs
 
+# the clock moved to a time of the frozen timetable's day, the timers left real: the mist (none with reduced motion)
+# and the paint-in need a running clock (with page.clock fixed, the landscape never finishes painting)
+SHIFT_CLOCK = """(at => { const off = new Date(at).getTime() - Date.now(), D = Date;
+  class Shifted extends D { constructor(...a){ super(...(a.length ? a : [D.now() + off])); } static now(){ return D.now() + off; } }
+  window.Date = Shifted; })(%r)"""
+
+async def check_sun_mist(browser):
+    """The sun by day and the moon by night show on the phone, through the mist on the glass (Àlex 24-11: on his iPhone
+    neither could be seen). Nobody wipes the mist on a phone, as a cursor does on a desk: it greys the disc towards the
+    sky, and must not hide it. On a phone that has seen the first visit's word, with fair weather, at 10:00 and 22:00 on
+    the frozen timetable's day: the disc stands out from the sky around it (their colours at least 45 apart, in 0–255
+    sRGB), the mist all over the glass. What hid them on the iPhone was a falling smoothstep, which this browser works
+    out and the iPhone's GPU need not (scripts/test/shaders.test.ts).
+    With an overcast sky they show too, paler behind the clouds (25-11: it was the overcast sky of Reus that hid them on
+    Àlex's iPhone; A of three, a pale sun among clouds): at least 20 apart. Rain still hides them: under 10."""
+    import math, json
+    errs = []
+    cases = (("2026-09-28T08:00:00Z", "the sun at 10:00", None), ("2026-09-28T20:00:00Z", "the moon at 22:00", None),
+             ("2026-09-28T08:00:00Z", "the sun at 10:00, overcast", 3), ("2026-09-28T20:00:00Z", "the moon at 22:00, overcast", 3),
+             ("2026-09-28T08:00:00Z", "the sun at 10:00, in the rain", 61))
+    for at, what, code in cases:
+        ctx = await browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+        await ctx.add_init_script("try { localStorage.setItem('capacasa.vaho', '1'); } catch (e) {}")   # the word already seen
+        await ctx.add_init_script(SHIFT_CLOCK % at)
+        await ctx.add_init_script(NO_GUTTER)
+        page = await ctx.new_page(); page.set_default_timeout(120000)
+        async def weather(route, request, code=code):
+            if code is None: await route.abort()
+            else: await route.fulfill(status=200, content_type="application/json", headers={"access-control-allow-origin": "*"},
+                                      body=json.dumps({"current": {"weather_code": code}}))
+        await page.route("https://api.open-meteo.com/**", weather); await page.route("**/api/avisos", no_notices); await page.route("**/api/retards", on_time)
+        # the frozen timetable has no coordinates to ask the weather for: a weather case reads the day's
+        await page.goto(parity_url if code is None else page_url); await page.wait_for_timeout(9000); await hero_settled(page); await page.wait_for_timeout(1500)
+        state = await page.evaluate("""(() => { const r = document.getElementById('win').getBoundingClientRect(), now = new Date();
+          const min = (now.getUTCHours() + 2) * 60 + now.getUTCMinutes(), l = reus.daylight(min, '2026-09-28');
+          return {win: [r.left, r.top, r.width, r.height], uv: l.sunUV, glow: l.glow, mist: reus.vaho ? reus.vaho() : null, wx: reus.tiempo ? reus.tiempo() : null}; })()""")
+        shot = Image.open(io.BytesIO(await page.screenshot())).convert("RGB"); await ctx.close()
+        if state["mist"] is None: errs.append(f"390x844: {what}: no mist on the glass (the check proves nothing)"); continue
+        if state["mist"] > 50: errs.append(f"390x844: {what}: the mist has been wiped ({state['mist']:.0f}; the check proves nothing)"); continue
+        if not state["glow"]: errs.append(f"390x844: {what}: no disc in the sky that hour (glow 0; the check proves nothing)"); continue
+        (L, T, W, H), (u, v) = state["win"], state["uv"]
+        cx, cy, r = L + u * W, T + (1 - v) * H, .03 * H
+        def mean(pts):
+            px = [shot.getpixel((int(x), int(y))) for x, y in pts if 0 <= x < shot.width and 0 <= y < shot.height]
+            return [sum(p[i] for p in px) / len(px) for i in range(3)]
+        disc = mean([(cx + dx, cy + dy) for dx in range(-int(r), int(r) + 1) for dy in range(-int(r), int(r) + 1) if dx * dx + dy * dy <= r * r])
+        # the sky round it, a ring 0.2 of the window's height out, its upper and side parts (below lie the hills)
+        sky = mean([(cx + .2 * H * math.cos(a / 20), cy + .2 * H * math.sin(a / 20)) for a in range(126) if math.sin(a / 20) < .2
+                    and L + 4 < cx + .2 * H * math.cos(a / 20) < L + W - 4 and T + 4 < cy + .2 * H * math.sin(a / 20)])
+        apart = math.dist(disc, sky)
+        print(f"sun_mist: {what}: disc {[round(c) for c in disc]}, sky {[round(c) for c in sky]}, {apart:.0f} apart")
+        want = {None: "clear", 3: "cloudy", 61: "rain"}[code]
+        if state["wx"] != want: errs.append(f"390x844: {what}: the window paints «{state['wx']}», expected «{want}» (the check proves nothing)"); continue
+        least = {None: 45, 3: 20}.get(code)
+        if least is not None and apart < least: errs.append(f"390x844: {what} hardly shows: disc {[round(c) for c in disc]} against the sky {[round(c) for c in sky]}, {apart:.0f} apart (≥ {least})")
+        if code == 61 and apart >= 10: errs.append(f"390x844: {what}: a disc shows in the rain ({apart:.0f} apart from the sky, expected under 10)")
+    return errs
+
 async def check_table_at_load(browser):
     """At load the table is out of sight under the hero (the wall covers the screen until you scroll), yet it gets
     painted then, while the landscape is being painted. Nobody can see it: it is painted at once, in a draw or two
@@ -1776,13 +1834,24 @@ WIN_RECT = """(() => { const r = document.getElementById('win').getBoundingClien
   return [r.left, r.top, r.width, r.height].map(v => Math.round(v * 10) / 10); })()"""
 WIN_TRAIN = "[document.querySelector('#dep')?.textContent, document.querySelector('#board .big .pill')?.textContent].join(' ')"
 
+# a phone's sentence under the highlighted time (25-11, B of two): one line, nothing cut halfway, and where a fast train
+# arrives when it is not the town (data-p 0) always there
+NOTA_FITS = """(() => { const n = document.querySelector('#board .big .nota'); if(!n) return [];
+  const errs = [], lh = parseFloat(getComputedStyle(n).lineHeight);
+  if(n.scrollWidth > n.clientWidth + 1) errs.push(`the sentence «${n.textContent}» runs out of its line (${n.scrollWidth} > ${n.clientWidth} px)`);
+  if(n.getBoundingClientRect().height > lh * 1.5) errs.push(`the sentence is ${Math.round(n.getBoundingClientRect().height)} px tall, more than one line`);
+  for(const p of n.querySelectorAll('[data-p="0"]')) if(p.hidden || !p.getClientRects().length) errs.push(`«${p.textContent}» is left out of the sentence`);
+  return errs; })()"""
+
 async def check_win_steady(browser):
     """On a desktop the window never changes size or place while the visitor moves along the day (22-11, Àlex's video):
     a fast train from the town's other station says «des de Camp de Tarragona» under its arrival, and that line made
     the board one line taller, the window smaller and the carriage repainted with another framing at every step of the
-    ruler. Every train of the day with the ruler's arrow keys, tomorrow's first, and the live delay's states."""
+    ruler. Every train of the day with the ruler's arrow keys, tomorrow's first, and the live delay's states.
+    On a phone too (25-11, Àlex's video from his iPhone): the line under the highlighted time was empty, one line or two
+    («en 3 min · baixa a Camp de Tarragona · sense dades»), and the window grew and shrank as the finger slid along the ruler."""
     errs = []
-    for w, h in ((1280, 800), (1440, 900), (1920, 1080)):
+    for w, h in ((1280, 800), (1440, 900), (1920, 1080), (390, 726), (375, 548), (320, 568)):
         page = await hero_page(browser, w, h)
         first = await page.evaluate(WIN_RECT); moved = {}; seen = set()
         await page.focus('#t')
@@ -1791,10 +1860,12 @@ async def check_win_steady(browser):
             got = await page.evaluate(WIN_RECT)
             if got != first: moved.setdefault(tuple(got), await page.evaluate(WIN_TRAIN))
             # «fins a Camp de Tarragona» hangs under its arrival out of the flow: never into it nor into the next row
+            for e in await page.evaluate(NOTA_FITS):
+                if e not in seen: seen.add(e); errs.append(f"{w}x{h}, with {await page.evaluate(WIN_TRAIN)}: {e}")
             for e in await page.evaluate(BOARD_OVERLAP + ".concat(" + ST_CLEAR + ")"):
                 if e not in seen: seen.add(e); errs.append(f"{w}x{h}, with {await page.evaluate(WIN_TRAIN)}: {e}")
         days = await page.query_selector_all('#days .full')
-        if len(days) > 1:
+        if len(days) > 1 and w > 700:
             await days[1].click(); await page.wait_for_timeout(200)
             got = await page.evaluate(WIN_RECT)
             if got != first: moved.setdefault(tuple(got), "demà " + await page.evaluate(WIN_TRAIN))
@@ -1802,10 +1873,11 @@ async def check_win_steady(browser):
             errs.append(f"{w}x{h}: with {train} the window is {rect[2]:.0f} x {rect[3]:.0f} at ({rect[0]:.0f}, {rect[1]:.0f}), "
                         f"expected {first[2]:.0f} x {first[3]:.0f} at ({first[0]:.0f}, {first[1]:.0f})")
         await page.close()
-    page = await hero_page(browser); first = await page.evaluate(WIN_RECT); await page.close()
-    for kind in ("late", "notyet", "cancel"):
-        page = await retards_page(browser, kind, 1440, 900); got = await page.evaluate(WIN_RECT); await page.close()
-        if got != first: errs.append(f"1440x900, {kind}: the window is {got[2]:.0f} x {got[3]:.0f} at ({got[0]:.0f}, {got[1]:.0f}), expected {first[2]:.0f} x {first[3]:.0f} at ({first[0]:.0f}, {first[1]:.0f})")
+    for w, h in ((1440, 900), (390, 726), (320, 568)):
+        page = await hero_page(browser, w, h); first = await page.evaluate(WIN_RECT); await page.close()
+        for kind in ("late", "notyet", "cancel"):
+            page = await retards_page(browser, kind, w, h); got = await page.evaluate(WIN_RECT); await page.close()
+            if got != first: errs.append(f"{w}x{h}, {kind}: the window is {got[2]:.0f} x {got[3]:.0f} at ({got[0]:.0f}, {got[1]:.0f}), expected {first[2]:.0f} x {first[3]:.0f} at ({first[0]:.0f}, {first[1]:.0f})")
     return errs
 
 TYPE_SIZES = """(() => {
@@ -4193,6 +4265,9 @@ async def main():
         if sys.argv[1:] == ["boceto"]:
             failures += await check_sketch(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · boceto"); sys.exit(1 if failures else 0)
+        if sys.argv[1:] == ["astres"]:
+            failures += await check_sun_mist(browser)
+            await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · astres"); sys.exit(1 if failures else 0)
         if sys.argv[1:] == ["vaho"]:
             failures += await check_mist(browser)
             await browser.close(); print("FAIL\n  " + "\n  ".join(failures) if failures else "OK · vaho"); sys.exit(1 if failures else 0)
@@ -4253,6 +4328,7 @@ async def main():
         failures += [f"vagon: {e}" for e in await check_carriage(browser)]
         failures += [f"boceto: {e}" for e in await check_sketch(browser)]
         failures += [f"vaho: {e}" for e in await check_mist(browser)]
+        failures += [f"astres: {e}" for e in await check_sun_mist(browser)]
         failures += [f"sol: {e}" for e in await check_text_sun(browser)]
         failures += [f"compartir: {e}" for e in check_share()]
         failures += [f"a11y: {e}" for e in await check_a11y(browser)]
